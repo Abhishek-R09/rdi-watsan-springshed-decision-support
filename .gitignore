@@ -13,3 +13,6 @@ data/03_outputs/*
 .env
 .streamlit/secrets.toml
 *.qgz~
+
+# Python bytecode
+__pycache__/

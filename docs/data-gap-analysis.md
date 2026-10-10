@@ -82,7 +82,18 @@ Limits to keep in mind:
 | Duplicates | Review the `colocated_group_id` pairs (mostly Atlas with Himmotthan) and pick one master record per spring | Team |
 | Rathi and Mathamali coordinates | Ask NIH Roorkee or the authors | Team |
 
-## 5. Rebuilding
+## 5. Final comprehensive file
+
+`data/02_processed/spring_master/spring_master_v1.csv` (and `.xlsx`, with a Guide, Data dictionary and Fill summary sheet) brings everything into one table of 74 columns, one row per record:
+- **Mapped values** (terrain, land cover, rainfall, soil, lineaments) come from the same layer for every spring, so springs can be compared. Each source's own value sits beside it.
+- **Field values** (discharge, pH, TDS, spring type, lithology, recharge area) come from the record itself, or else from a record of another source within 30 m. That filled about 160 records per field, mostly Atlas annexure rows matched to Himmotthan. The `*_from` column names the record used.
+- **`is_primary_record = Y`** keeps one row per spring: 1,611 distinct springs.
+- **Spring type and lithology classes** group the free text (with spelling fixes) into Fracture, Depression, Contact, Karst, ... and Carbonate, Quartzite, Phyllite, Schist, Mixed, ...
+- **`gaps_remaining`** lists what is still blank for each record.
+
+What it still cannot fill: 729 Atlas annexure springs have no discharge, water quality, spring type or lithology from any source, and no spring has GSI geology, household dependency or before/after DI data. Those need field work, WATSAN records or Bhukosh.
+
+## 6. Rebuilding
 
 ```
 pip install rasterio numpy access-parser
@@ -90,6 +101,7 @@ pip install scipy scikit-image shapely pyproj                   # for the lineam
 python scripts/build_spring_features.py --cache .layer_cache   # downloads about 1.3 GB of layers on first run
 python scripts/extract_dem_lineaments.py --cache .layer_cache  # needs the DEM tiles from the step above
 python scripts/build_spring_features.py --cache .layer_cache --local-layers .local_layers
+python scripts/build_spring_master.py
 python scripts/export_hwsd_tables.py .layer_cache/hwsd/HWSD2.mdb  # only if the HWSD CSV tables are missing
 ```
 

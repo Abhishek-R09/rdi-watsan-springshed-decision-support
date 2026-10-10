@@ -1,0 +1,75 @@
+column,unit,from,meaning
+record_id,,Common file,"Record id; prefix shows the source (WAT, HIM, ATL, ATP, RDI, RAT, DAN)."
+source_dataset,,Common file,Dataset the record came from.
+spring_name,,Common file,Spring name as given by the source.
+village,,Common file,
+block,,Common file,
+district,,Processed features,District with spellings unified.
+area_name,,Common file,"Area / watershed label (WATSAN, literature)."
+latitude,decimal degrees,Processed features,
+longitude,decimal degrees,Processed features,
+coordinate_status,,Processed features,"ok, missing or outside_study_region. Mapped values exist only for ok."
+coordinate_precision_decimals,,Processed features,2 or fewer decimals means about 1 km uncertainty.
+colocated_group_id,,Processed features,Records within 30 m of each other; probably the same spring listed by two sources.
+colocated_group_size,,Processed features,
+is_primary_record,,Derived,"Y for one record per spring: the only record, or the richest record in its colocated group. Use Y rows to count distinct springs."
+elevation_m,m,Copernicus DEM GLO-30,DEM elevation at the spring (same layer for all springs).
+elevation_source_m,m,Common file,"Elevation the source gave, for comparison."
+elevation_check,,Derived,'gap >150 m' when DEM and source differ by more than 150 m (check the coordinate).
+slope_deg,degrees,Copernicus DEM GLO-30,Slope at the spring.
+slope_mean_500m_deg,degrees,Copernicus DEM GLO-30,Mean slope within 500 m.
+aspect_class,,Copernicus DEM GLO-30,8-point aspect or Flat.
+relief_1km_m,m,Copernicus DEM GLO-30,Highest minus lowest elevation within 1 km.
+upslope_relief_1km_m,m,Copernicus DEM GLO-30,Highest elevation within 1 km minus the spring elevation.
+tpi_300m_m,m,Copernicus DEM GLO-30,Negative = hollow / valley position.
+slope_source_deg,degrees,Common file,"Slope the source gave, for comparison."
+land_cover_point,,ESA WorldCover 2021,Class at the spring (10 m).
+land_cover_majority_500m,,ESA WorldCover 2021,Most common class within 500 m.
+tree_cover_500m_pct,%,ESA WorldCover 2021,
+cropland_500m_pct,%,ESA WorldCover 2021,
+built_up_500m_pct,%,ESA WorldCover 2021,
+land_use_source_text,,Common file,Land use as the source described it (Himmotthan text; WATSAN code).
+rainfall_mean_annual_mm,mm/year,CHIRPS v2 2018-2025 (FAO WaPOR),"Mean annual rainfall, ~5 km."
+rainfall_cv_pct,%,CHIRPS v2 2018-2025,Year-to-year variation.
+rainfall_monsoon_share_pct,%,CHIRPS v2 2018-2025,Share falling June-September.
+rainfall_dry_season_mm,mm,CHIRPS v2 2018-2025,November-April rain.
+et0_mean_annual_mm,mm/year,FAO WaPOR v3,Reference evapotranspiration.
+aridity_index,,Derived,Rainfall / ET0.
+rainfall_imd_2025_mm,mm,IMD 0.25 degree grid,"2025 total; one year only, a cross-check."
+rainfall_source_mm,mm/year,Common file,"Rainfall the source gave, for comparison."
+soil_clay_pct,%,"SoilGrids 2.0, 0-5 cm (HWSD v2 0-20 cm where missing)",
+soil_silt_pct,%,"SoilGrids 2.0, 0-5 cm (HWSD v2 where missing)",
+soil_sand_pct,%,"SoilGrids 2.0, 0-5 cm (HWSD v2 where missing)",
+soil_texture_from,,Derived,Which layer gave clay/silt/sand.
+soil_bulk_density_g_cm3,g/cm3,"SoilGrids 2.0, 0-5 cm",
+soil_org_carbon_density_kg_m3,kg/m3,"SoilGrids 2.0, 0-5 cm",
+soil_type_wrb,,HWSD v2.0,Dominant soil type (~1 km).
+soil_drainage,,HWSD v2.0,
+soil_awc_mm_per_m,mm/m,HWSD v2.0,Available water capacity.
+lithology_source_text,,Common file / colocated record,"Rock type as described in the field (Himmotthan, Atlas profiles, Chamba report, WATSAN rock type)."
+lithology_class,,Derived,"Main rock class from the text: Carbonate, Quartzite, Phyllite, Schist, Slate, ... or Mixed."
+lithology_from,,Derived,Record the lithology text came from.
+geological_structure_text,,Common file,"Structure notes (WATSAN, Atlas profiles, Chamba report)."
+lineament_distance_m,m,DEM lineament candidates,Distance to nearest candidate lineament. Unvalidated.
+lineament_density_1km,km/km2,DEM lineament candidates,
+gsi_lithology,,GSI Bhukosh,Blank until Bhukosh data is available.
+gsi_fault_distance_m,m,GSI Bhukosh,Blank until Bhukosh data is available.
+spring_type_source_text,,Common file / colocated record,
+spring_type_class,,Derived,"Fracture, Contact, Depression, Karst, Seepage, Gravity / seepage, or Stream (not a spring)."
+spring_type_from,,Derived,
+discharge_lpm_low,L/min,Common file / colocated record,Lowest number in the source discharge (Rathi: max flow converted from m3/day).
+discharge_lpm_high,L/min,Common file / colocated record,Highest number in the source discharge.
+discharge_text,,Common file / colocated record,"Discharge as the source wrote it (season, dates)."
+discharge_from,,Derived,
+ph,,Common file / colocated record,
+tds_mg_l,mg/l,Common file / colocated record,
+water_quality_from,,Derived,
+recharge_area_ha_low,ha,Common file / colocated record,"WATSAN estimate, Atlas field delineation, Rathi springshed (km2 x 100)."
+recharge_area_ha_high,ha,Common file / colocated record,
+recharge_area_from,,Derived,
+seasonality_text,,Common file,WATSAN seasonality label.
+intervention_text,,Common file,"Recharge or DI works reported (Atlas profiles, Chamba, Daniel)."
+vulnerability_index_source,,Common file,Daniel 2021 index (one spring).
+key_fields_filled,of 12,Derived,"How many of 12 key fields have a value: elevation, slope, land cover, rainfall, soil texture, lithology, lineament distance, spring type, discharge, pH, TDS, recharge area."
+gaps_remaining,,Derived,Key fields still blank and why.
+notes,,Processed features,Coordinate and elevation notes.

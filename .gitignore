@@ -9,6 +9,7 @@ data/02_processed/*
 # Small per-spring feature tables are committed so the team can open them without rebuilding
 !data/02_processed/spring_features/
 !data/02_processed/lineaments/
+!data/02_processed/spring_master/
 data/03_outputs/*
 !data/03_outputs/.gitkeep
 

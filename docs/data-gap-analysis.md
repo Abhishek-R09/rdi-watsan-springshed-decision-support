@@ -85,7 +85,7 @@ Limits to keep in mind:
 | Folds, and geology for the 42 Himachal springs | Bhukosh fold layer for Uttarakhand; Himachal lithology and fault layers if those springs stay in scope | Team |
 | Check DEM lineaments | They do not follow GSI faults (section 2); spot-check against imagery or field mapping at pilot springs | Team |
 | IMD rainfall, more years | Optional. Earlier IMD years would give a long-term mean to compare with CHIRPS | Rajat |
-| Repeated, dated discharge (dry and wet season) | Field survey (SRC-008 protocol), plus RDI/WATSAN monitoring records and Himmotthan MIS (AQ-003, AQ-012) | Team with WATSAN |
+| Repeated, dated discharge (dry and wet season) | Field survey (SRC-016 protocol), plus RDI/WATSAN monitoring records and Himmotthan MIS (AQ-003, AQ-012) | Team with WATSAN |
 | Household dependency and use | Field survey / RDI village records (for example, the Malan table) | Team with WATSAN |
 | DI before/after data | RDI monitoring records for the Chamba and Gairsain handpumps | WATSAN |
 | Real recharge areas | Field hydrogeology at pilot springs, or Module B estimates checked against the 10 Atlas profiles, Rathi and Chamba | Team |
@@ -94,13 +94,14 @@ Limits to keep in mind:
 
 ## 5. Final comprehensive file
 
-`data/02_processed/spring_master/spring_master_v1.csv` (and `.xlsx`, with a Guide, Data dictionary and Fill summary sheet) brings everything into one table of 85 columns, one row per record:
+`data/02_processed/spring_master/spring_master_v1.csv` (and `.xlsx`, with a Guide, Data dictionary and Fill summary sheet) brings everything into one table of 87 columns, one row per record:
 - **Mapped values** (terrain, land cover, rainfall, soil, lineaments) come from the same layer for every spring, so springs can be compared. Each source's own value sits beside it.
 - **Field values** (discharge, pH, TDS, spring type, lithology, recharge area) come from the record itself, or else from a record of another source within 30 m. That filled about 160 records per field, mostly Atlas annexure rows matched to Himmotthan. The `*_from` column names the record used.
 - **`is_primary_record = Y`** keeps one row per spring: 1,611 distinct springs.
 - **Rock type:** `rock_class` uses the field description where there is one (980 records) and the GSI map otherwise (781), so 95% of distinct springs now have a rock class. Both the field and GSI versions stay in their own columns.
 - **Spring type and lithology classes** group the free text (with spelling fixes) into Fracture, Depression, Contact, Karst, ... and Carbonate, Quartzite, Phyllite, Schist, Mixed, ...
 - **`gaps_remaining`** lists what is still blank for each record.
+- **Final check (2026-10-10):** district filled for 294 WATSAN springs from their area labels; WATSAN's dry and monsoon discharge figures added; WATSAN land-use codes decoded as ESA WorldCover classes (WATSAN's own class names do not fit the codes); pH 0 and TDS 0 removed as blanks coded as zero (2 Himmotthan records); values to check listed in `notes` (5 discharges above 300 L/min, 15 recharge areas above 1,000 ha, 77 elevation gaps above 150 m).
 
 What it still cannot fill: 729 Atlas annexure springs have no discharge, water quality, spring type or lithology from any source, and no spring has household dependency or before/after DI data. Those need field work or WATSAN records.
 

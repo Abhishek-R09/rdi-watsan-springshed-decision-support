@@ -30,6 +30,11 @@ from openpyxl.utils import get_column_letter
 ROOT = Path(__file__).resolve().parents[1]
 COMMON_CSV = ROOT / "data" / "01_staged" / "common" / "csv" / "spring_records_common_v1.csv"
 FEATURES_CSV = ROOT / "data" / "02_processed" / "spring_features" / "spring_features_v1.csv"
+WATSAN_DISCHARGE_CSV = ROOT / "data" / "01_staged" / "watsan" / "csv" / "source_sheets" / "watsan_discharge_lpm_source_v1.csv"
+WORLDCOVER = {"10": "Tree cover", "20": "Shrubland", "30": "Grassland", "40": "Cropland", "50": "Built-up",
+              "60": "Bare / sparse vegetation", "80": "Permanent water bodies"}
+DISTRICTS = ["Almora", "Bageshwar", "Chamoli", "Champawat", "Dehradun", "Haridwar", "Nainital", "Pauri Garhwal", "Pithoragarh",
+             "Rudraprayag", "Tehri Garhwal", "Udham Singh Nagar", "Uttarkashi"]
 OUT_DIR = ROOT / "data" / "02_processed" / "spring_master"
 
 # Preferred record when several sources list the same spring: richest field data first.
@@ -87,7 +92,7 @@ COLUMNS = [
     ("tree_cover_500m_pct", "%", "ESA WorldCover 2021", ""),
     ("cropland_500m_pct", "%", "ESA WorldCover 2021", ""),
     ("built_up_500m_pct", "%", "ESA WorldCover 2021", ""),
-    ("land_use_source_text", "", "Common file", "Land use as the source described it (Himmotthan text; WATSAN code)."),
+    ("land_use_source_text", "", "Common file", "Land use as the source described it. WATSAN gives ESA WorldCover codes, decoded here; the class names in WATSAN's own sheet are wrong (e.g. 10 labelled Built-up)."),
     # climate
     ("rainfall_mean_annual_mm", "mm/year", "CHIRPS v2 2018-2025 (FAO WaPOR)", "Mean annual rainfall, ~5 km."),
     ("rainfall_cv_pct", "%", "CHIRPS v2 2018-2025", "Year-to-year variation."),
@@ -134,6 +139,8 @@ COLUMNS = [
     ("discharge_lpm_low", "L/min", "Common file / colocated record", "Lowest number in the source discharge (Rathi: max flow converted from m3/day)."),
     ("discharge_lpm_high", "L/min", "Common file / colocated record", "Highest number in the source discharge."),
     ("discharge_text", "", "Common file / colocated record", "Discharge as the source wrote it (season, dates)."),
+    ("discharge_dry_lpm", "L/min", "WATSAN discharge sheet", "Dry-season figure WATSAN derived from its text estimate (WATSAN springs only)."),
+    ("discharge_monsoon_lpm", "L/min", "WATSAN discharge sheet", "Monsoon figure WATSAN derived from its text estimate (WATSAN springs only)."),
     ("discharge_from", "", "Derived", ""),
     ("ph", "", "Common file / colocated record", ""),
     ("tds_mg_l", "mg/l", "Common file / colocated record", ""),
@@ -147,7 +154,7 @@ COLUMNS = [
     # bookkeeping
     ("key_fields_filled", "of 13", "Derived", "How many of 13 key fields have a value: elevation, slope, land cover, rainfall, soil texture, rock type, fault distance, lineament distance, spring type, discharge, pH, TDS, recharge area."),
     ("gaps_remaining", "", "Derived", "Key fields still blank and why."),
-    ("notes", "", "Processed features", "Coordinate and elevation notes."),
+    ("notes", "", "Processed features / Derived", "Coordinate and elevation notes, values removed as invalid, and values to check."),
 ]
 NAMES = [c[0] for c in COLUMNS]
 
@@ -181,8 +188,9 @@ def field_values(common, feature):
         "discharge_lpm_low": feature["source_discharge_lpm_low"] or feature["source_max_flow_lpm_converted"],
         "discharge_lpm_high": feature["source_discharge_lpm_high"] or feature["source_max_flow_lpm_converted"],
         "discharge_text": common["discharge_lpm_source_value"] or max_flow,
-        "ph": feature["source_ph"],
-        "tds_mg_l": feature["source_tds_mg_l"],
+        # pH 0 and TDS 0 are blanks coded as zero in the Himmotthan layer, not measurements
+        "ph": feature["source_ph"] if feature["source_ph"] and 3 <= float(feature["source_ph"]) <= 11 else "",
+        "tds_mg_l": feature["source_tds_mg_l"] if feature["source_tds_mg_l"] and float(feature["source_tds_mg_l"]) > 0 else "",
         "spring_type_source_text": common["spring_type_source_value"].strip(),
         "lithology_source_text": lith,
         "recharge_area_ha_low": feature["source_recharge_area_ha_low"] or feature["source_springshed_area_ha_converted"],
@@ -191,12 +199,30 @@ def field_values(common, feature):
     return {k: (v or "") for k, v in values.items()}
 
 
+def land_use_text(record_id, text):
+    """WATSAN lulc values are ESA WorldCover class codes (they match the WorldCover pixel for most springs);
+    the class names in WATSAN's own lulc sheet do not fit the codes, so they are not used."""
+    if record_id.startswith("WAT") and text in WORLDCOVER:
+        return f"{text} = {WORLDCOVER[text]} (ESA WorldCover code)"
+    return text
+
+
+def district_from_area(text):
+    """District named in a WATSAN area label such as 'Palyalgaon, Yamkeshwar, Pauri Garhwal, Uttarakhand, 249303, India'."""
+    parts = [p.strip().lower() for p in (text or "").split(",")]
+    for name in DISTRICTS:
+        if name.lower() in parts or name.split()[0].lower() in parts:
+            return name
+    return ""
+
+
 def richness(record_id, values):
     return (sum(1 for k in FIELD_ONLY if values[k]), -SOURCE_PRIORITY.get(record_id[:3], 9))
 
 
 def main():
     common = {r["record_id"]: r for r in read(COMMON_CSV)}
+    watsan_seasonal = {(r["Latitude"], r["Longitude"]): r for r in read(WATSAN_DISCHARGE_CSV)}
     features = read(FEATURES_CSV)
     own = {f["record_id"]: field_values(common[f["record_id"]], f) for f in features}
     groups = {}
@@ -224,7 +250,8 @@ def main():
         row = {n: "" for n in NAMES}
         row.update({
             "record_id": rid, "source_dataset": f["source_dataset"], "spring_name": f["spring_name"], "village": f["village"],
-            "block": c["block"], "district": f["district_clean"], "area_name": c["source_area_name"],
+            "block": c["block"], "district": f["district_clean"] or district_from_area(c["source_area_name"]),
+            "area_name": c["source_area_name"],
             "latitude": f["latitude_dd"], "longitude": f["longitude_dd"], "coordinate_status": f["coordinate_status"],
             "coordinate_precision_decimals": f["coordinate_precision_decimals"],
             "colocated_group_id": f["colocated_group_id"], "colocated_group_size": f["colocated_group_size"],
@@ -236,7 +263,7 @@ def main():
             "slope_source_deg": f["source_slope_deg"],
             "land_cover_point": f["wc_point_class"], "land_cover_majority_500m": f["wc_majority_500m_class"],
             "tree_cover_500m_pct": f["wc_share_500m_tree_pct"], "cropland_500m_pct": f["wc_share_500m_cropland_pct"],
-            "built_up_500m_pct": f["wc_share_500m_built_pct"], "land_use_source_text": c["land_use_source_value"],
+            "built_up_500m_pct": f["wc_share_500m_built_pct"], "land_use_source_text": land_use_text(rid, c["land_use_source_value"]),
             "rainfall_mean_annual_mm": f["rain_chirps_mean_annual_mm_2018_2025"], "rainfall_cv_pct": f["rain_chirps_cv_annual_pct"],
             "rainfall_monsoon_share_pct": f["rain_chirps_monsoon_share_pct"], "rainfall_dry_season_mm": f["rain_chirps_dry_season_mm"],
             "et0_mean_annual_mm": f["et0_wapor_mean_annual_mm_2018_2025"], "aridity_index": f["aridity_index_p_over_et0"],
@@ -279,6 +306,21 @@ def main():
         row.update(values, water_quality_from=source)
         values, source = take(["recharge_area_ha_low", "recharge_area_ha_high"])
         row.update(values, recharge_area_from=source)
+        seasonal = watsan_seasonal.get((c["latitude_source_value"], c["longitude_source_value"])) if rid.startswith("WAT") else None
+        if seasonal:
+            row["discharge_dry_lpm"], row["discharge_monsoon_lpm"] = seasonal["Dry (LPM)"], seasonal["Monsoon (LPM)"]
+        checks = [n for n in [row["notes"]] if n]
+        if f["source_ph"] and not own[rid]["ph"]:
+            checks.append(f"source pH {f['source_ph']} removed as invalid")
+        if f["source_tds_mg_l"] and not own[rid]["tds_mg_l"]:
+            checks.append(f"source TDS {f['source_tds_mg_l']} removed as invalid")
+        if row["discharge_lpm_high"] and float(row["discharge_lpm_high"]) > 300:
+            checks.append("discharge above 300 L/min: check units or record")
+        if row["recharge_area_ha_high"] and float(row["recharge_area_ha_high"]) > 1000:
+            checks.append("recharge area above 1000 ha: likely a watershed, not a springshed")
+        if row["district"] and not f["district_clean"]:
+            checks.append("district read from the WATSAN area name")
+        row["notes"] = "; ".join(checks)
 
         key = {
             "elevation": row["elevation_m"], "slope": row["slope_deg"], "land cover": row["land_cover_point"],

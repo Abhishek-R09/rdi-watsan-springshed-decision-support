@@ -28,7 +28,7 @@ land_cover_majority_500m,,ESA WorldCover 2021,Most common class within 500 m.
 tree_cover_500m_pct,%,ESA WorldCover 2021,
 cropland_500m_pct,%,ESA WorldCover 2021,
 built_up_500m_pct,%,ESA WorldCover 2021,
-land_use_source_text,,Common file,Land use as the source described it (Himmotthan text; WATSAN code).
+land_use_source_text,,Common file,"Land use as the source described it. WATSAN gives ESA WorldCover codes, decoded here; the class names in WATSAN's own sheet are wrong (e.g. 10 labelled Built-up)."
 rainfall_mean_annual_mm,mm/year,CHIRPS v2 2018-2025 (FAO WaPOR),"Mean annual rainfall, ~5 km."
 rainfall_cv_pct,%,CHIRPS v2 2018-2025,Year-to-year variation.
 rainfall_monsoon_share_pct,%,CHIRPS v2 2018-2025,Share falling June-September.
@@ -71,6 +71,8 @@ spring_type_from,,Derived,
 discharge_lpm_low,L/min,Common file / colocated record,Lowest number in the source discharge (Rathi: max flow converted from m3/day).
 discharge_lpm_high,L/min,Common file / colocated record,Highest number in the source discharge.
 discharge_text,,Common file / colocated record,"Discharge as the source wrote it (season, dates)."
+discharge_dry_lpm,L/min,WATSAN discharge sheet,Dry-season figure WATSAN derived from its text estimate (WATSAN springs only).
+discharge_monsoon_lpm,L/min,WATSAN discharge sheet,Monsoon figure WATSAN derived from its text estimate (WATSAN springs only).
 discharge_from,,Derived,
 ph,,Common file / colocated record,
 tds_mg_l,mg/l,Common file / colocated record,
@@ -83,4 +85,4 @@ intervention_text,,Common file,"Recharge or DI works reported (Atlas profiles, C
 vulnerability_index_source,,Common file,Daniel 2021 index (one spring).
 key_fields_filled,of 13,Derived,"How many of 13 key fields have a value: elevation, slope, land cover, rainfall, soil texture, rock type, fault distance, lineament distance, spring type, discharge, pH, TDS, recharge area."
 gaps_remaining,,Derived,Key fields still blank and why.
-notes,,Processed features,Coordinate and elevation notes.
+notes,,Processed features / Derived,"Coordinate and elevation notes, values removed as invalid, and values to check."

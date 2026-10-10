@@ -4,7 +4,7 @@ source_dataset,1842,100,,,0
 spring_name,1543,84,,,299
 village,1500,81,,,342
 block,551,30,,,1291
-district,1508,82,,,334
+district,1802,98,,,40
 area_name,342,19,,,1500
 latitude,1806,98,,,36
 longitude,1806,98,,,36
@@ -71,10 +71,12 @@ spring_type_from,1021,55,,,821
 discharge_lpm_low,1038,56,878,160,804
 discharge_lpm_high,1038,56,,,804
 discharge_text,1054,57,,,788
+discharge_dry_lpm,299,16,,,1543
+discharge_monsoon_lpm,299,16,,,1543
 discharge_from,1054,57,,,788
-ph,704,38,543,161,1138
-tds_mg_l,704,38,543,161,1138
-water_quality_from,705,38,,,1137
+ph,702,38,541,161,1140
+tds_mg_l,703,38,542,161,1139
+water_quality_from,703,38,,,1139
 recharge_area_ha_low,356,19,344,12,1486
 recharge_area_ha_high,356,19,,,1486
 recharge_area_from,356,19,,,1486
@@ -83,4 +85,4 @@ intervention_text,18,1,,,1824
 vulnerability_index_source,1,0,,,1841
 key_fields_filled,1842,100,,,0
 gaps_remaining,1820,99,,,22
-notes,124,7,,,1718
+notes,423,23,,,1419

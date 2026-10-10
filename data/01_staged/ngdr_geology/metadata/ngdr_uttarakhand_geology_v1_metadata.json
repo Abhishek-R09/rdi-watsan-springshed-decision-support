@@ -1,0 +1,80 @@
+{
+  "sources": [
+    {
+      "key": "faults",
+      "source_id": "SRC-013",
+      "dataset": "NGDR Uttarakhand Fault",
+      "raw_path": "data/00_raw/ngdr_geology/faults/FAULT_STATE_UTTARAKHAND.geojson",
+      "staged_csv": "data/01_staged/ngdr_geology/faults/csv/ngdr_uttarakhand_fault_features_v1.csv",
+      "feature_count": 2605,
+      "property_columns": [
+        "edition_nu",
+        "fault_name",
+        "fault_type",
+        "geometry_i",
+        "gid",
+        "input_cent",
+        "objectid",
+        "shape_leng",
+        "toposheet_"
+      ],
+      "geometry_types": [
+        "LineString",
+        "MultiLineString"
+      ],
+      "crs": {
+        "type": "name",
+        "properties": {
+          "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+        }
+      }
+    },
+    {
+      "key": "lithology",
+      "source_id": "SRC-014",
+      "dataset": "NGDR Uttarakhand Lithology",
+      "raw_path": "data/00_raw/ngdr_geology/lithology/LITHOLOGY_STATE_UTTARAKHAND.geojson",
+      "staged_csv": "data/01_staged/ngdr_geology/lithology/csv/ngdr_uttarakhand_lithology_features_v1.csv",
+      "feature_count": 4554,
+      "property_columns": [
+        "age",
+        "area",
+        "area1",
+        "edition_nu",
+        "formation",
+        "geometry_i",
+        "gid",
+        "group_name",
+        "input_cent",
+        "intrusive",
+        "lithologic",
+        "member",
+        "new_geom_i",
+        "notation",
+        "notation12",
+        "notation_lithology",
+        "objectid",
+        "script",
+        "shape_area",
+        "shape_leng",
+        "sld_name",
+        "stratigrap",
+        "stratigraphy_new",
+        "sub_group",
+        "supergroup",
+        "toposheet_",
+        "uid_notati"
+      ],
+      "geometry_types": [
+        "MultiPolygon",
+        "Polygon"
+      ],
+      "crs": {
+        "type": "name",
+        "properties": {
+          "name": "urn:ogc:def:crs:OGC:1.3:CRS84"
+        }
+      }
+    }
+  ]
+}

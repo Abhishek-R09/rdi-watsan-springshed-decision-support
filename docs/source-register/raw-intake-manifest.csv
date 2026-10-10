@@ -1,0 +1,7 @@
+source_id,relative_path,sha256,intake_date,immutable_copy_confirmed,notes
+SRC-001,Resources/Discharge_Spring_Data.xlsx,221D10209E57FEA35BAB24CD788DF0D6A041B1DB6ADAA4139B7EAAF2ED15143C,2026-10-10,yes,"Existing supplied raw file; do not modify in place"
+SRC-002,Resources/HIM_Spring (1).qgz,C51C40D595584011BB4948011C892F24BB450B4EB9D8CADF117D93190BE5DA3F,2026-10-10,yes,"Existing supplied QGIS project; linked data are not currently present"
+SRC-003,Resources/Spring Assesment Report.docx,208F72C094313D9E41D9CB61873EA872A5FACDF1EC9DB16A0EEC7D8EE9F7458E,2026-10-10,yes,"Existing supplied source report"
+SRC-004,Resources/Revival of 13 Defunct Handpumps Final Reports.pdf,5BEA16BD8D0925397411801A8728505F8E864B4727CEEB0AF945BE0F8CECBE68,2026-10-10,yes,"Existing supplied source report"
+SRC-005,Resources/WaterRecharge AIML (2).pptx,D59401416B3956F5F3EF6A488BAF6C0067292A50D2C19D953D640DF89988E971,2026-10-10,yes,"Existing supplied earlier-model presentation"
+SRC-006,Resources/HimalDoc2021_PS_SixStepsforSpringRevival.pdf,317433D1A835F363A66BD2966B476D47A9F2D1D71CB3C5EB1835A377A163E594,2026-10-10,yes,"Existing supplied reference guide"

@@ -30,7 +30,25 @@
     "recharge_area_ha_source_value",
     "geometry_wkt",
     "staging_quality_flag",
-    "source_notes"
+    "source_notes",
+    "source_reference",
+    "value_status_summary",
+    "recharge_area_basis_source_value",
+    "springshed_area_km2_source_value",
+    "springshed_elevation_min_m_source_value",
+    "springshed_elevation_max_m_source_value",
+    "spring_group_source_value",
+    "catchment_area_ha_source_value",
+    "catchment_elevation_range_m_source_value",
+    "discharge_max_m3_per_day_source_value",
+    "discharge_dependable_q75_lpm_source_value",
+    "discharge_annual_series_source_value",
+    "handpump_discharge_lpm_source_value",
+    "water_quality_other_source_value",
+    "recharge_area_slope_aspect_source_value",
+    "intervention_source_value",
+    "vulnerability_index_source_value",
+    "candidate_match_record_ids"
   ],
   "watsan_source_sheet_exports": [
     {
@@ -127,10 +145,21 @@
   "watsan_common_records": 299,
   "spring_atlas_common_records": 948,
   "himmotthan_common_records": 542,
-  "combined_common_records": 1789,
+  "literature_common_records": 53,
+  "literature_long_values": 629,
+  "literature_records_by_source_dataset": {
+    "Rathi et al. 2021 - Table 1 (Chandrabhaga watershed)": 20,
+    "Rathi et al. 2021 - Table 2 (Danda watershed)": 15,
+    "RDI/WATSAN Chamba Hydrogeological Assessment Report - summary table": 7,
+    "Daniel et al. 2021 - Mathamali spring case study": 1,
+    "Spring Atlas of Uttarakhand - representative spring profiles": 10
+  },
+  "combined_common_records": 1842,
   "notes": [
     "All source values are retained as text in the common schema.",
     "The Spring Atlas extract is a PDF table transcription and remains Verify until checked against its cited page.",
-    "The WATSAN records are not validated ground truth and must not be used for target-derived features or model training without the prescribed audit."
+    "The WATSAN records are not validated ground truth and must not be used for target-derived features or model training without the prescribed audit.",
+    "Literature records (RAT, RDI, DAN, ATP prefixes) are transcribed from papers and reports; each value's source page/table and status is in data/01_staged/literature/csv/literature_spring_values_long_v1.csv.",
+    "Literature columns are appended after source_notes and are blank for WATSAN, Spring Atlas annexure and Himmotthan rows."
   ]
 }

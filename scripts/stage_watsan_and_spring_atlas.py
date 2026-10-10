@@ -13,6 +13,8 @@ from xml.etree import ElementTree as ET
 import pandas as pd
 import pdfplumber
 
+import literature_spring_records as literature
+
 
 ROOT = Path(__file__).resolve().parents[1]
 RAW_WATSAN = ROOT / "data" / "00_raw" / "watsan" / "Discharge_Spring_Data.xlsx"
@@ -22,6 +24,7 @@ STAGED = ROOT / "data" / "01_staged"
 WATSAN_DIR = STAGED / "watsan"
 ATLAS_DIR = STAGED / "spring_atlas"
 HIMMOTTHAN_DIR = STAGED / "himmotthan"
+LITERATURE_DIR = STAGED / "literature"
 COMMON_DIR = STAGED / "common"
 
 COMMON_COLUMNS = [
@@ -56,6 +59,17 @@ COMMON_COLUMNS = [
     "geometry_wkt",
     "staging_quality_flag",
     "source_notes",
+] + literature.LITERATURE_COLUMNS
+
+LONG_COLUMNS = [
+    "record_id",
+    "field",
+    "value_as_printed",
+    "unit",
+    "value_status",
+    "source_id",
+    "source_locator",
+    "note",
 ]
 
 
@@ -68,7 +82,7 @@ def text(value):
 def write_csv(path, columns, rows):
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=columns, quoting=csv.QUOTE_ALL)
+        writer = csv.DictWriter(handle, fieldnames=columns, quoting=csv.QUOTE_ALL, lineterminator="\n", restval="")
         writer.writeheader()
         writer.writerows(rows)
 
@@ -286,11 +300,19 @@ def extract_himmotthan():
     return records
 
 
+def stage_literature():
+    records, long_rows = literature.build(COMMON_COLUMNS, point_wkt)
+    write_csv(LITERATURE_DIR / "csv" / "literature_spring_records_common_v1.csv", COMMON_COLUMNS, records)
+    write_csv(LITERATURE_DIR / "csv" / "literature_spring_values_long_v1.csv", LONG_COLUMNS, long_rows)
+    return records, long_rows
+
+
 def main():
     watsan_records, sheet_manifest = extract_watsan()
     atlas_records = extract_spring_atlas()
     himmotthan_records = extract_himmotthan()
-    all_records = watsan_records + atlas_records + himmotthan_records
+    literature_records, literature_values = stage_literature()
+    all_records = watsan_records + atlas_records + himmotthan_records + literature_records
     write_csv(COMMON_DIR / "csv" / "spring_records_common_v1.csv", COMMON_COLUMNS, all_records)
     metadata = {
         "common_schema_columns": COMMON_COLUMNS,
@@ -298,11 +320,19 @@ def main():
         "watsan_common_records": len(watsan_records),
         "spring_atlas_common_records": len(atlas_records),
         "himmotthan_common_records": len(himmotthan_records),
+        "literature_common_records": len(literature_records),
+        "literature_long_values": len(literature_values),
+        "literature_records_by_source_dataset": {
+            name: sum(1 for record in literature_records if record["source_dataset"] == name)
+            for name in dict.fromkeys(record["source_dataset"] for record in literature_records)
+        },
         "combined_common_records": len(all_records),
         "notes": [
             "All source values are retained as text in the common schema.",
             "The Spring Atlas extract is a PDF table transcription and remains Verify until checked against its cited page.",
             "The WATSAN records are not validated ground truth and must not be used for target-derived features or model training without the prescribed audit.",
+            "Literature records (RAT, RDI, DAN, ATP prefixes) are transcribed from papers and reports; each value's source page/table and status is in data/01_staged/literature/csv/literature_spring_values_long_v1.csv.",
+            "Literature columns are appended after source_notes and are blank for WATSAN, Spring Atlas annexure and Himmotthan rows.",
         ],
     }
     metadata_dir = COMMON_DIR / "metadata"

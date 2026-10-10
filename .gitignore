@@ -1,0 +1,15 @@
+# Operating-system and Office temporary files
+desktop.ini
+Thumbs.db
+~$*
+
+# Reproducible artefacts; retain the inputs and generation scripts instead
+data/02_processed/*
+!data/02_processed/.gitkeep
+data/03_outputs/*
+!data/03_outputs/.gitkeep
+
+# Secrets and local application state
+.env
+.streamlit/secrets.toml
+*.qgz~

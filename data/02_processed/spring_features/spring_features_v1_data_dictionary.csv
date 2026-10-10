@@ -1,0 +1,68 @@
+column,unit,source,method
+record_id,,Common file,Copied.
+source_id,,Common file,Copied.
+source_dataset,,Common file,Copied.
+spring_name,,Common file,Copied.
+village,,Common file,Copied.
+district_clean,,Common file,"District with spelling variants unified (Nanital to Nainital, Tehri-Garhwal to Tehri Garhwal, Pauri to Pauri Garhwal)."
+latitude_dd,decimal degrees,Common file,Source latitude parsed as a number.
+longitude_dd,decimal degrees,Common file,Source longitude parsed as a number.
+coordinate_status,,Derived,"ok, missing, or outside_study_region (lat 28.5-33.5, lon 75.5-81.5). Layer values are only computed for ok."
+coordinate_precision_decimals,,Derived,Decimal places in the source latitude; 2 or fewer means about 1 km uncertainty.
+colocated_group_id,,Derived,Records from different rows within 30 m of each other share a group id; likely the same spring listed twice. Not merged.
+colocated_group_size,,Derived,Number of records in the group.
+source_elevation_m,m,Common file,Source elevation parsed as a number.
+source_discharge_lpm_low,L/min,Common file,Lowest number in the source discharge text.
+source_discharge_lpm_high,L/min,Common file,Highest number in the source discharge text.
+source_discharge_parse_note,,Derived,How the low/high values were read from the text.
+source_max_flow_lpm_converted,L/min,Common file (Rathi 2021),Max flow in m3/day x 1000 / 1440. Unit conversion only.
+source_recharge_area_ha_low,ha,Common file,"Lowest number in the source recharge-area text (WATSAN text estimates, Atlas field delineation)."
+source_recharge_area_ha_high,ha,Common file,Highest number in the source recharge-area text; equals low for single values.
+source_springshed_area_ha_converted,ha,Common file (Rathi 2021),Springshed area in km2 x 100.
+source_catchment_area_ha,ha,Common file (Chamba report),Surface micro-watershed area; not a recharge area.
+source_rainfall_mm,mm/year,Common file,Source rainfall parsed as a number.
+source_slope_deg,degrees,Common file,"Source slope parsed as a number (WATSAN, Himmotthan, Chamba)."
+source_tds_mg_l,mg/l,Common file,Source TDS parsed as a number.
+source_ph,,Common file,Source pH parsed as a number.
+dem_elevation_m,m (EGM2008),Copernicus DEM GLO-30,Elevation of the 30 m cell containing the coordinate.
+dem_minus_source_elevation_m,m,Derived,DEM elevation minus source elevation; large gaps point to coordinate or elevation errors.
+dem_slope_deg,degrees,Copernicus DEM GLO-30,Slope at the cell (central differences).
+dem_aspect_deg,degrees from north,Copernicus DEM GLO-30,Direction the slope faces; blank when slope < 2 degrees.
+dem_aspect_class,,Copernicus DEM GLO-30,"8-point aspect class, or Flat."
+dem_mean_slope_500m_deg,degrees,Copernicus DEM GLO-30,Mean slope within 500 m of the coordinate.
+dem_relief_1km_m,m,Copernicus DEM GLO-30,Highest minus lowest elevation within 1 km.
+dem_upslope_relief_1km_m,m,Copernicus DEM GLO-30,Highest elevation within 1 km minus the spring cell elevation (head available upslope).
+dem_tpi_300m_m,m,Copernicus DEM GLO-30,Spring elevation minus mean elevation within 300 m; negative = valley/hollow position.
+wc_point_class_code,,ESA WorldCover 2021 v200,Class code of the 10 m cell at the coordinate.
+wc_point_class,,ESA WorldCover 2021 v200,Class name at the coordinate.
+wc_majority_500m_class,,ESA WorldCover 2021 v200,Most common class within 500 m.
+wc_share_500m_tree_pct,%,ESA WorldCover 2021 v200,Share of tree cover within 500 m.
+wc_share_500m_shrub_pct,%,ESA WorldCover 2021 v200,Share of shrubland within 500 m.
+wc_share_500m_grass_pct,%,ESA WorldCover 2021 v200,Share of grassland within 500 m.
+wc_share_500m_cropland_pct,%,ESA WorldCover 2021 v200,Share of cropland within 500 m.
+wc_share_500m_built_pct,%,ESA WorldCover 2021 v200,Share of built-up within 500 m.
+wc_share_500m_bare_pct,%,ESA WorldCover 2021 v200,Share of bare / sparse vegetation within 500 m.
+wc_share_500m_water_pct,%,ESA WorldCover 2021 v200,Share of permanent water bodies within 500 m.
+rain_chirps_mean_annual_mm_2018_2025,mm/year,CHIRPS v2 via FAO WaPOR v3 L1-PCP-A,Mean of annual totals 2018-2025 at the ~5 km cell.
+rain_chirps_min_annual_mm_2018_2025,mm/year,CHIRPS v2 via FAO WaPOR v3 L1-PCP-A,Driest year 2018-2025.
+rain_chirps_max_annual_mm_2018_2025,mm/year,CHIRPS v2 via FAO WaPOR v3 L1-PCP-A,Wettest year 2018-2025.
+rain_chirps_cv_annual_pct,%,CHIRPS v2 via FAO WaPOR v3 L1-PCP-A,Year-to-year coefficient of variation.
+rain_chirps_monsoon_share_pct,%,CHIRPS v2 via FAO WaPOR v3 L1-PCP-M,Share of rain falling June-September (mean 2018-2025).
+rain_chirps_dry_season_mm,mm,CHIRPS v2 via FAO WaPOR v3 L1-PCP-M,Mean November-April total (2018-2025 seasons within calendar years).
+et0_wapor_mean_annual_mm_2018_2025,mm/year,FAO WaPOR v3 L1-RET-A,Mean annual reference evapotranspiration at the ~30 km cell.
+aridity_index_p_over_et0,,Derived,Mean annual CHIRPS rain divided by mean annual ET0.
+rain_source_minus_chirps_mm,mm/year,Derived,"Source rainfall minus CHIRPS mean, where the source gives rainfall."
+soil_hwsd2_smu_id,,HWSD v2.0,Soil mapping unit at the ~1 km cell.
+soil_dominant_wrb,,HWSD v2.0,WRB soil name of the dominant soil in the mapping unit.
+soil_dominant_share_pct,%,HWSD v2.0,Share of the mapping unit covered by the dominant soil.
+soil_drainage,,HWSD v2.0,Drainage class of the dominant soil.
+soil_awc_mm_per_m,mm/m,HWSD v2.0,Available water capacity of the dominant soil.
+soil_topsoil_sand_pct,%,HWSD v2.0,"Sand, 0-20 cm, dominant soil."
+soil_topsoil_silt_pct,%,HWSD v2.0,"Silt, 0-20 cm, dominant soil."
+soil_topsoil_clay_pct,%,HWSD v2.0,"Clay, 0-20 cm, dominant soil."
+soil_topsoil_texture_usda,,HWSD v2.0,"USDA texture class, 0-20 cm."
+soil_topsoil_coarse_fragments_pct,%,HWSD v2.0,"Coarse fragments, 0-20 cm."
+soil_topsoil_org_carbon_pct,%,HWSD v2.0,"Organic carbon, 0-20 cm."
+geology_lithology_gsi,,GSI Bhukosh (not yet acquired),Blank: Bhukosh needs a registered login. See docs/data-gap-analysis.md.
+distance_to_lineament_m,m,GSI Bhukosh / Bhuvan (not yet acquired),Blank: lineament layer not yet acquired.
+processing_notes,,Derived,Row-level notes on missing or questionable inputs.

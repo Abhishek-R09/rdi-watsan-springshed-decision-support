@@ -6,6 +6,8 @@ Thumbs.db
 # Reproducible artefacts; retain the inputs and generation scripts instead
 data/02_processed/*
 !data/02_processed/.gitkeep
+# Small per-spring feature tables are committed so the team can open them without rebuilding
+!data/02_processed/spring_features/
 data/03_outputs/*
 !data/03_outputs/.gitkeep
 
@@ -16,3 +18,6 @@ data/03_outputs/*
 
 # Python bytecode
 __pycache__/
+
+# Downloaded public layers (DEM, WorldCover, HWSD); rebuilt by scripts/build_spring_features.py
+.layer_cache/

@@ -1,0 +1,136 @@
+{
+  "common_schema_columns": [
+    "record_id",
+    "source_id",
+    "source_dataset",
+    "source_record_locator",
+    "source_area_name",
+    "district",
+    "block",
+    "gram_panchayat",
+    "village",
+    "spring_name",
+    "latitude_source_value",
+    "longitude_source_value",
+    "elevation_m_source_value",
+    "land_use_source_value",
+    "slope_aspect_source_value",
+    "slope_degrees_source_value",
+    "lithology_source_value",
+    "spring_type_source_value",
+    "tds_source_value",
+    "ph_source_value",
+    "discharge_lpm_source_value",
+    "rainfall_source_value",
+    "seasonality_source_value",
+    "rock_type_source_value",
+    "geological_structure_source_value",
+    "porosity_source_value",
+    "permeability_source_value",
+    "recharge_area_ha_source_value",
+    "geometry_wkt",
+    "staging_quality_flag",
+    "source_notes"
+  ],
+  "watsan_source_sheet_exports": [
+    {
+      "source_sheet": "NVDI",
+      "records": 299,
+      "columns": 4,
+      "output_csv": "data/01_staged/watsan/csv/source_sheets/watsan_nvdi_source_v1.csv"
+    },
+    {
+      "source_sheet": "All_Parameter",
+      "records": 299,
+      "columns": 17,
+      "output_csv": "data/01_staged/watsan/csv/source_sheets/watsan_all_parameter_source_v1.csv"
+    },
+    {
+      "source_sheet": "Elevation",
+      "records": 299,
+      "columns": 4,
+      "output_csv": "data/01_staged/watsan/csv/source_sheets/watsan_elevation_source_v1.csv"
+    },
+    {
+      "source_sheet": "Slope_deg",
+      "records": 299,
+      "columns": 4,
+      "output_csv": "data/01_staged/watsan/csv/source_sheets/watsan_slope_deg_source_v1.csv"
+    },
+    {
+      "source_sheet": "Aspect",
+      "records": 299,
+      "columns": 4,
+      "output_csv": "data/01_staged/watsan/csv/source_sheets/watsan_aspect_source_v1.csv"
+    },
+    {
+      "source_sheet": "LULC",
+      "records": 299,
+      "columns": 4,
+      "output_csv": "data/01_staged/watsan/csv/source_sheets/watsan_lulc_source_v1.csv"
+    },
+    {
+      "source_sheet": "Rainfall",
+      "records": 301,
+      "columns": 4,
+      "output_csv": "data/01_staged/watsan/csv/source_sheets/watsan_rainfall_source_v1.csv"
+    },
+    {
+      "source_sheet": "Rock_Type",
+      "records": 299,
+      "columns": 4,
+      "output_csv": "data/01_staged/watsan/csv/source_sheets/watsan_rock_type_source_v1.csv"
+    },
+    {
+      "source_sheet": "Spring_Typology",
+      "records": 299,
+      "columns": 4,
+      "output_csv": "data/01_staged/watsan/csv/source_sheets/watsan_spring_typology_source_v1.csv"
+    },
+    {
+      "source_sheet": "Geological_Structure",
+      "records": 299,
+      "columns": 4,
+      "output_csv": "data/01_staged/watsan/csv/source_sheets/watsan_geological_structure_source_v1.csv"
+    },
+    {
+      "source_sheet": "Recharge_area_ha",
+      "records": 299,
+      "columns": 4,
+      "output_csv": "data/01_staged/watsan/csv/source_sheets/watsan_recharge_area_ha_source_v1.csv"
+    },
+    {
+      "source_sheet": "Porosity",
+      "records": 299,
+      "columns": 3,
+      "output_csv": "data/01_staged/watsan/csv/source_sheets/watsan_porosity_source_v1.csv"
+    },
+    {
+      "source_sheet": "Permeability",
+      "records": 299,
+      "columns": 3,
+      "output_csv": "data/01_staged/watsan/csv/source_sheets/watsan_permeability_source_v1.csv"
+    },
+    {
+      "source_sheet": "Seasonality",
+      "records": 299,
+      "columns": 3,
+      "output_csv": "data/01_staged/watsan/csv/source_sheets/watsan_seasonality_source_v1.csv"
+    },
+    {
+      "source_sheet": "Discharge_lpm",
+      "records": 299,
+      "columns": 8,
+      "output_csv": "data/01_staged/watsan/csv/source_sheets/watsan_discharge_lpm_source_v1.csv"
+    }
+  ],
+  "watsan_common_records": 299,
+  "spring_atlas_common_records": 948,
+  "himmotthan_common_records": 542,
+  "combined_common_records": 1789,
+  "notes": [
+    "All source values are retained as text in the common schema.",
+    "The Spring Atlas extract is a PDF table transcription and remains Verify until checked against its cited page.",
+    "The WATSAN records are not validated ground truth and must not be used for target-derived features or model training without the prescribed audit."
+  ]
+}

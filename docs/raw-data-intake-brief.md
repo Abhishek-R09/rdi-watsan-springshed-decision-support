@@ -21,16 +21,17 @@ These are flags for a transparent audit. No original raw values have been edited
 
 1. Obtain the original WATSAN methodology, the missing QGIS dependencies and any historic monitoring data.
 2. Create a dated raw folder for each field visit and record spring/DI measurements exactly as observed.
-3. Once the team has confirmed site coordinates and a small collection buffer, download versioned, authoritative base layers listed in the acquisition queue.
+3. Once the team has confirmed site coordinates and a small collection buffer, acquire versioned Indian institutional base layers listed in the acquisition queue.
 4. Only then create a staged, documented copy for cleaning or GIS processing.
 
-## Official collection routes
+## India-first collection routes
 
-- Copernicus DEM GLO-30: https://dataspace.copernicus.eu/explore-data/data-collections/copernicus-contributing-missions/collections-description/COP-DEM
-- ESA WorldCover 2021 v200: https://esa-worldcover.org/en/data-access
-- CHIRPS v3: https://chc.ucsb.edu/data/chirps3
-- GSI Bhukosh: https://bhukosh.gsi.gov.in/Bhukosh/Public
-- NRSC Bhuvan WMS: https://bhuvan-vec2.nrsc.gov.in/bhuvan/wms
-- FAO Harmonized World Soil Database v2.0: https://www.fao.org/land-water/resources/tools/databases/hwsd/en
+- NRSC Bhoonidhi, CartoDEM 30 m: https://bhoonidhi.nrsc.gov.in/bhoonidhi-api/
+- NRSC Bhuvan, LULC/geomorphology/lineament WMS: https://bhuvan-vec2.nrsc.gov.in/bhuvan/wms
+- GSI Bhukosh geology and structures: https://bhukosh.gsi.gov.in/Bhukosh/Public
+- India Meteorological Department rainfall data: https://mausam.imd.gov.in/
+- ICAR-NBSS&LUP soils: verify an appropriate released Uttarakhand layer before use.
+
+For this project, “open” will be recorded honestly as one of: **open service**, **free download with account**, **request/approval required**, or **not available for reuse**. It does not mean every government layer is automatically downloadable or current enough for field-scale conclusions. Non-Indian global layers are deferred unless an Indian source is unavailable and WATSAN agrees to the fallback.
 
 Record the exact download URL, query/AOI, licence, timestamp, checksum and coordinate reference system at intake. For any field record, record the site, date, source type and measurement conditions. Do not silently replace an original file or invent a missing value.

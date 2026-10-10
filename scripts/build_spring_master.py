@@ -46,6 +46,9 @@ LITHOLOGY_CLASSES = [
     ("phyllit", "Phyllite"), ("schist", "Schist"), ("slate", "Slate"), ("shale", "Shale"),
     ("sandstone", "Sandstone"), ("gneiss", "Gneiss / granite"), ("granite", "Gneiss / granite"),
     ("conglomerate", "Conglomerate"), ("alluvi", "Alluvium / debris"), ("unconsolidated", "Alluvium / debris"), ("metabasic", "Metabasic"), ("debris", "Alluvium / debris"),
+    ("meta-volcanic", "Metabasic"), ("metavolcanic", "Metabasic"), ("basic", "Metabasic"), ("gravel", "Alluvium / debris"),
+    ("boulder", "Alluvium / debris"), ("sand, silt", "Alluvium / debris"), ("silt, clay", "Alluvium / debris"), ("silt,clay", "Alluvium / debris"),
+    ("mudstone", "Shale"), ("claystone", "Shale"), ("siltstone", "Sandstone"), ("marble", "Carbonate"), ("carbonate", "Carbonate"), ("amphibolite", "Metabasic"),
 ]
 
 FIELD_ONLY = ["discharge_lpm_low", "discharge_lpm_high", "ph", "tds_mg_l", "spring_type_source_text",
@@ -111,8 +114,19 @@ COLUMNS = [
     ("geological_structure_text", "", "Common file", "Structure notes (WATSAN, Atlas profiles, Chamba report)."),
     ("lineament_distance_m", "m", "DEM lineament candidates", "Distance to nearest candidate lineament. Unvalidated."),
     ("lineament_density_1km", "km/km2", "DEM lineament candidates", ""),
-    ("gsi_lithology", "", "GSI Bhukosh", "Blank until Bhukosh data is available."),
-    ("gsi_fault_distance_m", "m", "GSI Bhukosh", "Blank until Bhukosh data is available."),
+    ("gsi_lithology", "", "GSI NGDR lithology (Bhukosh)", "Rock description of the GSI map polygon at the spring. Uttarakhand only."),
+    ("gsi_lithology_class", "", "Derived", "Main rock class from the GSI description, same classes as lithology_class."),
+    ("gsi_group", "", "GSI NGDR lithology", "Stratigraphic group (Garhwal, Jaunsar, Central Crystalline, ...)."),
+    ("gsi_formation", "", "GSI NGDR lithology", ""),
+    ("gsi_age", "", "GSI NGDR lithology", ""),
+    ("gsi_distance_to_contact_m", "m", "GSI NGDR lithology", "Distance to the edge of the spring's map polygon (rock contact)."),
+    ("rock_class", "", "Derived", "Best rock class: field description (lithology_class) where there is one, else the GSI map (gsi_lithology_class)."),
+    ("rock_class_from", "", "Derived", "field record, or GSI map."),
+    ("gsi_fault_distance_m", "m", "GSI NGDR faults (Bhukosh)", "Distance to the nearest mapped fault or thrust."),
+    ("gsi_nearest_fault_type", "", "GSI NGDR faults", ""),
+    ("gsi_nearest_fault_name", "", "GSI NGDR faults", "Named where GSI names it (MCT, MBT, North Almora Thrust, ...)."),
+    ("gsi_thrust_distance_m", "m", "GSI NGDR faults", "Distance to the nearest mapped thrust."),
+    ("gsi_fault_density_1km", "km/km2", "GSI NGDR faults", "Mapped fault length within 1 km, per km2."),
     # spring and water
     ("spring_type_source_text", "", "Common file / colocated record", ""),
     ("spring_type_class", "", "Derived", "Fracture, Contact, Depression, Karst, Seepage, Gravity / seepage, or Stream (not a spring)."),
@@ -131,7 +145,7 @@ COLUMNS = [
     ("intervention_text", "", "Common file", "Recharge or DI works reported (Atlas profiles, Chamba, Daniel)."),
     ("vulnerability_index_source", "", "Common file", "Daniel 2021 index (one spring)."),
     # bookkeeping
-    ("key_fields_filled", "of 12", "Derived", "How many of 12 key fields have a value: elevation, slope, land cover, rainfall, soil texture, lithology, lineament distance, spring type, discharge, pH, TDS, recharge area."),
+    ("key_fields_filled", "of 13", "Derived", "How many of 13 key fields have a value: elevation, slope, land cover, rainfall, soil texture, rock type, fault distance, lineament distance, spring type, discharge, pH, TDS, recharge area."),
     ("gaps_remaining", "", "Derived", "Key fields still blank and why."),
     ("notes", "", "Processed features", "Coordinate and elevation notes."),
 ]
@@ -231,7 +245,10 @@ def main():
             "soil_type_wrb": f["soil_dominant_wrb"], "soil_drainage": f["soil_drainage"], "soil_awc_mm_per_m": f["soil_awc_mm_per_m"],
             "geological_structure_text": c["geological_structure_source_value"],
             "lineament_distance_m": f["lineament_dem_distance_m"], "lineament_density_1km": f["lineament_dem_density_1km_km_per_km2"],
-            "gsi_lithology": f["geology_lithology_gsi"], "gsi_fault_distance_m": f["distance_to_gsi_fault_m"],
+            "gsi_lithology": f["gsi_lithology"], "gsi_group": f["gsi_group"], "gsi_formation": f["gsi_formation"], "gsi_age": f["gsi_age"],
+            "gsi_distance_to_contact_m": f["gsi_distance_to_contact_m"], "gsi_fault_distance_m": f["distance_to_gsi_fault_m"],
+            "gsi_nearest_fault_type": f["gsi_nearest_fault_type"], "gsi_nearest_fault_name": f["gsi_nearest_fault_name"],
+            "gsi_thrust_distance_m": f["distance_to_gsi_thrust_m"], "gsi_fault_density_1km": f["gsi_fault_density_1km_km_per_km2"],
             "seasonality_text": c["seasonality_source_value"], "intervention_text": c["intervention_source_value"],
             "vulnerability_index_source": c["vulnerability_index_source_value"], "notes": f["processing_notes"],
         })
@@ -245,6 +262,14 @@ def main():
         values, source = take(["lithology_source_text"])
         row.update(values, lithology_from=source)
         row["lithology_class"] = classify(values["lithology_source_text"], LITHOLOGY_CLASSES, "Mixed")
+        if "ALLUVIUM" in f["gsi_group"].upper():
+            row["gsi_lithology_class"] = "Alluvium / debris"
+        else:
+            row["gsi_lithology_class"] = classify(f["gsi_lithology"], LITHOLOGY_CLASSES, "Mixed")
+        if row["lithology_class"]:
+            row["rock_class"], row["rock_class_from"] = row["lithology_class"], "field record"
+        elif row["gsi_lithology_class"]:
+            row["rock_class"], row["rock_class_from"] = row["gsi_lithology_class"], "GSI map"
         values, source = take(["spring_type_source_text"])
         row.update(values, spring_type_from=source)
         row["spring_type_class"] = classify(values["spring_type_source_text"], SPRING_TYPE_CLASSES)
@@ -258,16 +283,18 @@ def main():
         key = {
             "elevation": row["elevation_m"], "slope": row["slope_deg"], "land cover": row["land_cover_point"],
             "rainfall": row["rainfall_mean_annual_mm"], "soil texture": row["soil_clay_pct"],
-            "lithology": row["lithology_source_text"], "lineament distance": row["lineament_distance_m"],
+            "rock type": row["rock_class"], "fault distance": row["gsi_fault_distance_m"], "lineament distance": row["lineament_distance_m"],
             "spring type": row["spring_type_source_text"], "discharge": row["discharge_lpm_low"], "pH": row["ph"],
             "TDS": row["tds_mg_l"], "recharge area": row["recharge_area_ha_low"],
         }
         row["key_fields_filled"] = sum(1 for v in key.values() if v)
         missing = [k for k, v in key.items() if not v]
         if f["coordinate_status"] != "ok":
-            mapped = {"elevation", "slope", "land cover", "rainfall", "soil texture", "lineament distance"}
+            mapped = {"elevation", "slope", "land cover", "rainfall", "soil texture", "lineament distance", "fault distance", "rock type"}
             reason = ["mapped values need a coordinate"] if mapped & set(missing) else []
             missing = [m for m in missing if m not in mapped] + reason
+        elif not f["gsi_lithology"]:
+            missing = [m + " (GSI layers cover Uttarakhand only)" if m in ("rock type", "fault distance") else m for m in missing]
         row["gaps_remaining"] = "; ".join(missing)
         rows.append(row)
 
@@ -306,14 +333,14 @@ GUIDE = [
     ("What this is", "One row per spring record from the common file (WATSAN, Spring Atlas annexure, Himmotthan, Atlas profiles, "
                      "Chamba report, Rathi 2021, Daniel 2021), with every gap filled that public data or a matching record can fill."),
     ("Counting springs", "Some springs are listed by two sources. Filter is_primary_record = Y to keep one row per spring."),
-    ("Mapped values", "Terrain, land cover, rainfall, soil and lineaments come from the same layer for every spring, so springs can be "
+    ("Mapped values", "Terrain, land cover, rainfall, soil, GSI geology, faults and lineaments come from the same layer for every spring, so springs can be "
                       "compared fairly. The source's own value is kept in a *_source column beside it."),
     ("Field values", "Discharge, pH, TDS, spring type, lithology and recharge area come from the record itself. Where it had none, a "
                      "record from another source within 30 m filled it; the *_from column names that record."),
     ("Not filled", "Nothing is estimated, averaged from neighbours or invented. Blank means no source has it; gaps_remaining lists what is missing."),
     ("Caveats", "Layer values describe the spring point or a circle around it, not the real recharge area. CHIRPS rainfall is ~5 km, "
                 "HWSD soil ~1 km, SoilGrids 250 m. DEM lineaments are unvalidated candidates. IMD rainfall is 2025 only. "
-                "GSI geology is still missing (Bhukosh down)."),
+                "GSI geology is a state-scale map: a spring's polygon is a map overlay, not a field check, and it covers Uttarakhand only."),
     ("Rebuild", "python scripts/build_spring_features.py ... then python scripts/build_spring_master.py. "
                 "See docs/data-gap-analysis.md."),
 ]

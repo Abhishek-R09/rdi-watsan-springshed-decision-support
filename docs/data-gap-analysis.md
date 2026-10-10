@@ -14,7 +14,7 @@ The table shows the share of records with a value, by source.
 | Slope / aspect | 100% | **0%** | 92-99% | 7 of 53 | Atlas has none |
 | Land use | 100% (code mislabelled) | **0%** | 92% | 0 | Mostly missing or unreliable |
 | Rainfall | 100% | **0%** | **0%** | 17 of 53 | Mostly missing |
-| Lithology / rock type | 100% (text) | **0%** | 92% | 17 of 53 | Atlas has none; no map-based geology for any source |
+| Lithology / rock type | 100% (text) | **0%** | 92% | 17 of 53 | Atlas has none; now filled from the GSI map for all Uttarakhand springs (section 2) |
 | Geological structure / lineaments | 100% (text) | **0%** | **0%** | 16 of 53 | No distance-to-lineament for any record (now filled from DEM lineaments; see section 2) |
 | Soil | **0%** | **0%** | **0%** | 0 | Missing everywhere |
 | Recharge / springshed area | 100% (estimates) | **0%** | **0%** | 52 of 53 | Only the Atlas profiles, Rathi and Chamba have delineated areas |
@@ -40,9 +40,19 @@ Two problems are about data quality rather than gaps:
 | Soil | **Done** with the FAO/IIASA Harmonized World Soil Database v2.0 (~1 km) | Dominant soil (WRB), drainage, available water capacity, topsoil sand/silt/clay, texture, coarse fragments, organic carbon |
 | ISRIC SoilGrids 250 m | **Done** for 0-5 cm, from 5 exports Rajat downloaded | Clay, silt, sand, bulk density, organic carbon density |
 | Lineaments | **Done** as DEM-derived candidates (`scripts/extract_dem_lineaments.py`) | Distance to nearest lineament and lineament density within 1 km |
-| Geology and faults (GSI Bhukosh) | **Not reached**: the Bhukosh site was not working on 2026-10-10 | `geology_lithology_gsi` and `distance_to_gsi_fault_m` exist but are blank |
+| Geology and faults (GSI Bhukosh / NGDR) | **Done** from the Uttarakhand lithology and fault layers the team added to `data/00_raw/ngdr_geology/` | Rock unit (description, group, formation, age), distance to the unit edge, distance to the nearest fault and thrust, fault type and name, fault density within 1 km |
 
 After this step, 1,803 of 1,842 records (98%) have every terrain, land-cover, rainfall and soil value. The other 39 records have no usable coordinates.
+
+### GSI geology (added later on 2026-10-10)
+
+The team downloaded the NGDR Uttarakhand lithology (4,554 polygons) and fault (2,605 lines) layers from Bhukosh into the repo. `build_spring_features.py` overlays them on each spring:
+- **1,761 springs** fall inside the Uttarakhand map and get a rock unit and fault distances. The other 42 (Kangra and Sirmaur in Himachal) stay blank.
+- Springs sit mostly in the Garhwal (537), Jaunsar (353) and Almora (343) groups.
+- The median spring is 2.5 km from a mapped fault and 4.7 km from a mapped thrust; 230 springs are within 500 m of a fault. The North Almora Thrust is the nearest named fault for 302 springs.
+- **Field vs map rock type:** where a spring has both, the field description shares at least one rock class with the GSI polygon for 677 of 980 records (69%). The rest are likely small outcrops the state map does not show, or springs near a contact.
+- **DEM lineaments vs GSI faults:** distance to the nearest DEM lineament has almost no relation to distance to the nearest GSI fault (rank correlation 0.03). The DEM lineaments mostly pick up ridges and valleys at a finer scale than the mapped faults. Use the GSI faults for structure and treat the DEM lineaments as a separate, unvalidated fracture signal.
+- No fold layer was included, so folds are still missing.
 
 ### Hand-downloaded layers (added later on 2026-10-10)
 
@@ -54,10 +64,10 @@ Rajat downloaded CartoDEM, IMD 2025 rainfall and SoilGrids by hand. The raw file
 
 ## 3. What the processed file is (and isn't)
 
-`spring_features_v1.csv` has one row per common-file record, with 81 columns:
+`spring_features_v1.csv` has one row per common-file record, with 90 columns:
 - Cleaned identity: district spellings unified, coordinates parsed, coordinate status and precision, and a co-located group id for likely duplicates.
 - Numbers parsed from the source text: elevation, discharge low/high, recharge-area low/high, rainfall, slope, TDS, pH. There are also two clearly named unit conversions: Rathi m3/day to L/min, and km2 to ha.
-- Layer values for terrain, land cover, rainfall/ET0, soil and DEM lineaments.
+- Layer values for terrain, land cover, rainfall/ET0, soil, GSI geology and faults, and DEM lineaments.
 - `processing_notes` per row, for example a rounded coordinate or a DEM vs source elevation gap of more than 150 m (77 records).
 
 Every column is defined in `spring_features_v1_data_dictionary.csv`. Fill rates by source are in `spring_features_v1_coverage_pct.csv`.
@@ -72,8 +82,8 @@ Limits to keep in mind:
 
 | Gap | Best route | Who |
 |---|---|---|
-| Geology (lithology map unit) and faults | When Bhukosh works again: lithology, faults (and shear zones), optionally folds, as shapefiles for Uttarakhand, into `DOCC/Data/Bhukosh/`. Alternatives meanwhile: HimaTibetMap or GEM Global Active Faults for the major thrusts; USGS Geologic Map of South Asia (coarse) | Rajat (one-time login) |
-| Check DEM lineaments | Compare with GSI faults once available, or spot-check against imagery at pilot springs | Team |
+| Folds, and geology for the 42 Himachal springs | Bhukosh fold layer for Uttarakhand; Himachal lithology and fault layers if those springs stay in scope | Team |
+| Check DEM lineaments | They do not follow GSI faults (section 2); spot-check against imagery or field mapping at pilot springs | Team |
 | IMD rainfall, more years | Optional. Earlier IMD years would give a long-term mean to compare with CHIRPS | Rajat |
 | Repeated, dated discharge (dry and wet season) | Field survey (SRC-008 protocol), plus RDI/WATSAN monitoring records and Himmotthan MIS (AQ-003, AQ-012) | Team with WATSAN |
 | Household dependency and use | Field survey / RDI village records (for example, the Malan table) | Team with WATSAN |
@@ -84,14 +94,15 @@ Limits to keep in mind:
 
 ## 5. Final comprehensive file
 
-`data/02_processed/spring_master/spring_master_v1.csv` (and `.xlsx`, with a Guide, Data dictionary and Fill summary sheet) brings everything into one table of 74 columns, one row per record:
+`data/02_processed/spring_master/spring_master_v1.csv` (and `.xlsx`, with a Guide, Data dictionary and Fill summary sheet) brings everything into one table of 85 columns, one row per record:
 - **Mapped values** (terrain, land cover, rainfall, soil, lineaments) come from the same layer for every spring, so springs can be compared. Each source's own value sits beside it.
 - **Field values** (discharge, pH, TDS, spring type, lithology, recharge area) come from the record itself, or else from a record of another source within 30 m. That filled about 160 records per field, mostly Atlas annexure rows matched to Himmotthan. The `*_from` column names the record used.
 - **`is_primary_record = Y`** keeps one row per spring: 1,611 distinct springs.
+- **Rock type:** `rock_class` uses the field description where there is one (980 records) and the GSI map otherwise (781), so 95% of distinct springs now have a rock class. Both the field and GSI versions stay in their own columns.
 - **Spring type and lithology classes** group the free text (with spelling fixes) into Fracture, Depression, Contact, Karst, ... and Carbonate, Quartzite, Phyllite, Schist, Mixed, ...
 - **`gaps_remaining`** lists what is still blank for each record.
 
-What it still cannot fill: 729 Atlas annexure springs have no discharge, water quality, spring type or lithology from any source, and no spring has GSI geology, household dependency or before/after DI data. Those need field work, WATSAN records or Bhukosh.
+What it still cannot fill: 729 Atlas annexure springs have no discharge, water quality, spring type or lithology from any source, and no spring has household dependency or before/after DI data. Those need field work or WATSAN records.
 
 ## 6. Rebuilding
 

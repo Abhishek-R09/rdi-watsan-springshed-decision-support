@@ -72,6 +72,14 @@
       "licence": "CC BY 4.0",
       "file_identification": "Exports were saved as out.tif ... out (4).tif. Organic carbon density was confirmed by Rajat; the other four were identified from their value ranges (bdod 96-155 cg/cm3; clay+silt+sand ~1000 g/kg) and depth 0-5 cm is the viewer default. Mapping: out=bdod, out (1)=clay, out (2)=ocd, out (3)=silt, out (4)=sand."
     },
+    "GSI NGDR Uttarakhand lithology and faults": {
+      "files": [
+        "data/00_raw/ngdr_geology/lithology/LITHOLOGY_STATE_UTTARAKHAND.geojson",
+        "data/00_raw/ngdr_geology/faults/FAULT_STATE_UTTARAKHAND.geojson"
+      ],
+      "source": "GSI Bhukosh / NGDR state layers (SRC-013, SRC-014), added to the repo 2026-10-10",
+      "note": "State-scale map; a spring's polygon is a map overlay, not a field observation."
+    },
     "DEM lineament candidates": {
       "file": "data/02_processed/lineaments/dem_lineament_candidates_v1.geojson",
       "method": "scripts/extract_dem_lineaments.py"
@@ -84,7 +92,7 @@
     "DEM lineaments: 26672 segments"
   ],
   "not_acquired": {
-    "GSI Bhukosh lithology, faults and folds": "Bhukosh site not working on 2026-10-10; needs registration.",
+    "GSI folds": "Not in the NGDR files added to the repo.",
     "Bhuvan LULC 1:50k": "Bhuvan services blocked from the build environment; download needs a request."
   }
 }

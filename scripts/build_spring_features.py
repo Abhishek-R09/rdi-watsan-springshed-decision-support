@@ -16,6 +16,8 @@ Layers downloaded by hand (logins or manual export), read from --local-layers DI
 - IMD/*.nc             IMD 0.25 degree daily gridded rainfall (one calendar year per file)
 - SoilGrids/<prop>_0-5cm_mean.tif   ISRIC SoilGrids 2.0 exports (clay, silt, sand, bdod, ocd)
 DEM lineament candidates come from scripts/extract_dem_lineaments.py (--lineaments FILE).
+GSI NGDR (Bhukosh) Uttarakhand lithology polygons and fault lines are read from
+data/00_raw/ngdr_geology/ (committed; staged attribute tables in data/01_staged/ngdr_geology/).
 
 Rules: staged source text is never edited. Parsed numbers are new columns with
 a parse note. Unit conversions are new columns named *_converted. Layer values
@@ -41,6 +43,8 @@ from rasterio.merge import merge
 from rasterio.windows import from_bounds
 from pyproj import Transformer
 from shapely import STRtree, LineString, Point
+from shapely.geometry import shape
+from shapely import transform as shapely_transform
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -55,6 +59,9 @@ HWSD_URLS = [
     "https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/HWSD/HWSD2_DB.zip",
 ]
 YEARS = list(range(2018, 2026))
+NGDR_DIR = ROOT / "data" / "00_raw" / "ngdr_geology"
+NGDR_LITHOLOGY = NGDR_DIR / "lithology" / "LITHOLOGY_STATE_UTTARAKHAND.geojson"
+NGDR_FAULTS = NGDR_DIR / "faults" / "FAULT_STATE_UTTARAKHAND.geojson"
 LINEAMENTS_FILE = ROOT / "data" / "02_processed" / "lineaments" / "dem_lineament_candidates_v1.geojson"
 
 # SoilGrids exports: (file stem, column, divisor to reach the column unit). 0 = no data.
@@ -436,6 +443,62 @@ class LocalLayers:
         return result
 
 
+class NgdrGeology:
+    """GSI NGDR state-scale lithology polygons and fault lines (Uttarakhand only)."""
+
+    def __init__(self):
+        self.ok = NGDR_LITHOLOGY.exists() and NGDR_FAULTS.exists()
+        if not self.ok:
+            return
+        project = Transformer.from_crs("EPSG:4326", "EPSG:32644", always_xy=True).transform
+        self.to_utm = project
+
+        def load(path):
+            features = json.loads(path.read_text(encoding="utf-8"))["features"]
+            return [(shapely_transform(shape(f["geometry"]), lambda xy: np.column_stack(project(xy[:, 0], xy[:, 1]))), f["properties"]) for f in features if f.get("geometry")]
+
+        self.units = load(NGDR_LITHOLOGY)
+        self.unit_tree = STRtree([g for g, _ in self.units])
+        self.faults = load(NGDR_FAULTS)
+        self.fault_tree = STRtree([g for g, _ in self.faults])
+        thrusts = [(g, p) for g, p in self.faults if "THRUST" in (p.get("fault_type") or "") or "THRUST" in (p.get("fault_name") or "")]
+        self.thrusts = thrusts
+        self.thrust_tree = STRtree([g for g, _ in thrusts])
+
+    @staticmethod
+    def _clean(value):
+        value = (value or "").strip()
+        return "" if value.upper() == "BLANK" else value
+
+    def features(self, lon, lat):
+        if not self.ok:
+            return {}
+        point = Point(*self.to_utm(lon, lat))
+        result = {}
+        hits = [i for i in self.unit_tree.query(point, predicate="intersects")]
+        if not hits:  # outside the Uttarakhand map: fault distances would only reach the state edge
+            return {}
+        geom, props = self.units[hits[0]]
+        result.update({
+            "gsi_lithology": self._clean(props.get("lithologic")).rstrip("."),
+            "gsi_group": self._clean(props.get("group_name")),
+            "gsi_formation": self._clean(props.get("formation")),
+            "gsi_age": self._clean(props.get("age")),
+            "gsi_map_unit": self._clean(props.get("notation_lithology")),
+            "gsi_distance_to_contact_m": geom.boundary.distance(point),
+        })
+        i = self.fault_tree.query_nearest(point)[0]
+        geom, props = self.faults[i]
+        result["distance_to_gsi_fault_m"] = geom.distance(point)
+        result["gsi_nearest_fault_type"] = self._clean(props.get("fault_type"))
+        result["gsi_nearest_fault_name"] = self._clean(props.get("fault_name"))
+        result["distance_to_gsi_thrust_m"] = self.thrusts[self.thrust_tree.query_nearest(point)[0]][0].distance(point)
+        circle = point.buffer(1000)
+        inside = sum(self.faults[j][0].intersection(circle).length for j in self.fault_tree.query(circle))
+        result["gsi_fault_density_1km_km_per_km2"] = (inside / 1000) / math.pi
+        return result
+
+
 # --------------------------------------------------------------------------- columns
 COLUMNS = [
     # identity and cleaned location
@@ -518,8 +581,17 @@ COLUMNS = [
     ("sg_bulk_density_0_5cm_g_cm3", "g/cm3", "ISRIC SoilGrids 2.0 (250 m)", "Bulk density of the fine earth, 0-5 cm (cg/cm3 / 100)."),
     ("sg_org_carbon_density_0_5cm_kg_m3", "kg/m3", "ISRIC SoilGrids 2.0 (250 m)", "Organic carbon density, 0-5 cm (hg/m3 / 10)."),
     # Geology placeholders
-    ("geology_lithology_gsi", "", "GSI Bhukosh (not yet acquired)", "Blank: Bhukosh needs a registered login. See docs/data-gap-analysis.md."),
-    ("distance_to_gsi_fault_m", "m", "GSI Bhukosh (not yet acquired)", "Blank: Bhukosh fault layer not yet acquired."),
+    ("gsi_lithology", "", "GSI NGDR Uttarakhand lithology (Bhukosh)", "Lithology description of the map polygon containing the spring. Uttarakhand only; GSI columns are blank for springs outside it."),
+    ("gsi_group", "", "GSI NGDR Uttarakhand lithology", "Stratigraphic group (e.g. Garhwal, Jaunsar, Central Crystalline)."),
+    ("gsi_formation", "", "GSI NGDR Uttarakhand lithology", "Formation name."),
+    ("gsi_age", "", "GSI NGDR Uttarakhand lithology", "Geological age."),
+    ("gsi_map_unit", "", "GSI NGDR Uttarakhand lithology", "Map unit notation."),
+    ("gsi_distance_to_contact_m", "m", "GSI NGDR Uttarakhand lithology", "Distance to the edge of the spring's map polygon (a rock-type contact or map edge)."),
+    ("distance_to_gsi_fault_m", "m", "GSI NGDR Uttarakhand faults (Bhukosh)", "Distance to the nearest mapped fault or thrust (observed, inferred or interpreted)."),
+    ("gsi_nearest_fault_type", "", "GSI NGDR Uttarakhand faults", "Type of that nearest fault (FAULT, FAULT INFERRED, THRUST, ...)."),
+    ("gsi_nearest_fault_name", "", "GSI NGDR Uttarakhand faults", "Name of that fault where GSI gives one (e.g. MAIN BOUNDART THRUST (MBT), as spelt by GSI)."),
+    ("distance_to_gsi_thrust_m", "m", "GSI NGDR Uttarakhand faults", "Distance to the nearest mapped thrust."),
+    ("gsi_fault_density_1km_km_per_km2", "km/km2", "GSI NGDR Uttarakhand faults", "Length of mapped faults within 1 km, per km2."),
     ("lineament_dem_distance_m", "m", "Derived from Copernicus DEM GLO-30", "Distance to the nearest DEM lineament candidate (scripts/extract_dem_lineaments.py). Unvalidated."),
     ("lineament_dem_density_1km_km_per_km2", "km/km2", "Derived from Copernicus DEM GLO-30", "Length of DEM lineament candidates within 1 km, per km2."),
     ("processing_notes", "", "Derived", "Row-level notes on missing or questionable inputs."),
@@ -633,6 +705,8 @@ def main():
     ret_a = WaporStack("L1-RET-A", [str(y) for y in YEARS])
     hwsd = Hwsd(cache)
     local = LocalLayers(args.local_layers, args.lineaments)
+    ngdr = NgdrGeology()
+    print("GSI NGDR geology: " + (f"{len(ngdr.units)} lithology polygons, {len(ngdr.faults)} faults" if ngdr.ok else "not found"))
     print("Local layers: " + ("; ".join(local.found) or "none found"))
 
     for index, row in enumerate(rows):
@@ -670,6 +744,7 @@ def main():
                 row["rain_source_minus_chirps_mm"] = row["source_rainfall_mm"] - mean
         row.update(hwsd.features(lon, lat))
         row.update(local.features(lon, lat))
+        row.update(ngdr.features(lon, lat))  # blank outside Uttarakhand
         if row.get("cartodem_elevation_m", "") != "" and row["dem_elevation_m"] != "":
             row["cartodem_minus_copernicus_m"] = row["cartodem_elevation_m"] - row["dem_elevation_m"]
         if (index + 1) % 200 == 0:
@@ -732,11 +807,14 @@ def main():
                                     "file_identification": "Exports were saved as out.tif ... out (4).tif. Organic carbon density was confirmed by Rajat; "
                                                            "the other four were identified from their value ranges (bdod 96-155 cg/cm3; clay+silt+sand ~1000 g/kg) "
                                                            "and depth 0-5 cm is the viewer default. Mapping: out=bdod, out (1)=clay, out (2)=ocd, out (3)=silt, out (4)=sand."},
+            "GSI NGDR Uttarakhand lithology and faults": {"files": [str(NGDR_LITHOLOGY.relative_to(ROOT)), str(NGDR_FAULTS.relative_to(ROOT))],
+                                                         "source": "GSI Bhukosh / NGDR state layers (SRC-013, SRC-014), added to the repo 2026-10-10",
+                                                         "note": "State-scale map; a spring's polygon is a map overlay, not a field observation."},
             "DEM lineament candidates": {"file": str(LINEAMENTS_FILE.relative_to(ROOT)), "method": "scripts/extract_dem_lineaments.py"},
         },
         "local_layers_found": local.found,
         "not_acquired": {
-            "GSI Bhukosh lithology, faults and folds": "Bhukosh site not working on 2026-10-10; needs registration.",
+            "GSI folds": "Not in the NGDR files added to the repo.",
             "Bhuvan LULC 1:50k": "Bhuvan services blocked from the build environment; download needs a request.",
         },
     }

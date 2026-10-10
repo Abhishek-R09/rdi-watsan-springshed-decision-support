@@ -52,8 +52,19 @@ lithology_from,,Derived,Record the lithology text came from.
 geological_structure_text,,Common file,"Structure notes (WATSAN, Atlas profiles, Chamba report)."
 lineament_distance_m,m,DEM lineament candidates,Distance to nearest candidate lineament. Unvalidated.
 lineament_density_1km,km/km2,DEM lineament candidates,
-gsi_lithology,,GSI Bhukosh,Blank until Bhukosh data is available.
-gsi_fault_distance_m,m,GSI Bhukosh,Blank until Bhukosh data is available.
+gsi_lithology,,GSI NGDR lithology (Bhukosh),Rock description of the GSI map polygon at the spring. Uttarakhand only.
+gsi_lithology_class,,Derived,"Main rock class from the GSI description, same classes as lithology_class."
+gsi_group,,GSI NGDR lithology,"Stratigraphic group (Garhwal, Jaunsar, Central Crystalline, ...)."
+gsi_formation,,GSI NGDR lithology,
+gsi_age,,GSI NGDR lithology,
+gsi_distance_to_contact_m,m,GSI NGDR lithology,Distance to the edge of the spring's map polygon (rock contact).
+rock_class,,Derived,"Best rock class: field description (lithology_class) where there is one, else the GSI map (gsi_lithology_class)."
+rock_class_from,,Derived,"field record, or GSI map."
+gsi_fault_distance_m,m,GSI NGDR faults (Bhukosh),Distance to the nearest mapped fault or thrust.
+gsi_nearest_fault_type,,GSI NGDR faults,
+gsi_nearest_fault_name,,GSI NGDR faults,"Named where GSI names it (MCT, MBT, North Almora Thrust, ...)."
+gsi_thrust_distance_m,m,GSI NGDR faults,Distance to the nearest mapped thrust.
+gsi_fault_density_1km,km/km2,GSI NGDR faults,"Mapped fault length within 1 km, per km2."
 spring_type_source_text,,Common file / colocated record,
 spring_type_class,,Derived,"Fracture, Contact, Depression, Karst, Seepage, Gravity / seepage, or Stream (not a spring)."
 spring_type_from,,Derived,
@@ -70,6 +81,6 @@ recharge_area_from,,Derived,
 seasonality_text,,Common file,WATSAN seasonality label.
 intervention_text,,Common file,"Recharge or DI works reported (Atlas profiles, Chamba, Daniel)."
 vulnerability_index_source,,Common file,Daniel 2021 index (one spring).
-key_fields_filled,of 12,Derived,"How many of 12 key fields have a value: elevation, slope, land cover, rainfall, soil texture, lithology, lineament distance, spring type, discharge, pH, TDS, recharge area."
+key_fields_filled,of 13,Derived,"How many of 13 key fields have a value: elevation, slope, land cover, rainfall, soil texture, rock type, fault distance, lineament distance, spring type, discharge, pH, TDS, recharge area."
 gaps_remaining,,Derived,Key fields still blank and why.
 notes,,Processed features,Coordinate and elevation notes.

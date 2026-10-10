@@ -33,6 +33,9 @@ dem_mean_slope_500m_deg,degrees,Copernicus DEM GLO-30,Mean slope within 500 m of
 dem_relief_1km_m,m,Copernicus DEM GLO-30,Highest minus lowest elevation within 1 km.
 dem_upslope_relief_1km_m,m,Copernicus DEM GLO-30,Highest elevation within 1 km minus the spring cell elevation (head available upslope).
 dem_tpi_300m_m,m,Copernicus DEM GLO-30,Spring elevation minus mean elevation within 300 m; negative = valley/hollow position.
+cartodem_elevation_m,m (as supplied by NRSC),NRSC CartoDEM v3 30 m (Bhoonidhi),Elevation of the CartoDEM cell containing the coordinate.
+cartodem_minus_copernicus_m,m,Derived,CartoDEM minus Copernicus elevation. A check on both DEMs; the datums differ slightly.
+cartodem_slope_deg,degrees,NRSC CartoDEM v3 30 m (Bhoonidhi),Slope at the cell from its 3 x 3 neighbourhood.
 wc_point_class_code,,ESA WorldCover 2021 v200,Class code of the 10 m cell at the coordinate.
 wc_point_class,,ESA WorldCover 2021 v200,Class name at the coordinate.
 wc_majority_500m_class,,ESA WorldCover 2021 v200,Most common class within 500 m.
@@ -52,6 +55,10 @@ rain_chirps_dry_season_mm,mm,CHIRPS v2 via FAO WaPOR v3 L1-PCP-M,Mean November-A
 et0_wapor_mean_annual_mm_2018_2025,mm/year,FAO WaPOR v3 L1-RET-A,Mean annual reference evapotranspiration at the ~30 km cell.
 aridity_index_p_over_et0,,Derived,Mean annual CHIRPS rain divided by mean annual ET0.
 rain_source_minus_chirps_mm,mm/year,Derived,"Source rainfall minus CHIRPS mean, where the source gives rainfall."
+rain_imd_annual_mm,mm/year,IMD 0.25 degree gridded daily rainfall,"Total for the IMD file's year (2025 only) at the ~25 km cell. One year, not an average."
+rain_imd_monsoon_share_pct,%,IMD 0.25 degree gridded daily rainfall,Share of that year's rain falling 1 June-30 September.
+rain_imd_rainy_days,days,IMD 0.25 degree gridded daily rainfall,Days with at least 2.5 mm (IMD rainy-day definition).
+rain_imd_max_1day_mm,mm,IMD 0.25 degree gridded daily rainfall,Wettest single day of the year.
 soil_hwsd2_smu_id,,HWSD v2.0,Soil mapping unit at the ~1 km cell.
 soil_dominant_wrb,,HWSD v2.0,WRB soil name of the dominant soil in the mapping unit.
 soil_dominant_share_pct,%,HWSD v2.0,Share of the mapping unit covered by the dominant soil.
@@ -63,6 +70,13 @@ soil_topsoil_clay_pct,%,HWSD v2.0,"Clay, 0-20 cm, dominant soil."
 soil_topsoil_texture_usda,,HWSD v2.0,"USDA texture class, 0-20 cm."
 soil_topsoil_coarse_fragments_pct,%,HWSD v2.0,"Coarse fragments, 0-20 cm."
 soil_topsoil_org_carbon_pct,%,HWSD v2.0,"Organic carbon, 0-20 cm."
+sg_clay_0_5cm_pct,%,ISRIC SoilGrids 2.0 (250 m),"Clay, 0-5 cm, predicted mean (g/kg / 10)."
+sg_silt_0_5cm_pct,%,ISRIC SoilGrids 2.0 (250 m),"Silt, 0-5 cm, predicted mean."
+sg_sand_0_5cm_pct,%,ISRIC SoilGrids 2.0 (250 m),"Sand, 0-5 cm, predicted mean."
+sg_bulk_density_0_5cm_g_cm3,g/cm3,ISRIC SoilGrids 2.0 (250 m),"Bulk density of the fine earth, 0-5 cm (cg/cm3 / 100)."
+sg_org_carbon_density_0_5cm_kg_m3,kg/m3,ISRIC SoilGrids 2.0 (250 m),"Organic carbon density, 0-5 cm (hg/m3 / 10)."
 geology_lithology_gsi,,GSI Bhukosh (not yet acquired),Blank: Bhukosh needs a registered login. See docs/data-gap-analysis.md.
-distance_to_lineament_m,m,GSI Bhukosh / Bhuvan (not yet acquired),Blank: lineament layer not yet acquired.
+distance_to_gsi_fault_m,m,GSI Bhukosh (not yet acquired),Blank: Bhukosh fault layer not yet acquired.
+lineament_dem_distance_m,m,Derived from Copernicus DEM GLO-30,Distance to the nearest DEM lineament candidate (scripts/extract_dem_lineaments.py). Unvalidated.
+lineament_dem_density_1km_km_per_km2,km/km2,Derived from Copernicus DEM GLO-30,"Length of DEM lineament candidates within 1 km, per km2."
 processing_notes,,Derived,Row-level notes on missing or questionable inputs.

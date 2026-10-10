@@ -58,13 +58,33 @@
       ],
       "resolution": "30 arc-second (~1 km)",
       "licence": "FAO/IIASA, CC BY-NC-SA 3.0 IGO (non-commercial)"
+    },
+    "NRSC CartoDEM v3 30 m": {
+      "source": "Bhoonidhi (bhoonidhi.nrsc.gov.in), downloaded by hand 2026-10-10; 1-degree tiles P5_PAN_CD_N*_E*_30m",
+      "licence": "NRSC data policy; raw tiles not committed"
+    },
+    "IMD 0.25 degree daily gridded rainfall": {
+      "source": "IMD Pune, file RF25_ind2025_rfp25.nc (calendar year 2025), downloaded by hand 2026-10-10",
+      "licence": "IMD data policy; raw file not committed"
+    },
+    "ISRIC SoilGrids 2.0": {
+      "source": "soilgrids.org map export, 0-5 cm mean, bbox lon 76-81 lat 28.7-32.4, downloaded by hand 2026-10-10",
+      "licence": "CC BY 4.0",
+      "file_identification": "Exports were saved as out.tif ... out (4).tif. Organic carbon density was confirmed by Rajat; the other four were identified from their value ranges (bdod 96-155 cg/cm3; clay+silt+sand ~1000 g/kg) and depth 0-5 cm is the viewer default. Mapping: out=bdod, out (1)=clay, out (2)=ocd, out (3)=silt, out (4)=sand."
+    },
+    "DEM lineament candidates": {
+      "file": "data/02_processed/lineaments/dem_lineament_candidates_v1.geojson",
+      "method": "scripts/extract_dem_lineaments.py"
     }
   },
+  "local_layers_found": [
+    "CartoDEM: 14 tiles",
+    "IMD: RF25_ind2025_rfp25.nc, 365 days of 2025",
+    "SoilGrids: 5 layers",
+    "DEM lineaments: 26672 segments"
+  ],
   "not_acquired": {
-    "CartoDEM 30 m (NRSC Bhoonidhi)": "Needs Bhoonidhi login; blocked from the build environment.",
-    "GSI Bhukosh geology and lineaments": "Needs Bhukosh registration; blocked from the build environment.",
-    "Bhuvan LULC 1:50k": "Bhuvan services blocked from the build environment; download needs a request.",
-    "IMD 0.25 degree gridded rainfall": "imdpune.gov.in blocked from the build environment.",
-    "ISRIC SoilGrids 250 m": "rest.isric.org and files.isric.org blocked from the build environment."
+    "GSI Bhukosh lithology, faults and folds": "Bhukosh site not working on 2026-10-10; needs registration.",
+    "Bhuvan LULC 1:50k": "Bhuvan services blocked from the build environment; download needs a request."
   }
 }

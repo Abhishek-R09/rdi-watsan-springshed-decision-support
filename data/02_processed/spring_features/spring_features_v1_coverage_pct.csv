@@ -33,6 +33,9 @@ dem_mean_slope_500m_deg,100,100,0,100,0,100,100,98
 dem_relief_1km_m,100,100,0,100,0,100,100,98
 dem_upslope_relief_1km_m,100,100,0,100,0,100,100,98
 dem_tpi_300m_m,100,100,0,100,0,100,100,98
+cartodem_elevation_m,100,100,0,96,0,100,100,97
+cartodem_minus_copernicus_m,100,100,0,96,0,100,100,97
+cartodem_slope_deg,100,100,0,96,0,100,100,97
 wc_point_class_code,100,100,0,100,0,100,100,98
 wc_point_class,100,100,0,100,0,100,100,98
 wc_majority_500m_class,100,100,0,100,0,100,100,98
@@ -52,6 +55,10 @@ rain_chirps_dry_season_mm,100,100,0,100,0,100,100,98
 et0_wapor_mean_annual_mm_2018_2025,100,100,0,100,0,100,100,98
 aridity_index_p_over_et0,100,100,0,100,0,100,100,98
 rain_source_minus_chirps_mm,0,100,0,0,0,100,100,17
+rain_imd_annual_mm,100,100,0,100,0,100,100,98
+rain_imd_monsoon_share_pct,100,100,0,100,0,100,100,98
+rain_imd_rainy_days,100,100,0,100,0,100,100,98
+rain_imd_max_1day_mm,100,100,0,100,0,100,100,98
 soil_hwsd2_smu_id,100,100,0,100,0,100,100,98
 soil_dominant_wrb,100,100,0,100,0,100,100,98
 soil_dominant_share_pct,100,100,0,100,0,100,100,98
@@ -63,6 +70,13 @@ soil_topsoil_clay_pct,90,100,0,97,0,100,98,92
 soil_topsoil_texture_usda,90,100,0,97,0,100,98,92
 soil_topsoil_coarse_fragments_pct,90,100,0,97,0,100,98,92
 soil_topsoil_org_carbon_pct,90,100,0,97,0,100,98,92
+sg_clay_0_5cm_pct,99,100,0,100,0,100,97,97
+sg_silt_0_5cm_pct,99,100,0,100,0,100,97,97
+sg_sand_0_5cm_pct,99,100,0,100,0,100,97,97
+sg_bulk_density_0_5cm_g_cm3,99,100,0,100,0,100,97,97
+sg_org_carbon_density_0_5cm_kg_m3,99,100,0,100,0,100,97,97
 geology_lithology_gsi,0,0,0,0,0,0,0,0
-distance_to_lineament_m,0,0,0,0,0,0,0,0
+distance_to_gsi_fault_m,0,0,0,0,0,0,0,0
+lineament_dem_distance_m,100,100,0,100,0,100,100,98
+lineament_dem_density_1km_km_per_km2,100,100,0,100,0,100,100,98
 processing_notes,7,10,100,3,100,100,0,7

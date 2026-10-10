@@ -11,6 +11,12 @@ Public layers (downloaded once into a local cache, never committed):
 - FAO WaPOR v3 reference evapotranspiration, annual 2018-2025 (L1-RET-A, ~30 km)
 - FAO/IIASA Harmonized World Soil Database v2.0 (30 arc-second raster + database tables exported to CSV)
 
+Layers downloaded by hand (logins or manual export), read from --local-layers DIR:
+- Bhoonidhi/*.zip      NRSC CartoDEM v3 30 m tiles, as downloaded from Bhoonidhi
+- IMD/*.nc             IMD 0.25 degree daily gridded rainfall (one calendar year per file)
+- SoilGrids/<prop>_0-5cm_mean.tif   ISRIC SoilGrids 2.0 exports (clay, silt, sand, bdod, ocd)
+DEM lineament candidates come from scripts/extract_dem_lineaments.py (--lineaments FILE).
+
 Rules: staged source text is never edited. Parsed numbers are new columns with
 a parse note. Unit conversions are new columns named *_converted. Layer values
 describe the pixel or buffer around the coordinate as given; they are not field
@@ -33,6 +39,8 @@ import numpy as np
 import rasterio
 from rasterio.merge import merge
 from rasterio.windows import from_bounds
+from pyproj import Transformer
+from shapely import STRtree, LineString, Point
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -47,6 +55,16 @@ HWSD_URLS = [
     "https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/HWSD/HWSD2_DB.zip",
 ]
 YEARS = list(range(2018, 2026))
+LINEAMENTS_FILE = ROOT / "data" / "02_processed" / "lineaments" / "dem_lineament_candidates_v1.geojson"
+
+# SoilGrids exports: (file stem, column, divisor to reach the column unit). 0 = no data.
+SOILGRIDS = [
+    ("clay_0-5cm_mean", "sg_clay_0_5cm_pct", 10),
+    ("silt_0-5cm_mean", "sg_silt_0_5cm_pct", 10),
+    ("sand_0-5cm_mean", "sg_sand_0_5cm_pct", 10),
+    ("bdod_0-5cm_mean", "sg_bulk_density_0_5cm_g_cm3", 100),
+    ("ocd_0-5cm_mean", "sg_org_carbon_density_0_5cm_kg_m3", 10),
+]
 
 # Study region: Uttarakhand and Himachal Pradesh springs in the common file.
 REGION = {"lat_min": 28.5, "lat_max": 33.5, "lon_min": 75.5, "lon_max": 81.5}
@@ -325,6 +343,99 @@ class Hwsd:
         }
 
 
+class LocalLayers:
+    """Layers Rajat downloaded by hand (CartoDEM, IMD, SoilGrids) plus DEM lineament candidates."""
+
+    def __init__(self, folder, lineaments_file):
+        folder = Path(folder)
+        self.found = []
+        self.cartodem = [rasterio.open(f"zip://{p}!{name}") for p in sorted((folder / "Bhoonidhi").glob("*.zip"))
+                         for name in self._zip_tifs(p)]
+        if self.cartodem:
+            self.found.append(f"CartoDEM: {len(self.cartodem)} tiles")
+        self.imd = None
+        imd_files = sorted((folder / "IMD").glob("*.nc"))
+        if imd_files:
+            with rasterio.open(imd_files[0]) as ds:
+                self.imd = ds.read().astype("float64")
+                self.imd_transform = ds.transform
+                self.imd_year = date(1900, 12, 31).toordinal() + int(ds.tags(1)["NETCDF_DIM_TIME"])
+                self.imd_year = date.fromordinal(self.imd_year).year
+            self.imd[self.imd < 0] = np.nan
+            self.found.append(f"IMD: {imd_files[0].name}, {self.imd.shape[0]} days of {self.imd_year}")
+        self.soil = {}
+        for stem, column, divisor in SOILGRIDS:
+            path = folder / "SoilGrids" / f"{stem}.tif"
+            if path.exists():
+                with rasterio.open(path) as ds:
+                    self.soil[column] = (ds.read(1).astype("float64") / divisor, ds.transform)
+        if self.soil:
+            self.found.append(f"SoilGrids: {len(self.soil)} layers")
+        self.lines = None
+        if Path(lineaments_file).exists():
+            collection = json.loads(Path(lineaments_file).read_text(encoding="utf-8"))
+            self.to_utm = Transformer.from_crs("EPSG:4326", "EPSG:32644", always_xy=True)
+            geoms = []
+            for feature in collection["features"]:
+                xs, ys = self.to_utm.transform(*zip(*feature["geometry"]["coordinates"]))
+                geoms.append(LineString(list(zip(xs, ys))))
+            self.lines = geoms
+            self.tree = STRtree(geoms)
+            self.found.append(f"DEM lineaments: {len(geoms)} segments")
+
+    @staticmethod
+    def _zip_tifs(path):
+        import zipfile
+        return [n for n in zipfile.ZipFile(path).namelist() if n.lower().endswith(".tif")]
+
+    @staticmethod
+    def _cell(transform, shape, lon, lat):
+        row, col = centre_index(transform, lon, lat)
+        return (row, col) if 0 <= row < shape[0] and 0 <= col < shape[1] else None
+
+    def features(self, lon, lat):
+        result = {}
+        for ds in self.cartodem:
+            b = ds.bounds
+            if b.left <= lon < b.right and b.bottom <= lat < b.top:
+                row, col = ds.index(lon, lat)
+                window = rasterio.windows.Window(col - 1, row - 1, 3, 3)
+                z = ds.read(1, window=window, boundless=True, fill_value=-32768).astype("float64")
+                z[z <= -1000] = np.nan
+                if z.shape == (3, 3) and not np.isnan(z).any():
+                    m_lat, m_lon = metres_per_degree(lat)
+                    dx, dy = ds.res[0] * m_lon, ds.res[1] * m_lat
+                    gx = (z[1, 2] - z[1, 0]) / (2 * dx)
+                    gy = (z[0, 1] - z[2, 1]) / (2 * dy)
+                    result["cartodem_elevation_m"] = z[1, 1]
+                    result["cartodem_slope_deg"] = math.degrees(math.atan(math.hypot(gx, gy)))
+                break
+        if self.imd is not None:
+            cell = self._cell(self.imd_transform, self.imd.shape[1:], lon, lat)
+            series = self.imd[:, cell[0], cell[1]] if cell else None
+            if series is not None and not np.isnan(series).all():
+                total = np.nansum(series)
+                start = date(self.imd_year, 6, 1).timetuple().tm_yday - 1
+                end = date(self.imd_year, 9, 30).timetuple().tm_yday
+                result["rain_imd_annual_mm"] = total
+                result["rain_imd_monsoon_share_pct"] = 100 * np.nansum(series[start:end]) / total if total else None
+                result["rain_imd_rainy_days"] = int(np.sum(series >= 2.5))
+                result["rain_imd_max_1day_mm"] = np.nanmax(series)
+        for column, (grid, transform) in self.soil.items():
+            cell = self._cell(transform, grid.shape, lon, lat)
+            if cell and grid[cell] > 0:
+                result[column] = grid[cell]
+        if self.lines is not None:
+            x, y = self.to_utm.transform(lon, lat)
+            point = Point(x, y)
+            nearest = self.tree.query_nearest(point)
+            result["lineament_dem_distance_m"] = min(self.lines[i].distance(point) for i in nearest)
+            circle = point.buffer(1000)
+            inside = sum(self.lines[i].intersection(circle).length for i in self.tree.query(circle))
+            result["lineament_dem_density_1km_km_per_km2"] = (inside / 1000) / math.pi
+        return result
+
+
 # --------------------------------------------------------------------------- columns
 COLUMNS = [
     # identity and cleaned location
@@ -364,6 +475,9 @@ COLUMNS = [
     ("dem_relief_1km_m", "m", "Copernicus DEM GLO-30", "Highest minus lowest elevation within 1 km."),
     ("dem_upslope_relief_1km_m", "m", "Copernicus DEM GLO-30", "Highest elevation within 1 km minus the spring cell elevation (head available upslope)."),
     ("dem_tpi_300m_m", "m", "Copernicus DEM GLO-30", "Spring elevation minus mean elevation within 300 m; negative = valley/hollow position."),
+    ("cartodem_elevation_m", "m (as supplied by NRSC)", "NRSC CartoDEM v3 30 m (Bhoonidhi)", "Elevation of the CartoDEM cell containing the coordinate."),
+    ("cartodem_minus_copernicus_m", "m", "Derived", "CartoDEM minus Copernicus elevation. A check on both DEMs; the datums differ slightly."),
+    ("cartodem_slope_deg", "degrees", "NRSC CartoDEM v3 30 m (Bhoonidhi)", "Slope at the cell from its 3 x 3 neighbourhood."),
     # Land cover
     ("wc_point_class_code", "", "ESA WorldCover 2021 v200", "Class code of the 10 m cell at the coordinate."),
     ("wc_point_class", "", "ESA WorldCover 2021 v200", "Class name at the coordinate."),
@@ -382,6 +496,10 @@ COLUMNS = [
     ("et0_wapor_mean_annual_mm_2018_2025", "mm/year", "FAO WaPOR v3 L1-RET-A", "Mean annual reference evapotranspiration at the ~30 km cell."),
     ("aridity_index_p_over_et0", "", "Derived", "Mean annual CHIRPS rain divided by mean annual ET0."),
     ("rain_source_minus_chirps_mm", "mm/year", "Derived", "Source rainfall minus CHIRPS mean, where the source gives rainfall."),
+    ("rain_imd_annual_mm", "mm/year", "IMD 0.25 degree gridded daily rainfall", "Total for the IMD file's year (2025 only) at the ~25 km cell. One year, not an average."),
+    ("rain_imd_monsoon_share_pct", "%", "IMD 0.25 degree gridded daily rainfall", "Share of that year's rain falling 1 June-30 September."),
+    ("rain_imd_rainy_days", "days", "IMD 0.25 degree gridded daily rainfall", "Days with at least 2.5 mm (IMD rainy-day definition)."),
+    ("rain_imd_max_1day_mm", "mm", "IMD 0.25 degree gridded daily rainfall", "Wettest single day of the year."),
     # Soil
     ("soil_hwsd2_smu_id", "", "HWSD v2.0", "Soil mapping unit at the ~1 km cell."),
     ("soil_dominant_wrb", "", "HWSD v2.0", "WRB soil name of the dominant soil in the mapping unit."),
@@ -394,9 +512,16 @@ COLUMNS = [
     ("soil_topsoil_texture_usda", "", "HWSD v2.0", "USDA texture class, 0-20 cm."),
     ("soil_topsoil_coarse_fragments_pct", "%", "HWSD v2.0", "Coarse fragments, 0-20 cm."),
     ("soil_topsoil_org_carbon_pct", "%", "HWSD v2.0", "Organic carbon, 0-20 cm."),
+    ("sg_clay_0_5cm_pct", "%", "ISRIC SoilGrids 2.0 (250 m)", "Clay, 0-5 cm, predicted mean (g/kg / 10)."),
+    ("sg_silt_0_5cm_pct", "%", "ISRIC SoilGrids 2.0 (250 m)", "Silt, 0-5 cm, predicted mean."),
+    ("sg_sand_0_5cm_pct", "%", "ISRIC SoilGrids 2.0 (250 m)", "Sand, 0-5 cm, predicted mean."),
+    ("sg_bulk_density_0_5cm_g_cm3", "g/cm3", "ISRIC SoilGrids 2.0 (250 m)", "Bulk density of the fine earth, 0-5 cm (cg/cm3 / 100)."),
+    ("sg_org_carbon_density_0_5cm_kg_m3", "kg/m3", "ISRIC SoilGrids 2.0 (250 m)", "Organic carbon density, 0-5 cm (hg/m3 / 10)."),
     # Geology placeholders
     ("geology_lithology_gsi", "", "GSI Bhukosh (not yet acquired)", "Blank: Bhukosh needs a registered login. See docs/data-gap-analysis.md."),
-    ("distance_to_lineament_m", "m", "GSI Bhukosh / Bhuvan (not yet acquired)", "Blank: lineament layer not yet acquired."),
+    ("distance_to_gsi_fault_m", "m", "GSI Bhukosh (not yet acquired)", "Blank: Bhukosh fault layer not yet acquired."),
+    ("lineament_dem_distance_m", "m", "Derived from Copernicus DEM GLO-30", "Distance to the nearest DEM lineament candidate (scripts/extract_dem_lineaments.py). Unvalidated."),
+    ("lineament_dem_density_1km_km_per_km2", "km/km2", "Derived from Copernicus DEM GLO-30", "Length of DEM lineament candidates within 1 km, per km2."),
     ("processing_notes", "", "Derived", "Row-level notes on missing or questionable inputs."),
 ]
 COLUMN_NAMES = [name for name, *_ in COLUMNS]
@@ -486,6 +611,8 @@ def clean_row(src):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--cache", default=os.environ.get("SPRING_LAYER_CACHE", str(ROOT / ".layer_cache")))
+    parser.add_argument("--local-layers", default=os.environ.get("SPRING_LOCAL_LAYERS", str(ROOT / ".local_layers")))
+    parser.add_argument("--lineaments", default=str(LINEAMENTS_FILE))
     args = parser.parse_args()
     cache = Path(args.cache)
     os.environ.setdefault("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
@@ -505,6 +632,8 @@ def main():
     pcp_m = WaporStack("L1-PCP-M", [f"{y}-{m:02d}" for y in YEARS for m in range(1, 13)])
     ret_a = WaporStack("L1-RET-A", [str(y) for y in YEARS])
     hwsd = Hwsd(cache)
+    local = LocalLayers(args.local_layers, args.lineaments)
+    print("Local layers: " + ("; ".join(local.found) or "none found"))
 
     for index, row in enumerate(rows):
         if row["coordinate_status"] != "ok":
@@ -540,6 +669,9 @@ def main():
             if row["source_rainfall_mm"] is not None:
                 row["rain_source_minus_chirps_mm"] = row["source_rainfall_mm"] - mean
         row.update(hwsd.features(lon, lat))
+        row.update(local.features(lon, lat))
+        if row.get("cartodem_elevation_m", "") != "" and row["dem_elevation_m"] != "":
+            row["cartodem_minus_copernicus_m"] = row["cartodem_elevation_m"] - row["dem_elevation_m"]
         if (index + 1) % 200 == 0:
             print(f"  {index + 1} rows")
 
@@ -591,13 +723,21 @@ def main():
                                                               "licence": "FAO WaPOR CC BY-NC-SA 4.0 (non-commercial); CHIRPS by UCSB Climate Hazards Center"},
             "FAO WaPOR v3 L1-RET-A": {"url_pattern": WAPOR_URL, "years": YEARS, "resolution": "~30 km", "licence": "CC BY-NC-SA 4.0"},
             "HWSD v2.0": {"urls": HWSD_URLS, "resolution": "30 arc-second (~1 km)", "licence": "FAO/IIASA, CC BY-NC-SA 3.0 IGO (non-commercial)"},
+            "NRSC CartoDEM v3 30 m": {"source": "Bhoonidhi (bhoonidhi.nrsc.gov.in), downloaded by hand 2026-10-10; 1-degree tiles P5_PAN_CD_N*_E*_30m",
+                                      "licence": "NRSC data policy; raw tiles not committed"},
+            "IMD 0.25 degree daily gridded rainfall": {"source": "IMD Pune, file RF25_ind2025_rfp25.nc (calendar year 2025), downloaded by hand 2026-10-10",
+                                                       "licence": "IMD data policy; raw file not committed"},
+            "ISRIC SoilGrids 2.0": {"source": "soilgrids.org map export, 0-5 cm mean, bbox lon 76-81 lat 28.7-32.4, downloaded by hand 2026-10-10",
+                                    "licence": "CC BY 4.0",
+                                    "file_identification": "Exports were saved as out.tif ... out (4).tif. Organic carbon density was confirmed by Rajat; "
+                                                           "the other four were identified from their value ranges (bdod 96-155 cg/cm3; clay+silt+sand ~1000 g/kg) "
+                                                           "and depth 0-5 cm is the viewer default. Mapping: out=bdod, out (1)=clay, out (2)=ocd, out (3)=silt, out (4)=sand."},
+            "DEM lineament candidates": {"file": str(LINEAMENTS_FILE.relative_to(ROOT)), "method": "scripts/extract_dem_lineaments.py"},
         },
+        "local_layers_found": local.found,
         "not_acquired": {
-            "CartoDEM 30 m (NRSC Bhoonidhi)": "Needs Bhoonidhi login; blocked from the build environment.",
-            "GSI Bhukosh geology and lineaments": "Needs Bhukosh registration; blocked from the build environment.",
+            "GSI Bhukosh lithology, faults and folds": "Bhukosh site not working on 2026-10-10; needs registration.",
             "Bhuvan LULC 1:50k": "Bhuvan services blocked from the build environment; download needs a request.",
-            "IMD 0.25 degree gridded rainfall": "imdpune.gov.in blocked from the build environment.",
-            "ISRIC SoilGrids 250 m": "rest.isric.org and files.isric.org blocked from the build environment.",
         },
     }
     (OUT_DIR / "spring_features_v1_metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")

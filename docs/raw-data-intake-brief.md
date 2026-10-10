@@ -34,4 +34,17 @@ These are flags for a transparent audit. No original raw values have been edited
 
 For this project, “open” will be recorded honestly as one of: **open service**, **free download with account**, **request/approval required**, or **not available for reuse**. It does not mean every government layer is automatically downloadable or current enough for field-scale conclusions. Non-Indian global layers are deferred unless an Indian source is unavailable and WATSAN agrees to the fallback.
 
+## Coordinate-based LULC lookup
+
+The required output is one documented LULC record per spring point, not a visual judgement from a basemap. The proposed order is:
+
+1. Preserve the original latitude/longitude and assign a stable point ID.
+2. Query a documented IIRS GeoHimalaya LULC layer at that coordinate, saving the source layer, version/date, class/code, legend, query time and no-data result.
+3. Cross-check a small sample against an NRSC Bhuvan LULC reference layer and satellite imagery; record disagreement rather than force a match.
+4. Stage the results only after the team accepts the pilot. The original `lulc` field remains untouched.
+
+## Himmotthan source track
+
+Himmotthan’s public materials describe a Spring Information System developed with the Uttarakhand Space Application Centre and an inventory/monitoring programme. This is a high-value independent source, particularly for Tehri, but we will obtain it only through an authorised extract with a data dictionary and reuse terms. The exact request is in `docs/source-register/himmotthan-data-request.md`.
+
 Record the exact download URL, query/AOI, licence, timestamp, checksum and coordinate reference system at intake. For any field record, record the site, date, source type and measurement conditions. Do not silently replace an original file or invent a missing value.

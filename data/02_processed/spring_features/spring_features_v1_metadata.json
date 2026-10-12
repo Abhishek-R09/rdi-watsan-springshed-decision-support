@@ -1,5 +1,5 @@
 {
-  "built": "2026-10-10",
+  "built": "2026-10-12",
   "input": "data/01_staged/common/csv/spring_records_common_v1.csv",
   "records": 1842,
   "records_with_layer_values": 1803,
@@ -64,35 +64,40 @@
       "licence": "NRSC data policy; raw tiles not committed"
     },
     "IMD 0.25 degree daily gridded rainfall": {
-      "source": "IMD Pune, file RF25_ind2025_rfp25.nc (calendar year 2025), downloaded by hand 2026-10-10",
+      "source": "IMD Pune, files RF25_ind2021_rfp25.nc to RF25_ind2025_rfp25.nc (calendar years 2021-2025), downloaded by hand 2026-10-10 (2025) and 2026-10-12 (2021-2024)",
       "licence": "IMD data policy; raw file not committed"
     },
     "ISRIC SoilGrids 2.0": {
-      "source": "soilgrids.org map export, 0-5 cm mean, bbox lon 76-81 lat 28.7-32.4, downloaded by hand 2026-10-10",
+      "source": "soilgrids.org map export, mean, bbox lon 76-81 lat 28.7-32.4; 0-5 cm downloaded by hand 2026-10-10, 5-15 and 15-30 cm (files named by property) on 2026-10-12",
       "licence": "CC BY 4.0",
-      "file_identification": "Exports were saved as out.tif ... out (4).tif. Organic carbon density was confirmed by Rajat; the other four were identified from their value ranges (bdod 96-155 cg/cm3; clay+silt+sand ~1000 g/kg) and depth 0-5 cm is the viewer default. Mapping: out=bdod, out (1)=clay, out (2)=ocd, out (3)=silt, out (4)=sand."
+      "file_identification": "The 0-5 cm exports were saved unnamed as out.tif ... out (4).tif. Each was matched to the named 5-15 cm file it correlates with pixel by pixel (Spearman 0.95-0.99): out=bdod, out (1)=clay, out (2)=cfvo (coarse fragments), out (3)=sand, out (4)=organic carbon. There is no 0-5 cm silt file. The first build (2026-10-10) had identified these by value range and wrongly read out (2) as organic carbon, out (3) as silt and out (4) as sand; fixed 2026-10-12. Organic carbon is treated as organic carbon density (ocd, hg/m3) as Rajat described the download; if it was soil organic carbon content (soc, dg/kg) the column is g/kg instead of kg/m3."
     },
-    "GSI NGDR Uttarakhand lithology and faults": {
+    "GSI NGDR Uttarakhand lithology, faults and folds": {
       "files": [
         "data/00_raw/ngdr_geology/lithology/LITHOLOGY_STATE_UTTARAKHAND.geojson",
-        "data/00_raw/ngdr_geology/faults/FAULT_STATE_UTTARAKHAND.geojson"
+        "data/00_raw/ngdr_geology/faults/FAULT_STATE_UTTARAKHAND.geojson",
+        "data/00_raw/ngdr_geology/folds/FOLD_STATE_UTTARAKHAND.geojson"
       ],
-      "source": "GSI Bhukosh / NGDR state layers (SRC-013, SRC-014), added to the repo 2026-10-10",
+      "source": "GSI Bhukosh / NGDR state layers (SRC-013, SRC-014, SRC-015), added to the repo 2026-10-10 and 2026-10-12",
       "note": "State-scale map; a spring's polygon is a map overlay, not a field observation."
     },
     "DEM lineament candidates": {
       "file": "data/02_processed/lineaments/dem_lineament_candidates_v1.geojson",
       "method": "scripts/extract_dem_lineaments.py"
+    },
+    "DEM hydrology": {
+      "method": "scripts/spring_hydrology.py: depression filling and D8 routing with pyflwdir, Freeman (1991) MFD area, TWI = ln(a / tan slope)",
+      "stream_threshold_km2": 0.5,
+      "window": "+/- 5 km around each spring, +/- 20 km when the D8 catchment reaches the edge"
     }
   },
   "local_layers_found": [
     "CartoDEM: 14 tiles",
-    "IMD: RF25_ind2025_rfp25.nc, 365 days of 2025",
-    "SoilGrids: 5 layers",
+    "IMD: 5 years (2021, 2022, 2023, 2024, 2025)",
+    "SoilGrids: 17 layers",
     "DEM lineaments: 26672 segments"
   ],
   "not_acquired": {
-    "GSI folds": "Not in the NGDR files added to the repo.",
     "Bhuvan LULC 1:50k": "Bhuvan services blocked from the build environment; download needs a request."
   }
 }

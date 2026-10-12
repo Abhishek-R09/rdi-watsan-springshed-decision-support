@@ -75,6 +75,7 @@ COLUMNS = [
     ("colocated_group_id", "", "Processed features", "Records within 30 m of each other; probably the same spring listed by two sources."),
     ("colocated_group_size", "", "Processed features", ""),
     ("is_primary_record", "", "Derived", "Y for one record per spring: the only record, or the richest record in its colocated group. Use Y rows to count distinct springs."),
+    ("duplicate_group", "", "Derived", "Blank for springs listed once. Otherwise the colocated group, its size, the other records in it and which one is primary. Highlighted orange in the workbook; see the Duplicate groups sheet."),
     # terrain
     ("elevation_m", "m", "Copernicus DEM GLO-30", "DEM elevation at the spring (same layer for all springs)."),
     ("elevation_source_m", "m", "Common file", "Elevation the source gave, for comparison."),
@@ -85,6 +86,12 @@ COLUMNS = [
     ("relief_1km_m", "m", "Copernicus DEM GLO-30", "Highest minus lowest elevation within 1 km."),
     ("upslope_relief_1km_m", "m", "Copernicus DEM GLO-30", "Highest elevation within 1 km minus the spring elevation."),
     ("tpi_300m_m", "m", "Copernicus DEM GLO-30", "Negative = hollow / valley position."),
+    ("drainage_area_ha", "ha", "Copernicus DEM GLO-30 (derived)", "Surface area draining to the spring cell (multiple-flow-direction routing on the filled DEM). The topographic catchment above the spring; not the recharge area, which follows the rocks."),
+    ("drainage_area_max30m_ha", "ha", "Copernicus DEM GLO-30 (derived)", "Largest drainage area within about 30 m (allows for GPS error). Much larger than drainage_area_ha means a hollow or stream line is right next to the point."),
+    ("wetness_index_twi", "", "Copernicus DEM GLO-30 (derived)", "Topographic wetness index ln(a / tan slope). Higher = wetter, more convergent spot. Hillslopes ~4-8, hollows and valley floors ~8-14."),
+    ("distance_to_stream_m", "m", "Copernicus DEM GLO-30 (derived)", "Straight-line distance to the nearest DEM stream (cells draining at least 0.5 km2)."),
+    ("nearest_stream_order", "", "Copernicus DEM GLO-30 (derived)", "Strahler order of that stream (1 = headwater)."),
+    ("height_above_stream_m", "m", "Copernicus DEM GLO-30 (derived)", "Height above the stream the spring drains to (HAND)."),
     ("slope_source_deg", "degrees", "Common file", "Slope the source gave, for comparison."),
     # land cover
     ("land_cover_point", "", "ESA WorldCover 2021", "Class at the spring (10 m)."),
@@ -100,15 +107,19 @@ COLUMNS = [
     ("rainfall_dry_season_mm", "mm", "CHIRPS v2 2018-2025", "November-April rain."),
     ("et0_mean_annual_mm", "mm/year", "FAO WaPOR v3", "Reference evapotranspiration."),
     ("aridity_index", "", "Derived", "Rainfall / ET0."),
-    ("rainfall_imd_2025_mm", "mm", "IMD 0.25 degree grid", "2025 total; one year only, a cross-check."),
+    ("rainfall_imd_mean_annual_mm", "mm/year", "IMD 0.25 degree grid, 2021-2025", "Mean annual rainfall, ~25 km. Cross-check on CHIRPS; IMD reads lower in the hills."),
+    ("rainfall_imd_min_annual_mm", "mm/year", "IMD 0.25 degree grid, 2021-2025", "Driest of the five years."),
+    ("rainfall_imd_cv_pct", "%", "IMD 0.25 degree grid, 2021-2025", "Year-to-year variation."),
+    ("rainfall_imd_max_1day_mm", "mm", "IMD 0.25 degree grid, 2021-2025", "Wettest single day in the five years."),
     ("rainfall_source_mm", "mm/year", "Common file", "Rainfall the source gave, for comparison."),
     # soil
-    ("soil_clay_pct", "%", "SoilGrids 2.0, 0-5 cm (HWSD v2 0-20 cm where missing)", ""),
-    ("soil_silt_pct", "%", "SoilGrids 2.0, 0-5 cm (HWSD v2 where missing)", ""),
-    ("soil_sand_pct", "%", "SoilGrids 2.0, 0-5 cm (HWSD v2 where missing)", ""),
+    ("soil_clay_pct", "%", "SoilGrids 2.0, 0-30 cm (HWSD v2 0-20 cm where missing)", "Depth-weighted mean of the 0-5, 5-15 and 15-30 cm layers."),
+    ("soil_silt_pct", "%", "SoilGrids 2.0, 0-30 cm (HWSD v2 where missing)", ""),
+    ("soil_sand_pct", "%", "SoilGrids 2.0, 0-30 cm (HWSD v2 where missing)", ""),
     ("soil_texture_from", "", "Derived", "Which layer gave clay/silt/sand."),
-    ("soil_bulk_density_g_cm3", "g/cm3", "SoilGrids 2.0, 0-5 cm", ""),
-    ("soil_org_carbon_density_kg_m3", "kg/m3", "SoilGrids 2.0, 0-5 cm", ""),
+    ("soil_coarse_fragments_pct", "%", "SoilGrids 2.0, 0-30 cm", "Stones and gravel by volume. More coarse fragments = faster infiltration, less storage."),
+    ("soil_bulk_density_g_cm3", "g/cm3", "SoilGrids 2.0, 0-30 cm", ""),
+    ("soil_org_carbon_density_kg_m3", "kg/m3", "SoilGrids 2.0, 0-30 cm", ""),
     ("soil_type_wrb", "", "HWSD v2.0", "Dominant soil type (~1 km)."),
     ("soil_drainage", "", "HWSD v2.0", ""),
     ("soil_awc_mm_per_m", "mm/m", "HWSD v2.0", "Available water capacity."),
@@ -132,6 +143,10 @@ COLUMNS = [
     ("gsi_nearest_fault_name", "", "GSI NGDR faults", "Named where GSI names it (MCT, MBT, North Almora Thrust, ...)."),
     ("gsi_thrust_distance_m", "m", "GSI NGDR faults", "Distance to the nearest mapped thrust."),
     ("gsi_fault_density_1km", "km/km2", "GSI NGDR faults", "Mapped fault length within 1 km, per km2."),
+    ("gsi_fold_distance_m", "m", "GSI NGDR folds (Bhukosh)", "Distance to the nearest mapped fold axis."),
+    ("gsi_nearest_fold_type", "", "GSI NGDR folds", "Anticline, syncline, antiform, synform or overturned."),
+    ("gsi_anticline_distance_m", "m", "GSI NGDR folds", "Nearest anticline or antiform axis (fractured crest, rocks dip away)."),
+    ("gsi_syncline_distance_m", "m", "GSI NGDR folds", "Nearest syncline or synform axis (rocks dip inward and can hold water)."),
     # spring and water
     ("spring_type_source_text", "", "Common file / colocated record", ""),
     ("spring_type_class", "", "Derived", "Fracture, Contact, Depression, Karst, Seepage, Gravity / seepage, or Stream (not a spring)."),
@@ -220,6 +235,17 @@ def richness(record_id, values):
     return (sum(1 for k in FIELD_ONLY if values[k]), -SOURCE_PRIORITY.get(record_id[:3], 9))
 
 
+def duplicate_label(feature, groups, primary):
+    group = feature["colocated_group_id"]
+    if not group:
+        return ""
+    members = groups[group]
+    others = ", ".join(m for m in members if m != feature["record_id"])
+    main_record = next(m for m in members if m in primary)
+    role = "this is the primary record" if main_record == feature["record_id"] else f"primary is {main_record}"
+    return f"{group}: {len(members)} records within 30 m; also {others}; {role}"
+
+
 def main():
     common = {r["record_id"]: r for r in read(COMMON_CSV)}
     watsan_seasonal = {(r["Latitude"], r["Longitude"]): r for r in read(WATSAN_DISCHARGE_CSV)}
@@ -256,6 +282,12 @@ def main():
             "coordinate_precision_decimals": f["coordinate_precision_decimals"],
             "colocated_group_id": f["colocated_group_id"], "colocated_group_size": f["colocated_group_size"],
             "is_primary_record": "Y" if (not f["colocated_group_id"] or rid in primary) else "N",
+            "duplicate_group": duplicate_label(f, groups, primary),
+            "drainage_area_ha": f["dem_drainage_area_ha"], "drainage_area_max30m_ha": f["dem_drainage_area_max30m_ha"],
+            "wetness_index_twi": f["dem_twi"], "distance_to_stream_m": f["dem_distance_to_stream_m"],
+            "nearest_stream_order": f["dem_nearest_stream_order"], "height_above_stream_m": f["dem_height_above_stream_m"],
+            "gsi_fold_distance_m": f["distance_to_gsi_fold_axis_m"], "gsi_nearest_fold_type": f["gsi_nearest_fold_type"],
+            "gsi_anticline_distance_m": f["distance_to_gsi_anticline_m"], "gsi_syncline_distance_m": f["distance_to_gsi_syncline_m"],
             "elevation_m": f["dem_elevation_m"], "elevation_source_m": f["source_elevation_m"],
             "elevation_check": "gap >150 m" if f["dem_minus_source_elevation_m"] and abs(float(f["dem_minus_source_elevation_m"])) > 150 else "",
             "slope_deg": f["dem_slope_deg"], "slope_mean_500m_deg": f["dem_mean_slope_500m_deg"], "aspect_class": f["dem_aspect_class"],
@@ -267,8 +299,11 @@ def main():
             "rainfall_mean_annual_mm": f["rain_chirps_mean_annual_mm_2018_2025"], "rainfall_cv_pct": f["rain_chirps_cv_annual_pct"],
             "rainfall_monsoon_share_pct": f["rain_chirps_monsoon_share_pct"], "rainfall_dry_season_mm": f["rain_chirps_dry_season_mm"],
             "et0_mean_annual_mm": f["et0_wapor_mean_annual_mm_2018_2025"], "aridity_index": f["aridity_index_p_over_et0"],
-            "rainfall_imd_2025_mm": f["rain_imd_annual_mm"], "rainfall_source_mm": f["source_rainfall_mm"],
-            "soil_bulk_density_g_cm3": f["sg_bulk_density_0_5cm_g_cm3"], "soil_org_carbon_density_kg_m3": f["sg_org_carbon_density_0_5cm_kg_m3"],
+            "rainfall_imd_mean_annual_mm": f["rain_imd_mean_annual_mm"], "rainfall_imd_min_annual_mm": f["rain_imd_min_annual_mm"],
+            "rainfall_imd_cv_pct": f["rain_imd_cv_annual_pct"], "rainfall_imd_max_1day_mm": f["rain_imd_max_1day_mm"],
+            "rainfall_source_mm": f["source_rainfall_mm"],
+            "soil_coarse_fragments_pct": f["sg_coarse_fragments_0_30cm_pct"],
+            "soil_bulk_density_g_cm3": f["sg_bulk_density_0_30cm_g_cm3"], "soil_org_carbon_density_kg_m3": f["sg_org_carbon_density_0_30cm_kg_m3"],
             "soil_type_wrb": f["soil_dominant_wrb"], "soil_drainage": f["soil_drainage"], "soil_awc_mm_per_m": f["soil_awc_mm_per_m"],
             "geological_structure_text": c["geological_structure_source_value"],
             "lineament_distance_m": f["lineament_dem_distance_m"], "lineament_density_1km": f["lineament_dem_density_1km_km_per_km2"],
@@ -279,9 +314,9 @@ def main():
             "seasonality_text": c["seasonality_source_value"], "intervention_text": c["intervention_source_value"],
             "vulnerability_index_source": c["vulnerability_index_source_value"], "notes": f["processing_notes"],
         })
-        if f["sg_clay_0_5cm_pct"]:
-            row.update(soil_clay_pct=f["sg_clay_0_5cm_pct"], soil_silt_pct=f["sg_silt_0_5cm_pct"], soil_sand_pct=f["sg_sand_0_5cm_pct"],
-                       soil_texture_from="SoilGrids 0-5 cm")
+        if f["sg_clay_0_30cm_pct"]:
+            row.update(soil_clay_pct=f["sg_clay_0_30cm_pct"], soil_silt_pct=f["sg_silt_0_30cm_pct"], soil_sand_pct=f["sg_sand_0_30cm_pct"],
+                       soil_texture_from="SoilGrids 0-30 cm")
         elif f["soil_topsoil_clay_pct"]:
             row.update(soil_clay_pct=f["soil_topsoil_clay_pct"], soil_silt_pct=f["soil_topsoil_silt_pct"], soil_sand_pct=f["soil_topsoil_sand_pct"],
                        soil_texture_from="HWSD v2 0-20 cm")
@@ -318,6 +353,8 @@ def main():
             checks.append("discharge above 300 L/min: check units or record")
         if row["recharge_area_ha_high"] and float(row["recharge_area_ha_high"]) > 1000:
             checks.append("recharge area above 1000 ha: likely a watershed, not a springshed")
+        if f["dem_catchment_window_edge"] == "Y":
+            checks.append("DEM catchment runs beyond 20 km: point sits on a large river, drainage area is a minimum")
         if row["district"] and not f["district_clean"]:
             checks.append("district read from the WATSAN area name")
         row["notes"] = "; ".join(checks)
@@ -374,14 +411,18 @@ def main():
 GUIDE = [
     ("What this is", "One row per spring record from the common file (WATSAN, Spring Atlas annexure, Himmotthan, Atlas profiles, "
                      "Chamba report, Rathi 2021, Daniel 2021), with every gap filled that public data or a matching record can fill."),
-    ("Counting springs", "Some springs are listed by two sources. Filter is_primary_record = Y to keep one row per spring."),
+    ("Counting springs", "Some springs are listed by two sources. Filter is_primary_record = Y to keep one row per spring. "
+                         "Records in a duplicate group are highlighted orange in duplicate_group; the Duplicate groups sheet lists each group "
+                         "for review."),
     ("Mapped values", "Terrain, land cover, rainfall, soil, GSI geology, faults and lineaments come from the same layer for every spring, so springs can be "
                       "compared fairly. The source's own value is kept in a *_source column beside it."),
     ("Field values", "Discharge, pH, TDS, spring type, lithology and recharge area come from the record itself. Where it had none, a "
                      "record from another source within 30 m filled it; the *_from column names that record."),
     ("Not filled", "Nothing is estimated, averaged from neighbours or invented. Blank means no source has it; gaps_remaining lists what is missing."),
     ("Caveats", "Layer values describe the spring point or a circle around it, not the real recharge area. CHIRPS rainfall is ~5 km, "
-                "HWSD soil ~1 km, SoilGrids 250 m. DEM lineaments are unvalidated candidates. IMD rainfall is 2025 only. "
+                "HWSD soil ~1 km, SoilGrids 250 m, IMD ~25 km (2021-2025). DEM lineaments are unvalidated candidates. "
+                "Drainage area, wetness index and distance to stream come from a 30 m DEM: small hollows are invisible and a 30 m GPS "
+                "error can move a spring into the next cell, so compare drainage_area_ha with drainage_area_max30m_ha. "
                 "GSI geology is a state-scale map: a spring's polygon is a map overlay, not a field check, and it covers Uttarakhand only."),
     ("Rebuild", "python scripts/build_spring_features.py ... then python scripts/build_spring_master.py. "
                 "See docs/data-gap-analysis.md."),
@@ -426,7 +467,21 @@ def write_workbook(rows, summary):
     wide = {n: 40 for n in ("lithology_source_text", "spring_type_source_text", "discharge_text", "gaps_remaining", "notes",
                             "geological_structure_text", "intervention_text", "land_use_source_text")}
     wide.update({n: 30 for n in ("lithology_from", "spring_type_from", "discharge_from", "water_quality_from", "recharge_area_from", "source_dataset")})
-    table(wb.create_sheet("Springs"), NAMES, [[r[n] for n in NAMES] for r in rows], wide)
+    wide["duplicate_group"] = 45
+    springs = wb.create_sheet("Springs")
+    table(springs, NAMES, [[r[n] for n in NAMES] for r in rows], wide)
+    dup_fill = PatternFill("solid", fgColor="FCE4D6")
+    primary_fill = PatternFill("solid", fgColor="F8CBAD")
+    col = NAMES.index("duplicate_group") + 1
+    for i, r in enumerate(rows, start=2):
+        if r["duplicate_group"]:
+            springs.cell(row=i, column=col).fill = primary_fill if r["is_primary_record"] == "Y" else dup_fill
+    dup_columns = ["colocated_group_id", "colocated_group_size", "record_id", "is_primary_record", "source_dataset", "spring_name",
+                   "village", "district", "latitude", "longitude", "elevation_m", "elevation_source_m", "discharge_text", "spring_type_source_text"]
+    grouped = sorted((r for r in rows if r["colocated_group_id"]), key=lambda r: (r["colocated_group_id"], r["is_primary_record"] != "Y"))
+    table(wb.create_sheet("Duplicate groups"), dup_columns + ["same_spring_confirmed"],
+          [[r[n] for n in dup_columns] + [""] for r in grouped],
+          {"source_dataset": 30, "spring_name": 24, "discharge_text": 40, "spring_type_source_text": 30, "same_spring_confirmed": 22})
     table(wb.create_sheet("Data dictionary"), ["column", "unit", "from", "meaning"], [list(c) for c in COLUMNS],
           {"column": 30, "from": 40, "meaning": 90})
     table(wb.create_sheet("Fill summary"), summary[0], summary[1:], {"column": 32})

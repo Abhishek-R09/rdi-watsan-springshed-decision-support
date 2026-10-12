@@ -13,6 +13,7 @@ coordinate_precision_decimals,1806,98,,,36
 colocated_group_id,448,24,,,1394
 colocated_group_size,448,24,,,1394
 is_primary_record,1842,100,,,0
+duplicate_group,448,24,,,1394
 elevation_m,1803,98,,,39
 elevation_source_m,1763,96,,,79
 elevation_check,77,4,,,1765
@@ -22,6 +23,12 @@ aspect_class,1803,98,,,39
 relief_1km_m,1803,98,,,39
 upslope_relief_1km_m,1803,98,,,39
 tpi_300m_m,1803,98,,,39
+drainage_area_ha,1803,98,,,39
+drainage_area_max30m_ha,1803,98,,,39
+wetness_index_twi,1803,98,,,39
+distance_to_stream_m,1803,98,,,39
+nearest_stream_order,1803,98,,,39
+height_above_stream_m,1803,98,,,39
 slope_source_deg,782,42,,,1060
 land_cover_point,1803,98,,,39
 land_cover_majority_500m,1803,98,,,39
@@ -35,12 +42,16 @@ rainfall_monsoon_share_pct,1803,98,,,39
 rainfall_dry_season_mm,1803,98,,,39
 et0_mean_annual_mm,1803,98,,,39
 aridity_index,1803,98,,,39
-rainfall_imd_2025_mm,1803,98,,,39
+rainfall_imd_mean_annual_mm,1803,98,,,39
+rainfall_imd_min_annual_mm,1803,98,,,39
+rainfall_imd_cv_pct,1803,98,,,39
+rainfall_imd_max_1day_mm,1803,98,,,39
 rainfall_source_mm,316,17,,,1526
 soil_clay_pct,1799,98,,,43
 soil_silt_pct,1799,98,,,43
 soil_sand_pct,1799,98,,,43
 soil_texture_from,1799,98,,,43
+soil_coarse_fragments_pct,1793,97,,,49
 soil_bulk_density_g_cm3,1793,97,,,49
 soil_org_carbon_density_kg_m3,1793,97,,,49
 soil_type_wrb,1803,98,,,39
@@ -65,6 +76,10 @@ gsi_nearest_fault_type,1761,96,,,81
 gsi_nearest_fault_name,778,42,,,1064
 gsi_thrust_distance_m,1761,96,,,81
 gsi_fault_density_1km,1761,96,,,81
+gsi_fold_distance_m,1761,96,,,81
+gsi_nearest_fold_type,1761,96,,,81
+gsi_anticline_distance_m,1761,96,,,81
+gsi_syncline_distance_m,1761,96,,,81
 spring_type_source_text,1021,55,857,164,821
 spring_type_class,1021,55,,,821
 spring_type_from,1021,55,,,821
@@ -85,4 +100,4 @@ intervention_text,18,1,,,1824
 vulnerability_index_source,1,0,,,1841
 key_fields_filled,1842,100,,,0
 gaps_remaining,1820,99,,,22
-notes,423,23,,,1419
+notes,424,23,,,1418

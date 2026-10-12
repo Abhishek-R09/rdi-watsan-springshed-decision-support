@@ -13,10 +13,12 @@ Public layers (downloaded once into a local cache, never committed):
 
 Layers downloaded by hand (logins or manual export), read from --local-layers DIR:
 - Bhoonidhi/*.zip      NRSC CartoDEM v3 30 m tiles, as downloaded from Bhoonidhi
-- IMD/*.nc             IMD 0.25 degree daily gridded rainfall (one calendar year per file)
-- SoilGrids/<prop>_0-5cm_mean.tif   ISRIC SoilGrids 2.0 exports (clay, silt, sand, bdod, ocd)
+- IMD/*.nc             IMD 0.25 degree daily gridded rainfall (one calendar year per file; 2021-2025 used)
+- SoilGrids/<prop>_<depth>_mean.tif   ISRIC SoilGrids 2.0 exports (clay, silt, sand, bdod, ocd, cfvo;
+                       depths 0-5, 5-15 and 15-30 cm)
 DEM lineament candidates come from scripts/extract_dem_lineaments.py (--lineaments FILE).
-GSI NGDR (Bhukosh) Uttarakhand lithology polygons and fault lines are read from
+DEM hydrology (drainage area, wetness index, distance to stream) comes from scripts/spring_hydrology.py.
+GSI NGDR (Bhukosh) Uttarakhand lithology polygons, fault lines and fold axes are read from
 data/00_raw/ngdr_geology/ (committed; staged attribute tables in data/01_staged/ngdr_geology/).
 
 Rules: staged source text is never edited. Parsed numbers are new columns with
@@ -46,6 +48,8 @@ from shapely import STRtree, LineString, Point
 from shapely.geometry import shape
 from shapely import transform as shapely_transform
 
+from spring_hydrology import STREAM_THRESHOLD_KM2, hydrology_features
+
 
 ROOT = Path(__file__).resolve().parents[1]
 COMMON_CSV = ROOT / "data" / "01_staged" / "common" / "csv" / "spring_records_common_v1.csv"
@@ -62,16 +66,22 @@ YEARS = list(range(2018, 2026))
 NGDR_DIR = ROOT / "data" / "00_raw" / "ngdr_geology"
 NGDR_LITHOLOGY = NGDR_DIR / "lithology" / "LITHOLOGY_STATE_UTTARAKHAND.geojson"
 NGDR_FAULTS = NGDR_DIR / "faults" / "FAULT_STATE_UTTARAKHAND.geojson"
+NGDR_FOLDS = NGDR_DIR / "folds" / "FOLD_STATE_UTTARAKHAND.geojson"
 LINEAMENTS_FILE = ROOT / "data" / "02_processed" / "lineaments" / "dem_lineament_candidates_v1.geojson"
 
-# SoilGrids exports: (file stem, column, divisor to reach the column unit). 0 = no data.
-SOILGRIDS = [
-    ("clay_0-5cm_mean", "sg_clay_0_5cm_pct", 10),
-    ("silt_0-5cm_mean", "sg_silt_0_5cm_pct", 10),
-    ("sand_0-5cm_mean", "sg_sand_0_5cm_pct", 10),
-    ("bdod_0-5cm_mean", "sg_bulk_density_0_5cm_g_cm3", 100),
-    ("ocd_0-5cm_mean", "sg_org_carbon_density_0_5cm_kg_m3", 10),
+# SoilGrids exports: (property, column stem, unit, divisor to reach the unit, description). 0 = no data.
+SOILGRID_DEPTHS = [("0-5cm", "0_5cm"), ("5-15cm", "5_15cm"), ("15-30cm", "15_30cm")]
+SOILGRID_PROPERTIES = [
+    ("clay", "sg_clay", "%", 10, "Clay (g/kg / 10)"),
+    ("silt", "sg_silt", "%", 10, "Silt (g/kg / 10)"),
+    ("sand", "sg_sand", "%", 10, "Sand (g/kg / 10)"),
+    ("cfvo", "sg_coarse_fragments", "%", 10, "Coarse fragments, volume share (cm3/dm3 / 10)"),
+    ("bdod", "sg_bulk_density", "g/cm3", 100, "Bulk density of the fine earth (cg/cm3 / 100)"),
+    ("ocd", "sg_org_carbon_density", "kg/m3", 10, "Organic carbon density (hg/m3 / 10)"),
 ]
+SOILGRIDS = [(f"{prop}_{depth}_mean", f"{stem}_{label}_{unit.replace('%', 'pct').replace('/', '_')}", divisor)
+             for prop, stem, unit, divisor, _ in SOILGRID_PROPERTIES for depth, label in SOILGRID_DEPTHS]
+IMD_MONSOON_MONTHS = (6, 9)
 
 # Study region: Uttarakhand and Himachal Pradesh springs in the common file.
 REGION = {"lat_min": 28.5, "lat_max": 33.5, "lon_min": 75.5, "lon_max": 81.5}
@@ -360,16 +370,16 @@ class LocalLayers:
                          for name in self._zip_tifs(p)]
         if self.cartodem:
             self.found.append(f"CartoDEM: {len(self.cartodem)} tiles")
-        self.imd = None
-        imd_files = sorted((folder / "IMD").glob("*.nc"))
-        if imd_files:
-            with rasterio.open(imd_files[0]) as ds:
-                self.imd = ds.read().astype("float64")
-                self.imd_transform = ds.transform
-                self.imd_year = date(1900, 12, 31).toordinal() + int(ds.tags(1)["NETCDF_DIM_TIME"])
-                self.imd_year = date.fromordinal(self.imd_year).year
-            self.imd[self.imd < 0] = np.nan
-            self.found.append(f"IMD: {imd_files[0].name}, {self.imd.shape[0]} days of {self.imd_year}")
+        self.imd = {}  # year -> (days x rows x cols array, transform)
+        for path in sorted((folder / "IMD").glob("*.nc")):
+            with rasterio.open(path) as ds:
+                data = ds.read().astype("float64")
+                year = date.fromordinal(date(1900, 12, 31).toordinal() + int(ds.tags(1)["NETCDF_DIM_TIME"])).year
+                transform = ds.transform
+            data[data < 0] = np.nan
+            self.imd[year] = (data, transform)
+        if self.imd:
+            self.found.append(f"IMD: {len(self.imd)} years ({', '.join(map(str, sorted(self.imd)))})")
         self.soil = {}
         for stem, column, divisor in SOILGRIDS:
             path = folder / "SoilGrids" / f"{stem}.tif"
@@ -417,21 +427,41 @@ class LocalLayers:
                     result["cartodem_elevation_m"] = z[1, 1]
                     result["cartodem_slope_deg"] = math.degrees(math.atan(math.hypot(gx, gy)))
                 break
-        if self.imd is not None:
-            cell = self._cell(self.imd_transform, self.imd.shape[1:], lon, lat)
-            series = self.imd[:, cell[0], cell[1]] if cell else None
-            if series is not None and not np.isnan(series).all():
-                total = np.nansum(series)
-                start = date(self.imd_year, 6, 1).timetuple().tm_yday - 1
-                end = date(self.imd_year, 9, 30).timetuple().tm_yday
-                result["rain_imd_annual_mm"] = total
-                result["rain_imd_monsoon_share_pct"] = 100 * np.nansum(series[start:end]) / total if total else None
-                result["rain_imd_rainy_days"] = int(np.sum(series >= 2.5))
-                result["rain_imd_max_1day_mm"] = np.nanmax(series)
+        years = {}
+        for year, (data, transform) in sorted(self.imd.items()):
+            cell = self._cell(transform, data.shape[1:], lon, lat)
+            series = data[:, cell[0], cell[1]] if cell else None
+            if series is None or np.isnan(series).all():
+                continue
+            start = date(year, IMD_MONSOON_MONTHS[0], 1).timetuple().tm_yday - 1
+            end = date(year, IMD_MONSOON_MONTHS[1], 30).timetuple().tm_yday
+            total = np.nansum(series)
+            years[year] = {"total": total, "monsoon": np.nansum(series[start:end]),
+                           "rainy_days": int(np.sum(series >= 2.5)), "max_1day": np.nanmax(series)}
+            result[f"rain_imd_{year}_mm"] = total
+        if years:
+            totals = [v["total"] for v in years.values()]
+            mean = statistics.fmean(totals)
+            result["rain_imd_mean_annual_mm"] = mean
+            result["rain_imd_min_annual_mm"] = min(totals)
+            result["rain_imd_max_annual_mm"] = max(totals)
+            result["rain_imd_cv_annual_pct"] = 100 * statistics.pstdev(totals) / mean if mean else None
+            result["rain_imd_monsoon_share_pct"] = 100 * sum(v["monsoon"] for v in years.values()) / sum(totals) if sum(totals) else None
+            result["rain_imd_rainy_days"] = statistics.fmean(v["rainy_days"] for v in years.values())
+            result["rain_imd_max_1day_mm"] = max(v["max_1day"] for v in years.values())
+            result["rain_imd_years_used"] = f"{min(years)}-{max(years)}" if len(years) == max(years) - min(years) + 1 else ", ".join(map(str, years))
         for column, (grid, transform) in self.soil.items():
             cell = self._cell(transform, grid.shape, lon, lat)
             if cell and grid[cell] > 0:
                 result[column] = grid[cell]
+        # The 0-5 cm export has no silt layer; SoilGrids fractions sum to ~100 %, so silt = 100 - clay - sand.
+        if result.get("sg_silt_0_5cm_pct") is None and result.get("sg_clay_0_5cm_pct") and result.get("sg_sand_0_5cm_pct"):
+            result["sg_silt_0_5cm_pct"] = 100 - result["sg_clay_0_5cm_pct"] - result["sg_sand_0_5cm_pct"]
+        for stem, unit in (("sg_clay", "pct"), ("sg_sand", "pct"), ("sg_silt", "pct"), ("sg_coarse_fragments", "pct"),
+                           ("sg_bulk_density", "g_cm3"), ("sg_org_carbon_density", "kg_m3")):
+            parts = [(result.get(f"{stem}_{label}_{unit}"), weight) for (_, label), weight in zip(SOILGRID_DEPTHS, (5, 10, 15))]
+            if all(v is not None for v, _ in parts):
+                result[f"{stem}_0_30cm_{unit}"] = sum(v * w for v, w in parts) / 30
         if self.lines is not None:
             x, y = self.to_utm.transform(lon, lat)
             point = Point(x, y)
@@ -448,6 +478,7 @@ class NgdrGeology:
 
     def __init__(self):
         self.ok = NGDR_LITHOLOGY.exists() and NGDR_FAULTS.exists()
+        self.folds = []
         if not self.ok:
             return
         project = Transformer.from_crs("EPSG:4326", "EPSG:32644", always_xy=True).transform
@@ -464,6 +495,9 @@ class NgdrGeology:
         thrusts = [(g, p) for g, p in self.faults if "THRUST" in (p.get("fault_type") or "") or "THRUST" in (p.get("fault_name") or "")]
         self.thrusts = thrusts
         self.thrust_tree = STRtree([g for g, _ in thrusts])
+        if NGDR_FOLDS.exists():
+            self.folds = load(NGDR_FOLDS)
+            self.fold_tree = STRtree([g for g, _ in self.folds])
 
     @staticmethod
     def _clean(value):
@@ -496,6 +530,17 @@ class NgdrGeology:
         circle = point.buffer(1000)
         inside = sum(self.faults[j][0].intersection(circle).length for j in self.fault_tree.query(circle))
         result["gsi_fault_density_1km_km_per_km2"] = (inside / 1000) / math.pi
+        if self.folds:
+            i = self.fold_tree.query_nearest(point)[0]
+            geom, props = self.folds[i]
+            result["distance_to_gsi_fold_axis_m"] = geom.distance(point)
+            result["gsi_nearest_fold_type"] = self._clean(props.get("fold_type"))
+            result["distance_to_gsi_anticline_m"] = min(
+                (g.distance(point) for g, p in self.folds if "ANTI" in (p.get("fold_type") or "")), default=None)
+            result["distance_to_gsi_syncline_m"] = min(
+                (g.distance(point) for g, p in self.folds if "SYN" in (p.get("fold_type") or "")), default=None)
+            circle = point.buffer(2000)
+            result["gsi_fold_axes_within_2km"] = len(self.fold_tree.query(circle, predicate="intersects"))
         return result
 
 
@@ -538,6 +583,15 @@ COLUMNS = [
     ("dem_relief_1km_m", "m", "Copernicus DEM GLO-30", "Highest minus lowest elevation within 1 km."),
     ("dem_upslope_relief_1km_m", "m", "Copernicus DEM GLO-30", "Highest elevation within 1 km minus the spring cell elevation (head available upslope)."),
     ("dem_tpi_300m_m", "m", "Copernicus DEM GLO-30", "Spring elevation minus mean elevation within 300 m; negative = valley/hollow position."),
+    ("dem_drainage_area_ha", "ha", "Derived from Copernicus DEM GLO-30", "Upslope area draining to the spring cell: depression-filled DEM, multiple-flow-direction routing (Freeman 1991). The surface catchment above the spring, not its recharge area (scripts/spring_hydrology.py)."),
+    ("dem_drainage_area_max30m_ha", "ha", "Derived from Copernicus DEM GLO-30", "Largest drainage area in the 3 x 3 cells around the spring (allows for ~30 m GPS error). A big jump from the cell value means a hollow or stream line lies next to the point."),
+    ("dem_drainage_area_d8_ha", "ha", "Derived from Copernicus DEM GLO-30", "Same as dem_drainage_area_ha but with single-direction (D8) routing. Kept as a check; D8 is noisier at a single cell."),
+    ("dem_twi", "", "Derived from Copernicus DEM GLO-30", "Topographic wetness index ln(a / tan slope), a = MFD drainage area per metre of contour. Higher = wetter, more convergent position. Typical hillslope 4-8, hollows and valley floors 8-14."),
+    ("dem_distance_to_stream_m", "m", "Derived from Copernicus DEM GLO-30", f"Straight-line distance to the nearest DEM-derived stream cell (D8 drainage area at least {STREAM_THRESHOLD_KM2} km2)."),
+    ("dem_nearest_stream_order", "", "Derived from Copernicus DEM GLO-30", "Strahler order of that nearest stream cell (1 = headwater)."),
+    ("dem_nearest_stream_area_km2", "km2", "Derived from Copernicus DEM GLO-30", "D8 drainage area of that nearest stream cell."),
+    ("dem_height_above_stream_m", "m", "Derived from Copernicus DEM GLO-30", "Height above the stream the spring cell drains to, along its D8 flow path (HAND)."),
+    ("dem_catchment_window_edge", "", "Derived from Copernicus DEM GLO-30", "Y when the spring cell's catchment reaches the edge of the +/- 20 km DEM window, so the drainage areas are minimums (spring on a large river)."),
     ("cartodem_elevation_m", "m (as supplied by NRSC)", "NRSC CartoDEM v3 30 m (Bhoonidhi)", "Elevation of the CartoDEM cell containing the coordinate."),
     ("cartodem_minus_copernicus_m", "m", "Derived", "CartoDEM minus Copernicus elevation. A check on both DEMs; the datums differ slightly."),
     ("cartodem_slope_deg", "degrees", "NRSC CartoDEM v3 30 m (Bhoonidhi)", "Slope at the cell from its 3 x 3 neighbourhood."),
@@ -559,10 +613,17 @@ COLUMNS = [
     ("et0_wapor_mean_annual_mm_2018_2025", "mm/year", "FAO WaPOR v3 L1-RET-A", "Mean annual reference evapotranspiration at the ~30 km cell."),
     ("aridity_index_p_over_et0", "", "Derived", "Mean annual CHIRPS rain divided by mean annual ET0."),
     ("rain_source_minus_chirps_mm", "mm/year", "Derived", "Source rainfall minus CHIRPS mean, where the source gives rainfall."),
-    ("rain_imd_annual_mm", "mm/year", "IMD 0.25 degree gridded daily rainfall", "Total for the IMD file's year (2025 only) at the ~25 km cell. One year, not an average."),
-    ("rain_imd_monsoon_share_pct", "%", "IMD 0.25 degree gridded daily rainfall", "Share of that year's rain falling 1 June-30 September."),
-    ("rain_imd_rainy_days", "days", "IMD 0.25 degree gridded daily rainfall", "Days with at least 2.5 mm (IMD rainy-day definition)."),
-    ("rain_imd_max_1day_mm", "mm", "IMD 0.25 degree gridded daily rainfall", "Wettest single day of the year."),
+    ("rain_imd_mean_annual_mm", "mm/year", "IMD 0.25 degree gridded daily rainfall", "Mean of the yearly totals 2021-2025 at the ~25 km cell."),
+    ("rain_imd_min_annual_mm", "mm/year", "IMD 0.25 degree gridded daily rainfall", "Driest year 2021-2025."),
+    ("rain_imd_max_annual_mm", "mm/year", "IMD 0.25 degree gridded daily rainfall", "Wettest year 2021-2025."),
+    ("rain_imd_cv_annual_pct", "%", "IMD 0.25 degree gridded daily rainfall", "Year-to-year coefficient of variation, 2021-2025."),
+    ("rain_imd_monsoon_share_pct", "%", "IMD 0.25 degree gridded daily rainfall", "Share of 2021-2025 rain falling 1 June-30 September."),
+    ("rain_imd_rainy_days", "days/year", "IMD 0.25 degree gridded daily rainfall", "Mean days per year with at least 2.5 mm (IMD rainy-day definition)."),
+    ("rain_imd_max_1day_mm", "mm", "IMD 0.25 degree gridded daily rainfall", "Wettest single day, 2021-2025."),
+    ("rain_imd_years_used", "", "IMD 0.25 degree gridded daily rainfall", "IMD years found and used."),
+] + [
+    (f"rain_imd_{year}_mm", "mm", "IMD 0.25 degree gridded daily rainfall", f"Total rain in {year}.") for year in range(2021, 2026)
+] + [
     # Soil
     ("soil_hwsd2_smu_id", "", "HWSD v2.0", "Soil mapping unit at the ~1 km cell."),
     ("soil_dominant_wrb", "", "HWSD v2.0", "WRB soil name of the dominant soil in the mapping unit."),
@@ -575,11 +636,15 @@ COLUMNS = [
     ("soil_topsoil_texture_usda", "", "HWSD v2.0", "USDA texture class, 0-20 cm."),
     ("soil_topsoil_coarse_fragments_pct", "%", "HWSD v2.0", "Coarse fragments, 0-20 cm."),
     ("soil_topsoil_org_carbon_pct", "%", "HWSD v2.0", "Organic carbon, 0-20 cm."),
-    ("sg_clay_0_5cm_pct", "%", "ISRIC SoilGrids 2.0 (250 m)", "Clay, 0-5 cm, predicted mean (g/kg / 10)."),
-    ("sg_silt_0_5cm_pct", "%", "ISRIC SoilGrids 2.0 (250 m)", "Silt, 0-5 cm, predicted mean."),
-    ("sg_sand_0_5cm_pct", "%", "ISRIC SoilGrids 2.0 (250 m)", "Sand, 0-5 cm, predicted mean."),
-    ("sg_bulk_density_0_5cm_g_cm3", "g/cm3", "ISRIC SoilGrids 2.0 (250 m)", "Bulk density of the fine earth, 0-5 cm (cg/cm3 / 100)."),
-    ("sg_org_carbon_density_0_5cm_kg_m3", "kg/m3", "ISRIC SoilGrids 2.0 (250 m)", "Organic carbon density, 0-5 cm (hg/m3 / 10)."),
+] + [
+    (f"{stem}_{label}_{unit.replace('%', 'pct').replace('/', '_')}", unit, "ISRIC SoilGrids 2.0 (250 m)",
+     f"{text}, {depth.replace('cm', ' cm')}, predicted mean." + (" Derived as 100 - clay - sand (no silt export at this depth)." if (prop, label) == ("silt", "0_5cm") else ""))
+    for prop, stem, unit, _, text in SOILGRID_PROPERTIES for depth, label in SOILGRID_DEPTHS
+] + [
+    (f"{stem}_0_30cm_{unit.replace('%', 'pct').replace('/', '_')}", unit, "Derived from ISRIC SoilGrids 2.0",
+     f"{text.split(' (')[0]}, 0-30 cm, depth-weighted mean of the three layers.")
+    for _, stem, unit, _, text in SOILGRID_PROPERTIES
+] + [
     # Geology placeholders
     ("gsi_lithology", "", "GSI NGDR Uttarakhand lithology (Bhukosh)", "Lithology description of the map polygon containing the spring. Uttarakhand only; GSI columns are blank for springs outside it."),
     ("gsi_group", "", "GSI NGDR Uttarakhand lithology", "Stratigraphic group (e.g. Garhwal, Jaunsar, Central Crystalline)."),
@@ -592,6 +657,11 @@ COLUMNS = [
     ("gsi_nearest_fault_name", "", "GSI NGDR Uttarakhand faults", "Name of that fault where GSI gives one (e.g. MAIN BOUNDART THRUST (MBT), as spelt by GSI)."),
     ("distance_to_gsi_thrust_m", "m", "GSI NGDR Uttarakhand faults", "Distance to the nearest mapped thrust."),
     ("gsi_fault_density_1km_km_per_km2", "km/km2", "GSI NGDR Uttarakhand faults", "Length of mapped faults within 1 km, per km2."),
+    ("distance_to_gsi_fold_axis_m", "m", "GSI NGDR Uttarakhand folds (Bhukosh)", "Distance to the nearest mapped fold axis (290 axes in the state layer)."),
+    ("gsi_nearest_fold_type", "", "GSI NGDR Uttarakhand folds", "Type of that fold (ANTICLINE, SYNCLINE, ANTIFORM, SYNFORM, OVERTURNED ...)."),
+    ("distance_to_gsi_anticline_m", "m", "GSI NGDR Uttarakhand folds", "Distance to the nearest anticline or antiform axis (rocks dip away; fractured crest)."),
+    ("distance_to_gsi_syncline_m", "m", "GSI NGDR Uttarakhand folds", "Distance to the nearest syncline or synform axis (rocks dip inward; can trap groundwater)."),
+    ("gsi_fold_axes_within_2km", "count", "GSI NGDR Uttarakhand folds", "Number of fold axes within 2 km."),
     ("lineament_dem_distance_m", "m", "Derived from Copernicus DEM GLO-30", "Distance to the nearest DEM lineament candidate (scripts/extract_dem_lineaments.py). Unvalidated."),
     ("lineament_dem_density_1km_km_per_km2", "km/km2", "Derived from Copernicus DEM GLO-30", "Length of DEM lineament candidates within 1 km, per km2."),
     ("processing_notes", "", "Derived", "Row-level notes on missing or questionable inputs."),
@@ -706,7 +776,7 @@ def main():
     hwsd = Hwsd(cache)
     local = LocalLayers(args.local_layers, args.lineaments)
     ngdr = NgdrGeology()
-    print("GSI NGDR geology: " + (f"{len(ngdr.units)} lithology polygons, {len(ngdr.faults)} faults" if ngdr.ok else "not found"))
+    print("GSI NGDR geology: " + (f"{len(ngdr.units)} lithology polygons, {len(ngdr.faults)} faults, {len(ngdr.folds)} fold axes" if ngdr.ok else "not found"))
     print("Local layers: " + ("; ".join(local.found) or "none found"))
 
     for index, row in enumerate(rows):
@@ -718,6 +788,7 @@ def main():
             row["dem_minus_source_elevation_m"] = row["dem_elevation_m"] - row["source_elevation_m"]
             if abs(row["dem_minus_source_elevation_m"]) > 150:
                 row["_notes"].append("DEM and source elevation differ by more than 150 m; check coordinate")
+        row.update(hydrology_features(read_window, centre_index, metres_per_degree, dem_sets, lon, lat))
         row.update(worldcover_features(wc_sets, lon, lat))
 
         annual = [pcp_a.sample(str(y), lon, lat) for y in YEARS]
@@ -760,7 +831,8 @@ def main():
             for name in COLUMN_NAMES:
                 value = row.get(name, "")
                 if isinstance(value, (float, np.floating)):
-                    digits = 6 if name in ("latitude_dd", "longitude_dd") else 3 if name == "aridity_index_p_over_et0" else 1
+                    digits = (6 if name in ("latitude_dd", "longitude_dd") else 3 if name == "aridity_index_p_over_et0"
+                              else 2 if name == "dem_twi" or "drainage_area" in name or "bulk_density" in name else 1)
                     value = fmt(value, digits)
                 elif value is None:
                     value = ""
@@ -800,21 +872,28 @@ def main():
             "HWSD v2.0": {"urls": HWSD_URLS, "resolution": "30 arc-second (~1 km)", "licence": "FAO/IIASA, CC BY-NC-SA 3.0 IGO (non-commercial)"},
             "NRSC CartoDEM v3 30 m": {"source": "Bhoonidhi (bhoonidhi.nrsc.gov.in), downloaded by hand 2026-10-10; 1-degree tiles P5_PAN_CD_N*_E*_30m",
                                       "licence": "NRSC data policy; raw tiles not committed"},
-            "IMD 0.25 degree daily gridded rainfall": {"source": "IMD Pune, file RF25_ind2025_rfp25.nc (calendar year 2025), downloaded by hand 2026-10-10",
+            "IMD 0.25 degree daily gridded rainfall": {"source": "IMD Pune, files RF25_ind2021_rfp25.nc to RF25_ind2025_rfp25.nc (calendar years 2021-2025), downloaded by hand 2026-10-10 (2025) and 2026-10-12 (2021-2024)",
                                                        "licence": "IMD data policy; raw file not committed"},
-            "ISRIC SoilGrids 2.0": {"source": "soilgrids.org map export, 0-5 cm mean, bbox lon 76-81 lat 28.7-32.4, downloaded by hand 2026-10-10",
+            "ISRIC SoilGrids 2.0": {"source": "soilgrids.org map export, mean, bbox lon 76-81 lat 28.7-32.4; 0-5 cm downloaded by hand 2026-10-10, "
+                                              "5-15 and 15-30 cm (files named by property) on 2026-10-12",
                                     "licence": "CC BY 4.0",
-                                    "file_identification": "Exports were saved as out.tif ... out (4).tif. Organic carbon density was confirmed by Rajat; "
-                                                           "the other four were identified from their value ranges (bdod 96-155 cg/cm3; clay+silt+sand ~1000 g/kg) "
-                                                           "and depth 0-5 cm is the viewer default. Mapping: out=bdod, out (1)=clay, out (2)=ocd, out (3)=silt, out (4)=sand."},
-            "GSI NGDR Uttarakhand lithology and faults": {"files": [str(NGDR_LITHOLOGY.relative_to(ROOT)), str(NGDR_FAULTS.relative_to(ROOT))],
-                                                         "source": "GSI Bhukosh / NGDR state layers (SRC-013, SRC-014), added to the repo 2026-10-10",
+                                    "file_identification": "The 0-5 cm exports were saved unnamed as out.tif ... out (4).tif. Each was matched to the named "
+                                                           "5-15 cm file it correlates with pixel by pixel (Spearman 0.95-0.99): out=bdod, out (1)=clay, "
+                                                           "out (2)=cfvo (coarse fragments), out (3)=sand, out (4)=organic carbon. There is no 0-5 cm silt file. "
+                                                           "The first build (2026-10-10) had identified these by value range and wrongly read out (2) as organic "
+                                                           "carbon, out (3) as silt and out (4) as sand; fixed 2026-10-12. Organic carbon is treated as organic "
+                                                           "carbon density (ocd, hg/m3) as Rajat described the download; if it was soil organic carbon "
+                                                           "content (soc, dg/kg) the column is g/kg instead of kg/m3."},
+            "GSI NGDR Uttarakhand lithology, faults and folds": {"files": [str(p.relative_to(ROOT)) for p in (NGDR_LITHOLOGY, NGDR_FAULTS, NGDR_FOLDS)],
+                                                         "source": "GSI Bhukosh / NGDR state layers (SRC-013, SRC-014, SRC-015), added to the repo 2026-10-10 and 2026-10-12",
                                                          "note": "State-scale map; a spring's polygon is a map overlay, not a field observation."},
             "DEM lineament candidates": {"file": str(LINEAMENTS_FILE.relative_to(ROOT)), "method": "scripts/extract_dem_lineaments.py"},
+            "DEM hydrology": {"method": "scripts/spring_hydrology.py: depression filling and D8 routing with pyflwdir, Freeman (1991) MFD area, "
+                                        "TWI = ln(a / tan slope)", "stream_threshold_km2": STREAM_THRESHOLD_KM2,
+                              "window": "+/- 5 km around each spring, +/- 20 km when the D8 catchment reaches the edge"},
         },
         "local_layers_found": local.found,
         "not_acquired": {
-            "GSI folds": "Not in the NGDR files added to the repo.",
             "Bhuvan LULC 1:50k": "Bhuvan services blocked from the build environment; download needs a request.",
         },
     }

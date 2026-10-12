@@ -98,6 +98,22 @@ DISTRICT_FIXES = {
     "pauri garhwal": "Pauri Garhwal", "pauri": "Pauri Garhwal",
 }
 
+# Coordinates corrected where the error and the fix are both certain. The staged value is not edited;
+# the correction is applied here and named in coordinate_correction.
+COORDINATE_FIXES = {
+    "ATL-SPR-0006": (29.44050, None, "latitude 26.44050 read as 29.44050 (typing slip: Sunkiya -2, ATL-SPR-0007, is at 29.44343; "
+                                     "the DEM at the corrected point is 2,049 m against 2,035 m in the source)"),
+    "ATL-SPR-0818": (None, 80.029444, "longitude repeated the latitude; taken from HIM-SPR-0204 (Malla Naula, Khatigaon), which has the "
+                                      "same latitude 29.59992 and the same elevation 1,279 m"),
+}
+COORDINATE_NOTES = {
+    "ATL-SPR-0792": "latitude repeats the longitude (80.05146); probably the Gunagad spring listed as ATL-SPR-0791 (same longitude, "
+                    "1,613 m against 1,612 m), but the latitude cannot be recovered with certainty",
+}
+ELEVATION_GAP_M = 150
+ELEVATION_MATCH_TOLERANCE_M = 25
+ELEVATION_SEARCH_M = 2000
+
 NUMBER = re.compile(r"(?<![\w.])\d+(?:\.\d+)?")
 
 
@@ -252,6 +268,17 @@ def dem_features(dem_sets, lon, lat):
         "dem_upslope_relief_1km_m": np.nanmax(within_1km) - elev,
         "dem_tpi_300m_m": elev - np.nanmean(within_300),
     }
+
+
+def elevation_match_distance(dem_sets, lon, lat, target):
+    """Distance to the nearest DEM cell whose elevation is within the tolerance of the source elevation."""
+    data, transform = read_window(dem_sets, lon, lat, ELEVATION_SEARCH_M)
+    if data is None:
+        return None
+    data = data.astype("float64")
+    dist = distance_grid(data.shape, transform, lon, lat)
+    hits = (np.abs(data - target) <= ELEVATION_MATCH_TOLERANCE_M) & (dist <= ELEVATION_SEARCH_M)
+    return float(dist[hits].min()) if hits.any() else None
 
 
 def worldcover_features(wc_sets, lon, lat):
@@ -557,6 +584,7 @@ COLUMNS = [
     ("longitude_dd", "decimal degrees", "Common file", "Source longitude parsed as a number."),
     ("coordinate_status", "", "Derived", "ok, missing, or outside_study_region (lat 28.5-33.5, lon 75.5-81.5). Layer values are only computed for ok."),
     ("coordinate_precision_decimals", "", "Derived", "Decimal places in the source latitude; 2 or fewer means about 1 km uncertainty."),
+    ("coordinate_correction", "", "Derived", "Blank, or what was corrected in the source coordinate and why (only where the fix is certain)."),
     ("colocated_group_id", "", "Derived", "Records from different rows within 30 m of each other share a group id; likely the same spring listed twice. Not merged."),
     ("colocated_group_size", "", "Derived", "Number of records in the group."),
     # cleaned source values
@@ -576,6 +604,7 @@ COLUMNS = [
     # DEM
     ("dem_elevation_m", "m (EGM2008)", "Copernicus DEM GLO-30", "Elevation of the 30 m cell containing the coordinate."),
     ("dem_minus_source_elevation_m", "m", "Derived", "DEM elevation minus source elevation; large gaps point to coordinate or elevation errors."),
+    ("elevation_match_distance_m", "m", "Derived from Copernicus DEM GLO-30", f"Only where the gap is over {ELEVATION_GAP_M} m: distance to the nearest DEM cell within {ELEVATION_MATCH_TOLERANCE_M} m of the source elevation, searched up to {ELEVATION_SEARCH_M / 1000:.0f} km. Small = the coordinate is a little off on a steep slope; blank = no such cell nearby, so the coordinate or the source elevation is badly wrong."),
     ("dem_slope_deg", "degrees", "Copernicus DEM GLO-30", "Slope at the cell (central differences)."),
     ("dem_aspect_deg", "degrees from north", "Copernicus DEM GLO-30", "Direction the slope faces; blank when slope < 2 degrees."),
     ("dem_aspect_class", "", "Copernicus DEM GLO-30", "8-point aspect class, or Flat."),
@@ -717,6 +746,12 @@ def clean_row(src):
     district = src["district"].strip()
     row["district_clean"] = DISTRICT_FIXES.get(district.lower(), district)
     lat, lon = to_float(src["latitude_source_value"]), to_float(src["longitude_source_value"])
+    if src["record_id"] in COORDINATE_FIXES:
+        fix_lat, fix_lon, why = COORDINATE_FIXES[src["record_id"]]
+        lat, lon = fix_lat or lat, fix_lon or lon
+        row["coordinate_correction"] = why
+    if src["record_id"] in COORDINATE_NOTES:
+        notes.append(COORDINATE_NOTES[src["record_id"]])
     if lat is None or lon is None:
         row["coordinate_status"] = "missing"
         notes.append("no coordinates in source; layer values not computed")
@@ -728,7 +763,7 @@ def clean_row(src):
         row["coordinate_status"] = "ok" if inside else "outside_study_region"
         if not inside:
             notes.append("coordinate outside study region; likely a typing error in the source")
-        if decimals <= 2:
+        if decimals <= 2 and not row["coordinate_correction"]:
             notes.append("coordinate rounded to about 1 km; point layer values are indicative only")
 
     row["source_elevation_m"] = to_float(src["elevation_m_source_value"])
@@ -786,8 +821,9 @@ def main():
         row.update(dem_features(dem_sets, lon, lat))
         if row["dem_elevation_m"] != "" and row["source_elevation_m"] is not None:
             row["dem_minus_source_elevation_m"] = row["dem_elevation_m"] - row["source_elevation_m"]
-            if abs(row["dem_minus_source_elevation_m"]) > 150:
-                row["_notes"].append("DEM and source elevation differ by more than 150 m; check coordinate")
+            if abs(row["dem_minus_source_elevation_m"]) > ELEVATION_GAP_M:
+                row["_notes"].append(f"DEM and source elevation differ by more than {ELEVATION_GAP_M} m; check coordinate")
+                row["elevation_match_distance_m"] = elevation_match_distance(dem_sets, lon, lat, row["source_elevation_m"])
         row.update(hydrology_features(read_window, centre_index, metres_per_degree, dem_sets, lon, lat))
         row.update(worldcover_features(wc_sets, lon, lat))
 

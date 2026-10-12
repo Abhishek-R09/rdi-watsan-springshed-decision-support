@@ -10,13 +10,16 @@ latitude,decimal degrees,Processed features,
 longitude,decimal degrees,Processed features,
 coordinate_status,,Processed features,"ok, missing or outside_study_region. Mapped values exist only for ok."
 coordinate_precision_decimals,,Processed features,2 or fewer decimals means about 1 km uncertainty.
+coordinate_correction,,Processed features,"What was corrected in the source coordinate and why. Only 2 records, where the fix is certain."
 colocated_group_id,,Processed features,Records within 30 m of each other; probably the same spring listed by two sources.
 colocated_group_size,,Processed features,
-is_primary_record,,Derived,"Y for one record per spring: the only record, or the richest record in its colocated group. Use Y rows to count distinct springs."
-duplicate_group,,Derived,"Blank for springs listed once. Otherwise the colocated group, its size, the other records in it and which one is primary. Highlighted orange in the workbook; see the Duplicate groups sheet."
+is_primary_record,,Derived,"Y for one record per spring: the only record, or the richest record among those confirmed as the same spring. Use Y rows to count distinct springs."
+spring_id,,Derived,Record id of the primary record of this spring. Records with the same spring_id are one spring listed more than once.
+duplicate_status,,Derived,"Blank for records with no other record within 30 m. Otherwise: same spring, different springs, partly the same spring, or needs review (for the whole 30 m group)."
+duplicate_group,,Derived,"For records within 30 m of another: the group, which records are the same spring, which are separate springs and why, and which still need a person's decision. Coloured in the workbook; every pair is on the Duplicate pairs sheet."
 elevation_m,m,Copernicus DEM GLO-30,DEM elevation at the spring (same layer for all springs).
 elevation_source_m,m,Common file,"Elevation the source gave, for comparison."
-elevation_check,,Derived,'gap >150 m' when DEM and source differ by more than 150 m (check the coordinate).
+elevation_check,,Derived,"Only where DEM and source elevation differ by more than 150 m: which is probably wrong. Copied coordinate (another record at the same point fits the DEM), coordinate a little off (the source elevation is found within 300 m), coordinate off by the stated distance, or no point within 2 km has the source elevation."
 slope_deg,degrees,Copernicus DEM GLO-30,Slope at the spring.
 slope_mean_500m_deg,degrees,Copernicus DEM GLO-30,Mean slope within 500 m.
 aspect_class,,Copernicus DEM GLO-30,8-point aspect or Flat.

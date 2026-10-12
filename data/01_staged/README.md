@@ -6,7 +6,7 @@ Each source has a separate folder and the same structure:
 - `xlsx/` - the matching review/share workbook.
 - `metadata/` - generated extraction metadata where applicable.
 
-`common/` contains the combined source-traceable master table. It is an append of source records, not a deduplicated spring inventory. Raw source files belong in `../00_raw/<source>/` and must not be edited.
+`common/` contains the combined source-traceable master table. It is an append of source records, not a deduplicated spring inventory. `common/duplicate_review_decisions_v1.csv` holds the team's same-or-different decisions on records within 30 m of each other; `scripts/build_spring_master.py` applies them. Raw source files belong in `../00_raw/<source>/` and must not be edited.
 
 `literature/` holds spring rows transcribed from papers and reports (Rathi et al. 2021, Daniel et al. 2021, the RDI Chamba Spring Assessment Report and the Spring Atlas representative-spring profiles). `literature_spring_values_long_v1.csv` gives the source page/table and measured-or-estimated status of every value. See `docs/literature-enrichment-notes.md`.
 

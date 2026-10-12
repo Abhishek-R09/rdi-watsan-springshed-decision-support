@@ -85,7 +85,7 @@ Limits to keep in mind:
 | Folds, and geology for the 42 Himachal springs | Bhukosh fold layer for Uttarakhand; Himachal lithology and fault layers if those springs stay in scope | Team |
 | Check DEM lineaments | They do not follow GSI faults (section 2); spot-check against imagery or field mapping at pilot springs | Team |
 | IMD rainfall, more years | Optional. Earlier IMD years would give a long-term mean to compare with CHIRPS | Rajat |
-| Repeated, dated discharge (dry and wet season) | Field survey (SRC-016 protocol), plus RDI/WATSAN monitoring records and Himmotthan MIS (AQ-003, AQ-012) | Team with WATSAN |
+| Repeated, dated discharge (dry and wet season) | Field survey (SRC-017 protocol), plus RDI/WATSAN monitoring records and Himmotthan MIS (AQ-003, AQ-012) | Team with WATSAN |
 | Household dependency and use | Field survey / RDI village records (for example, the Malan table) | Team with WATSAN |
 | DI before/after data | RDI monitoring records for the Chamba and Gairsain handpumps | WATSAN |
 | Real recharge areas | Field hydrogeology at pilot springs, or Module B estimates checked against the 10 Atlas profiles, Rathi and Chamba | Team |

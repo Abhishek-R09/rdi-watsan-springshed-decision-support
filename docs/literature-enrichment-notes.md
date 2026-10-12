@@ -33,6 +33,6 @@ Date: 2026-10-10. Adds 53 spring rows from papers and reports to `data/01_staged
 
 ## Open points for the team
 
-- Resolved 2026-10-10: the source register now uses SRC-007 for Himmotthan and SRC-008 for the Spring Atlas, matching the staged data and logs. The old placeholders moved to SRC-015 (Indian institutional layers) and SRC-016 (field survey).
+- Resolved 2026-10-10: the source register now uses SRC-007 for Himmotthan and SRC-008 for the Spring Atlas, matching the staged data and logs. The old placeholders moved to SRC-016 (Indian institutional layers) and SRC-017 (field survey).
 - The original papers and the RDI report are not committed: one is copyrighted and one is an internal report, and the repository is public. They stay in the team's DOCC folder. Please confirm that WATSAN is happy for the Chamba report values to be in a public repository.
 - `build_common_spring_workbook.mjs` still describes 31 columns. If it is re-run, it will overwrite the common `.xlsx` without the literature sheets. Run `build_literature_workbooks.py` after it.

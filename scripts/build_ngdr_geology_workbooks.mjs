@@ -35,9 +35,12 @@ for (const source of selectedSources) {
   }
 
   const provenance = workbook.worksheets.add("Provenance");
-  const note = source.source_id === "SRC-013"
-    ? "Feature attributes and map geometry are staged separately. Fault proximity is not evidence of a hydraulic connection to a spring."
-    : "Feature attributes and map geometry are staged separately. Any spring-polygon assignment is a map inference and requires field confirmation, particularly near contacts.";
+  const noteBySource = {
+    "SRC-013": "Feature attributes and map geometry are staged separately. Fault proximity is not evidence of a hydraulic connection to a spring.",
+    "SRC-014": "Feature attributes and map geometry are staged separately. Any spring-polygon assignment is a map inference and requires field confirmation, particularly near contacts.",
+    "SRC-015": "Feature attributes and map geometry are staged separately. Fold proximity is not evidence of a hydraulic connection to a spring.",
+  };
+  const note = noteBySource[source.source_id];
   const rows = [
     [`${source.dataset} feature staging extract`],
     ["Field", "Value"],

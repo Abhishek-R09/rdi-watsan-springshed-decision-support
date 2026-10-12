@@ -31,6 +31,14 @@ SOURCES = [
         "output": STAGED / "lithology" / "csv" / "ngdr_uttarakhand_lithology_features_v1.csv",
         "quality_flag": "Verify: NGDR state-scale lithology layer. Polygon assignment to a spring remains an inferred map overlay requiring field confirmation, especially near contacts.",
     },
+    {
+        "key": "folds",
+        "source_id": "SRC-015",
+        "dataset": "NGDR Uttarakhand Fold",
+        "raw_path": RAW / "folds" / "FOLD_STATE_UTTARAKHAND.geojson",
+        "output": STAGED / "folds" / "csv" / "ngdr_uttarakhand_fold_features_v1.csv",
+        "quality_flag": "Verify: NGDR state-scale fold layer. Do not treat fold proximity as a mapped spring connection without site and hydrogeological confirmation.",
+    },
 ]
 
 

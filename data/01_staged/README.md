@@ -13,3 +13,5 @@ Each source has a separate folder and the same structure:
 `ngdr_geology/` holds separate NGDR fault-line, fold-line, and lithology-polygon attribute extracts. Their original geometry remains unchanged in `data/00_raw/ngdr_geology/`; the staged CSV/XLSX rows preserve a GeoJSON feature locator and bounds only. They have not been spatially joined to spring records.
 
 Rebuild order: `python scripts/stage_watsan_and_spring_atlas.py`, `python scripts/build_literature_workbooks.py`, then `python scripts/stage_ngdr_geology.py` and `node scripts/build_ngdr_geology_workbooks.mjs`.
+
+Processed per-spring features (terrain, land cover, rainfall, soil, GSI geology and faults) are built from the common file by `scripts/build_spring_features.py` into `data/02_processed/spring_features/`, and the final table by `scripts/build_spring_master.py` into `data/02_processed/spring_master/`. The NGDR geology is spatially joined there, not in the staged tables. See `docs/data-gap-analysis.md`.

@@ -1,0 +1,133 @@
+column,unit,source,method
+record_id,,Common file,Copied.
+source_id,,Common file,Copied.
+source_dataset,,Common file,Copied.
+spring_name,,Common file,Copied.
+village,,Common file,Copied.
+district_clean,,Common file,"District with spelling variants unified (Nanital to Nainital, Tehri-Garhwal to Tehri Garhwal, Pauri to Pauri Garhwal)."
+latitude_dd,decimal degrees,Common file,Source latitude parsed as a number.
+longitude_dd,decimal degrees,Common file,Source longitude parsed as a number.
+coordinate_status,,Derived,"ok, missing, or outside_study_region (lat 28.5-33.5, lon 75.5-81.5). Layer values are only computed for ok."
+coordinate_precision_decimals,,Derived,Decimal places in the source latitude; 2 or fewer means about 1 km uncertainty.
+colocated_group_id,,Derived,Records from different rows within 30 m of each other share a group id; likely the same spring listed twice. Not merged.
+colocated_group_size,,Derived,Number of records in the group.
+source_elevation_m,m,Common file,Source elevation parsed as a number.
+source_discharge_lpm_low,L/min,Common file,Lowest number in the source discharge text.
+source_discharge_lpm_high,L/min,Common file,Highest number in the source discharge text.
+source_discharge_parse_note,,Derived,How the low/high values were read from the text.
+source_max_flow_lpm_converted,L/min,Common file (Rathi 2021),Max flow in m3/day x 1000 / 1440. Unit conversion only.
+source_recharge_area_ha_low,ha,Common file,"Lowest number in the source recharge-area text (WATSAN text estimates, Atlas field delineation)."
+source_recharge_area_ha_high,ha,Common file,Highest number in the source recharge-area text; equals low for single values.
+source_springshed_area_ha_converted,ha,Common file (Rathi 2021),Springshed area in km2 x 100.
+source_catchment_area_ha,ha,Common file (Chamba report),Surface micro-watershed area; not a recharge area.
+source_rainfall_mm,mm/year,Common file,Source rainfall parsed as a number.
+source_slope_deg,degrees,Common file,"Source slope parsed as a number (WATSAN, Himmotthan, Chamba)."
+source_tds_mg_l,mg/l,Common file,Source TDS parsed as a number.
+source_ph,,Common file,Source pH parsed as a number.
+dem_elevation_m,m (EGM2008),Copernicus DEM GLO-30,Elevation of the 30 m cell containing the coordinate.
+dem_minus_source_elevation_m,m,Derived,DEM elevation minus source elevation; large gaps point to coordinate or elevation errors.
+dem_slope_deg,degrees,Copernicus DEM GLO-30,Slope at the cell (central differences).
+dem_aspect_deg,degrees from north,Copernicus DEM GLO-30,Direction the slope faces; blank when slope < 2 degrees.
+dem_aspect_class,,Copernicus DEM GLO-30,"8-point aspect class, or Flat."
+dem_mean_slope_500m_deg,degrees,Copernicus DEM GLO-30,Mean slope within 500 m of the coordinate.
+dem_relief_1km_m,m,Copernicus DEM GLO-30,Highest minus lowest elevation within 1 km.
+dem_upslope_relief_1km_m,m,Copernicus DEM GLO-30,Highest elevation within 1 km minus the spring cell elevation (head available upslope).
+dem_tpi_300m_m,m,Copernicus DEM GLO-30,Spring elevation minus mean elevation within 300 m; negative = valley/hollow position.
+dem_drainage_area_ha,ha,Derived from Copernicus DEM GLO-30,"Upslope area draining to the spring cell: depression-filled DEM, multiple-flow-direction routing (Freeman 1991). The surface catchment above the spring, not its recharge area (scripts/spring_hydrology.py)."
+dem_drainage_area_max30m_ha,ha,Derived from Copernicus DEM GLO-30,Largest drainage area in the 3 x 3 cells around the spring (allows for ~30 m GPS error). A big jump from the cell value means a hollow or stream line lies next to the point.
+dem_drainage_area_d8_ha,ha,Derived from Copernicus DEM GLO-30,Same as dem_drainage_area_ha but with single-direction (D8) routing. Kept as a check; D8 is noisier at a single cell.
+dem_twi,,Derived from Copernicus DEM GLO-30,"Topographic wetness index ln(a / tan slope), a = MFD drainage area per metre of contour. Higher = wetter, more convergent position. Typical hillslope 4-8, hollows and valley floors 8-14."
+dem_distance_to_stream_m,m,Derived from Copernicus DEM GLO-30,Straight-line distance to the nearest DEM-derived stream cell (D8 drainage area at least 0.5 km2).
+dem_nearest_stream_order,,Derived from Copernicus DEM GLO-30,Strahler order of that nearest stream cell (1 = headwater).
+dem_nearest_stream_area_km2,km2,Derived from Copernicus DEM GLO-30,D8 drainage area of that nearest stream cell.
+dem_height_above_stream_m,m,Derived from Copernicus DEM GLO-30,"Height above the stream the spring cell drains to, along its D8 flow path (HAND)."
+dem_catchment_window_edge,,Derived from Copernicus DEM GLO-30,"Y when the spring cell's catchment reaches the edge of the +/- 20 km DEM window, so the drainage areas are minimums (spring on a large river)."
+cartodem_elevation_m,m (as supplied by NRSC),NRSC CartoDEM v3 30 m (Bhoonidhi),Elevation of the CartoDEM cell containing the coordinate.
+cartodem_minus_copernicus_m,m,Derived,CartoDEM minus Copernicus elevation. A check on both DEMs; the datums differ slightly.
+cartodem_slope_deg,degrees,NRSC CartoDEM v3 30 m (Bhoonidhi),Slope at the cell from its 3 x 3 neighbourhood.
+wc_point_class_code,,ESA WorldCover 2021 v200,Class code of the 10 m cell at the coordinate.
+wc_point_class,,ESA WorldCover 2021 v200,Class name at the coordinate.
+wc_majority_500m_class,,ESA WorldCover 2021 v200,Most common class within 500 m.
+wc_share_500m_tree_pct,%,ESA WorldCover 2021 v200,Share of tree cover within 500 m.
+wc_share_500m_shrub_pct,%,ESA WorldCover 2021 v200,Share of shrubland within 500 m.
+wc_share_500m_grass_pct,%,ESA WorldCover 2021 v200,Share of grassland within 500 m.
+wc_share_500m_cropland_pct,%,ESA WorldCover 2021 v200,Share of cropland within 500 m.
+wc_share_500m_built_pct,%,ESA WorldCover 2021 v200,Share of built-up within 500 m.
+wc_share_500m_bare_pct,%,ESA WorldCover 2021 v200,Share of bare / sparse vegetation within 500 m.
+wc_share_500m_water_pct,%,ESA WorldCover 2021 v200,Share of permanent water bodies within 500 m.
+rain_chirps_mean_annual_mm_2018_2025,mm/year,CHIRPS v2 via FAO WaPOR v3 L1-PCP-A,Mean of annual totals 2018-2025 at the ~5 km cell.
+rain_chirps_min_annual_mm_2018_2025,mm/year,CHIRPS v2 via FAO WaPOR v3 L1-PCP-A,Driest year 2018-2025.
+rain_chirps_max_annual_mm_2018_2025,mm/year,CHIRPS v2 via FAO WaPOR v3 L1-PCP-A,Wettest year 2018-2025.
+rain_chirps_cv_annual_pct,%,CHIRPS v2 via FAO WaPOR v3 L1-PCP-A,Year-to-year coefficient of variation.
+rain_chirps_monsoon_share_pct,%,CHIRPS v2 via FAO WaPOR v3 L1-PCP-M,Share of rain falling June-September (mean 2018-2025).
+rain_chirps_dry_season_mm,mm,CHIRPS v2 via FAO WaPOR v3 L1-PCP-M,Mean November-April total (2018-2025 seasons within calendar years).
+et0_wapor_mean_annual_mm_2018_2025,mm/year,FAO WaPOR v3 L1-RET-A,Mean annual reference evapotranspiration at the ~30 km cell.
+aridity_index_p_over_et0,,Derived,Mean annual CHIRPS rain divided by mean annual ET0.
+rain_source_minus_chirps_mm,mm/year,Derived,"Source rainfall minus CHIRPS mean, where the source gives rainfall."
+rain_imd_mean_annual_mm,mm/year,IMD 0.25 degree gridded daily rainfall,Mean of the yearly totals 2021-2025 at the ~25 km cell.
+rain_imd_min_annual_mm,mm/year,IMD 0.25 degree gridded daily rainfall,Driest year 2021-2025.
+rain_imd_max_annual_mm,mm/year,IMD 0.25 degree gridded daily rainfall,Wettest year 2021-2025.
+rain_imd_cv_annual_pct,%,IMD 0.25 degree gridded daily rainfall,"Year-to-year coefficient of variation, 2021-2025."
+rain_imd_monsoon_share_pct,%,IMD 0.25 degree gridded daily rainfall,Share of 2021-2025 rain falling 1 June-30 September.
+rain_imd_rainy_days,days/year,IMD 0.25 degree gridded daily rainfall,Mean days per year with at least 2.5 mm (IMD rainy-day definition).
+rain_imd_max_1day_mm,mm,IMD 0.25 degree gridded daily rainfall,"Wettest single day, 2021-2025."
+rain_imd_years_used,,IMD 0.25 degree gridded daily rainfall,IMD years found and used.
+rain_imd_2021_mm,mm,IMD 0.25 degree gridded daily rainfall,Total rain in 2021.
+rain_imd_2022_mm,mm,IMD 0.25 degree gridded daily rainfall,Total rain in 2022.
+rain_imd_2023_mm,mm,IMD 0.25 degree gridded daily rainfall,Total rain in 2023.
+rain_imd_2024_mm,mm,IMD 0.25 degree gridded daily rainfall,Total rain in 2024.
+rain_imd_2025_mm,mm,IMD 0.25 degree gridded daily rainfall,Total rain in 2025.
+soil_hwsd2_smu_id,,HWSD v2.0,Soil mapping unit at the ~1 km cell.
+soil_dominant_wrb,,HWSD v2.0,WRB soil name of the dominant soil in the mapping unit.
+soil_dominant_share_pct,%,HWSD v2.0,Share of the mapping unit covered by the dominant soil.
+soil_drainage,,HWSD v2.0,Drainage class of the dominant soil.
+soil_awc_mm_per_m,mm/m,HWSD v2.0,Available water capacity of the dominant soil.
+soil_topsoil_sand_pct,%,HWSD v2.0,"Sand, 0-20 cm, dominant soil."
+soil_topsoil_silt_pct,%,HWSD v2.0,"Silt, 0-20 cm, dominant soil."
+soil_topsoil_clay_pct,%,HWSD v2.0,"Clay, 0-20 cm, dominant soil."
+soil_topsoil_texture_usda,,HWSD v2.0,"USDA texture class, 0-20 cm."
+soil_topsoil_coarse_fragments_pct,%,HWSD v2.0,"Coarse fragments, 0-20 cm."
+soil_topsoil_org_carbon_pct,%,HWSD v2.0,"Organic carbon, 0-20 cm."
+sg_clay_0_5cm_pct,%,ISRIC SoilGrids 2.0 (250 m),"Clay (g/kg / 10), 0-5 cm, predicted mean."
+sg_clay_5_15cm_pct,%,ISRIC SoilGrids 2.0 (250 m),"Clay (g/kg / 10), 5-15 cm, predicted mean."
+sg_clay_15_30cm_pct,%,ISRIC SoilGrids 2.0 (250 m),"Clay (g/kg / 10), 15-30 cm, predicted mean."
+sg_silt_0_5cm_pct,%,ISRIC SoilGrids 2.0 (250 m),"Silt (g/kg / 10), 0-5 cm, predicted mean. Derived as 100 - clay - sand (no silt export at this depth)."
+sg_silt_5_15cm_pct,%,ISRIC SoilGrids 2.0 (250 m),"Silt (g/kg / 10), 5-15 cm, predicted mean."
+sg_silt_15_30cm_pct,%,ISRIC SoilGrids 2.0 (250 m),"Silt (g/kg / 10), 15-30 cm, predicted mean."
+sg_sand_0_5cm_pct,%,ISRIC SoilGrids 2.0 (250 m),"Sand (g/kg / 10), 0-5 cm, predicted mean."
+sg_sand_5_15cm_pct,%,ISRIC SoilGrids 2.0 (250 m),"Sand (g/kg / 10), 5-15 cm, predicted mean."
+sg_sand_15_30cm_pct,%,ISRIC SoilGrids 2.0 (250 m),"Sand (g/kg / 10), 15-30 cm, predicted mean."
+sg_coarse_fragments_0_5cm_pct,%,ISRIC SoilGrids 2.0 (250 m),"Coarse fragments, volume share (cm3/dm3 / 10), 0-5 cm, predicted mean."
+sg_coarse_fragments_5_15cm_pct,%,ISRIC SoilGrids 2.0 (250 m),"Coarse fragments, volume share (cm3/dm3 / 10), 5-15 cm, predicted mean."
+sg_coarse_fragments_15_30cm_pct,%,ISRIC SoilGrids 2.0 (250 m),"Coarse fragments, volume share (cm3/dm3 / 10), 15-30 cm, predicted mean."
+sg_bulk_density_0_5cm_g_cm3,g/cm3,ISRIC SoilGrids 2.0 (250 m),"Bulk density of the fine earth (cg/cm3 / 100), 0-5 cm, predicted mean."
+sg_bulk_density_5_15cm_g_cm3,g/cm3,ISRIC SoilGrids 2.0 (250 m),"Bulk density of the fine earth (cg/cm3 / 100), 5-15 cm, predicted mean."
+sg_bulk_density_15_30cm_g_cm3,g/cm3,ISRIC SoilGrids 2.0 (250 m),"Bulk density of the fine earth (cg/cm3 / 100), 15-30 cm, predicted mean."
+sg_org_carbon_density_0_5cm_kg_m3,kg/m3,ISRIC SoilGrids 2.0 (250 m),"Organic carbon density (hg/m3 / 10), 0-5 cm, predicted mean."
+sg_org_carbon_density_5_15cm_kg_m3,kg/m3,ISRIC SoilGrids 2.0 (250 m),"Organic carbon density (hg/m3 / 10), 5-15 cm, predicted mean."
+sg_org_carbon_density_15_30cm_kg_m3,kg/m3,ISRIC SoilGrids 2.0 (250 m),"Organic carbon density (hg/m3 / 10), 15-30 cm, predicted mean."
+sg_clay_0_30cm_pct,%,Derived from ISRIC SoilGrids 2.0,"Clay, 0-30 cm, depth-weighted mean of the three layers."
+sg_silt_0_30cm_pct,%,Derived from ISRIC SoilGrids 2.0,"Silt, 0-30 cm, depth-weighted mean of the three layers."
+sg_sand_0_30cm_pct,%,Derived from ISRIC SoilGrids 2.0,"Sand, 0-30 cm, depth-weighted mean of the three layers."
+sg_coarse_fragments_0_30cm_pct,%,Derived from ISRIC SoilGrids 2.0,"Coarse fragments, volume share, 0-30 cm, depth-weighted mean of the three layers."
+sg_bulk_density_0_30cm_g_cm3,g/cm3,Derived from ISRIC SoilGrids 2.0,"Bulk density of the fine earth, 0-30 cm, depth-weighted mean of the three layers."
+sg_org_carbon_density_0_30cm_kg_m3,kg/m3,Derived from ISRIC SoilGrids 2.0,"Organic carbon density, 0-30 cm, depth-weighted mean of the three layers."
+gsi_lithology,,GSI NGDR Uttarakhand lithology (Bhukosh),Lithology description of the map polygon containing the spring. Uttarakhand only; GSI columns are blank for springs outside it.
+gsi_group,,GSI NGDR Uttarakhand lithology,"Stratigraphic group (e.g. Garhwal, Jaunsar, Central Crystalline)."
+gsi_formation,,GSI NGDR Uttarakhand lithology,Formation name.
+gsi_age,,GSI NGDR Uttarakhand lithology,Geological age.
+gsi_map_unit,,GSI NGDR Uttarakhand lithology,Map unit notation.
+gsi_distance_to_contact_m,m,GSI NGDR Uttarakhand lithology,Distance to the edge of the spring's map polygon (a rock-type contact or map edge).
+distance_to_gsi_fault_m,m,GSI NGDR Uttarakhand faults (Bhukosh),"Distance to the nearest mapped fault or thrust (observed, inferred or interpreted)."
+gsi_nearest_fault_type,,GSI NGDR Uttarakhand faults,"Type of that nearest fault (FAULT, FAULT INFERRED, THRUST, ...)."
+gsi_nearest_fault_name,,GSI NGDR Uttarakhand faults,"Name of that fault where GSI gives one (e.g. MAIN BOUNDART THRUST (MBT), as spelt by GSI)."
+distance_to_gsi_thrust_m,m,GSI NGDR Uttarakhand faults,Distance to the nearest mapped thrust.
+gsi_fault_density_1km_km_per_km2,km/km2,GSI NGDR Uttarakhand faults,"Length of mapped faults within 1 km, per km2."
+distance_to_gsi_fold_axis_m,m,GSI NGDR Uttarakhand folds (Bhukosh),Distance to the nearest mapped fold axis (290 axes in the state layer).
+gsi_nearest_fold_type,,GSI NGDR Uttarakhand folds,"Type of that fold (ANTICLINE, SYNCLINE, ANTIFORM, SYNFORM, OVERTURNED ...)."
+distance_to_gsi_anticline_m,m,GSI NGDR Uttarakhand folds,Distance to the nearest anticline or antiform axis (rocks dip away; fractured crest).
+distance_to_gsi_syncline_m,m,GSI NGDR Uttarakhand folds,Distance to the nearest syncline or synform axis (rocks dip inward; can trap groundwater).
+gsi_fold_axes_within_2km,count,GSI NGDR Uttarakhand folds,Number of fold axes within 2 km.
+lineament_dem_distance_m,m,Derived from Copernicus DEM GLO-30,Distance to the nearest DEM lineament candidate (scripts/extract_dem_lineaments.py). Unvalidated.
+lineament_dem_density_1km_km_per_km2,km/km2,Derived from Copernicus DEM GLO-30,"Length of DEM lineament candidates within 1 km, per km2."
+processing_notes,,Derived,Row-level notes on missing or questionable inputs.

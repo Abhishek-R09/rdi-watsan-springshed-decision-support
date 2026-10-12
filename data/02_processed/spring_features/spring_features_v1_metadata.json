@@ -1,0 +1,103 @@
+{
+  "built": "2026-10-12",
+  "input": "data/01_staged/common/csv/spring_records_common_v1.csv",
+  "records": 1842,
+  "records_with_layer_values": 1803,
+  "coordinate_status_counts": {
+    "ok": 1803,
+    "missing": 36,
+    "outside_study_region": 3
+  },
+  "colocated_groups": 217,
+  "layers": {
+    "Copernicus DEM GLO-30": {
+      "url_pattern": "https://copernicus-dem-30m.s3.amazonaws.com/{name}/{name}.tif",
+      "resolution": "1 arc-second (~30 m)",
+      "vertical_datum": "EGM2008",
+      "licence": "Copernicus DEM licence (free use with attribution: produced using Copernicus WorldDEM-30, DLR/Airbus, ESA)"
+    },
+    "ESA WorldCover 2021 v200": {
+      "url_pattern": "https://esa-worldcover.s3.eu-central-1.amazonaws.com/v200/2021/map/ESA_WorldCover_10m_2021_v200_{tile}_Map.tif",
+      "resolution": "10 m",
+      "licence": "CC BY 4.0, ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021)"
+    },
+    "CHIRPS v2 via FAO WaPOR v3 L1-PCP-A / L1-PCP-M": {
+      "url_pattern": "https://storage.googleapis.com/fao-gismgr-wapor-3-data/DATA/WAPOR-3/MAPSET/{code}/WAPOR-3.{code}.{period}.tif",
+      "years": [
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "resolution": "0.05 degree (~5 km)",
+      "licence": "FAO WaPOR CC BY-NC-SA 4.0 (non-commercial); CHIRPS by UCSB Climate Hazards Center"
+    },
+    "FAO WaPOR v3 L1-RET-A": {
+      "url_pattern": "https://storage.googleapis.com/fao-gismgr-wapor-3-data/DATA/WAPOR-3/MAPSET/{code}/WAPOR-3.{code}.{period}.tif",
+      "years": [
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "resolution": "~30 km",
+      "licence": "CC BY-NC-SA 4.0"
+    },
+    "HWSD v2.0": {
+      "urls": [
+        "https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/HWSD/HWSD2_RASTER.zip",
+        "https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/HWSD/HWSD2_DB.zip"
+      ],
+      "resolution": "30 arc-second (~1 km)",
+      "licence": "FAO/IIASA, CC BY-NC-SA 3.0 IGO (non-commercial)"
+    },
+    "NRSC CartoDEM v3 30 m": {
+      "source": "Bhoonidhi (bhoonidhi.nrsc.gov.in), downloaded by hand 2026-10-10; 1-degree tiles P5_PAN_CD_N*_E*_30m",
+      "licence": "NRSC data policy; raw tiles not committed"
+    },
+    "IMD 0.25 degree daily gridded rainfall": {
+      "source": "IMD Pune, files RF25_ind2021_rfp25.nc to RF25_ind2025_rfp25.nc (calendar years 2021-2025), downloaded by hand 2026-10-10 (2025) and 2026-10-12 (2021-2024)",
+      "licence": "IMD data policy; raw file not committed"
+    },
+    "ISRIC SoilGrids 2.0": {
+      "source": "soilgrids.org map export, mean, bbox lon 76-81 lat 28.7-32.4; 0-5 cm downloaded by hand 2026-10-10, 5-15 and 15-30 cm (files named by property) on 2026-10-12",
+      "licence": "CC BY 4.0",
+      "file_identification": "The 0-5 cm exports were saved unnamed as out.tif ... out (4).tif. Each was matched to the named 5-15 cm file it correlates with pixel by pixel (Spearman 0.95-0.99): out=bdod, out (1)=clay, out (2)=cfvo (coarse fragments), out (3)=sand, out (4)=organic carbon. There is no 0-5 cm silt file. The first build (2026-10-10) had identified these by value range and wrongly read out (2) as organic carbon, out (3) as silt and out (4) as sand; fixed 2026-10-12. Organic carbon is treated as organic carbon density (ocd, hg/m3) as Rajat described the download; if it was soil organic carbon content (soc, dg/kg) the column is g/kg instead of kg/m3."
+    },
+    "GSI NGDR Uttarakhand lithology, faults and folds": {
+      "files": [
+        "data/00_raw/ngdr_geology/lithology/LITHOLOGY_STATE_UTTARAKHAND.geojson",
+        "data/00_raw/ngdr_geology/faults/FAULT_STATE_UTTARAKHAND.geojson",
+        "data/00_raw/ngdr_geology/folds/FOLD_STATE_UTTARAKHAND.geojson"
+      ],
+      "source": "GSI Bhukosh / NGDR state layers (SRC-013, SRC-014, SRC-015), added to the repo 2026-10-10 and 2026-10-12",
+      "note": "State-scale map; a spring's polygon is a map overlay, not a field observation."
+    },
+    "DEM lineament candidates": {
+      "file": "data/02_processed/lineaments/dem_lineament_candidates_v1.geojson",
+      "method": "scripts/extract_dem_lineaments.py"
+    },
+    "DEM hydrology": {
+      "method": "scripts/spring_hydrology.py: depression filling and D8 routing with pyflwdir, Freeman (1991) MFD area, TWI = ln(a / tan slope)",
+      "stream_threshold_km2": 0.5,
+      "window": "+/- 5 km around each spring, +/- 20 km when the D8 catchment reaches the edge"
+    }
+  },
+  "local_layers_found": [
+    "CartoDEM: 14 tiles",
+    "IMD: 5 years (2021, 2022, 2023, 2024, 2025)",
+    "SoilGrids: 17 layers",
+    "DEM lineaments: 26672 segments"
+  ],
+  "not_acquired": {
+    "Bhuvan LULC 1:50k": "Bhuvan services blocked from the build environment; download needs a request."
+  }
+}

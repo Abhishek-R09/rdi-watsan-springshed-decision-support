@@ -3,8 +3,8 @@
 Inputs:  data/01_staged/common/csv/spring_records_common_v1.csv
          data/02_processed/spring_features/spring_features_v1.csv
 Output:  data/02_processed/spring_master/spring_master_v1.csv (+ data dictionary,
-         fill summary, duplicate pairs, and the input / test split as
-         spring_master_v1_input.csv and spring_master_v1_test.csv) and spring_master_v1.xlsx
+         fill summary, duplicate pairs, and one-row-per-spring files spring_master_v1_clean.csv,
+         _input.csv and _test.csv) and spring_master_v1.xlsx
 
 How gaps are filled (nothing is invented or interpolated; every filled value says
 where it came from in a *_from column):
@@ -470,11 +470,13 @@ def main():
 
     assign_split(rows, groups)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    for split in ("input", "test"):
-        with (OUT_DIR / f"spring_master_v1_{split}.csv").open("w", newline="", encoding="utf-8") as handle:
+    # Clean files: one row per distinct spring (primary records only); all records stay in spring_master_v1.csv.
+    for name, keep in (("clean", lambda r: True), ("input", lambda r: r["dataset_split"] == "input"),
+                       ("test", lambda r: r["dataset_split"] == "test")):
+        with (OUT_DIR / f"spring_master_v1_{name}.csv").open("w", newline="", encoding="utf-8") as handle:
             writer = csv.DictWriter(handle, fieldnames=NAMES, lineterminator="\n")
             writer.writeheader()
-            writer.writerows(r for r in rows if r["dataset_split"] == split)
+            writer.writerows(r for r in rows if r["is_primary_record"] == "Y" and keep(r))
     with (OUT_DIR / "spring_master_v1.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=NAMES, lineterminator="\n")
         writer.writeheader()
@@ -530,7 +532,10 @@ GUIDE = [
     ("Input and test data", "The records are split in two. Input data is for building and tuning the tool. Test data (Tehri Garhwal, "
                             "the 10 Spring Atlas profile springs, and everything within 2 km of them) is kept aside: do not look at it or "
                             "tune rules on it, and score the finished tool on it once. Field-visit springs will be added to the test data. "
-                            "spring_master_v1_input.csv and spring_master_v1_test.csv hold the same split; spring_master_v1.csv has all records."),
+                            "The Input data and Test data sheets have one row per distinct spring (duplicates removed); the All records "
+                            "sheet keeps every source record, including the duplicate copies, for tracing values back to their source. "
+                            "Same in CSV: spring_master_v1_clean.csv (all 1,679 springs), _input.csv, _test.csv; spring_master_v1.csv has "
+                            "all records."),
     ("Counting springs", "Some springs are listed by two sources. Filter is_primary_record = Y to keep one row per spring; "
                          "spring_id links the records of one spring."),
     ("Duplicates", "Records within 30 m of each other were compared by name, position word (Talla / Malla, I / II), village and "
@@ -595,8 +600,11 @@ def write_workbook(rows, summary, pair_header, pair_rows):
     wide["split_reason"] = 35
     fills = {"same spring": "FCE4D6", "partly the same spring": "FCE4D6", "different springs": "E2EFDA", "needs review": "FFF2CC"}
     status_col, label_col = NAMES.index("duplicate_status") + 1, NAMES.index("duplicate_group") + 1
-    for title, split in (("Input data", "input"), ("Test data", "test")):
-        part = [r for r in rows if r["dataset_split"] == split]
+    sheets = (("Input data", lambda r: r["is_primary_record"] == "Y" and r["dataset_split"] == "input"),
+              ("Test data", lambda r: r["is_primary_record"] == "Y" and r["dataset_split"] == "test"),
+              ("All records", lambda r: True))
+    for title, keep in sheets:
+        part = [r for r in rows if keep(r)]
         sheet = wb.create_sheet(title)
         table(sheet, NAMES, [[r[n] for n in NAMES] for r in part], wide)
         for i, r in enumerate(part, start=2):

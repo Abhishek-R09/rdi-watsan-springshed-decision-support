@@ -21,7 +21,9 @@ Build a local demonstration application that accepts spring coordinates and a sh
 
 The first release will serve the student demonstration. It will also provide reproducible exports, a user manual and an Excel fallback suitable for WATSAN review.
 
-Use a local Streamlit interface, Python analysis modules, local GIS processing and existing downloaded datasets. Add remote data adapters only where the local collection cannot support the selected site. All implementation files remain under Application/.
+Use a local Preact field interface and Python analysis modules. Periodic, separately managed refreshes prepare reviewed, versioned local geographic and historical datasets. On an assessment, user-supplied coordinates select covering data from the active local snapshot; no analytical provider fetch occurs per coordinate. Local GIS processing produces the initial polygon automatically. Each assessment pins its snapshot and source versions for reproducibility. All implementation files remain under Application/. The current interface is a standalone preview; the backend connection remains to be built.
+
+**14 October 2026 data-access decision:** The earlier per-assessment acquisition proposal is superseded. Analytical inputs are stored locally and refreshed periodically, outside field-user requests; refresh cadence and source-specific coverage are to be set after review. “Latest” means the latest *approved local snapshot*, with the underlying observation period and publication/retrieval dates shown. A map service may be used during the live demo to display the spring and generated polygon. [Agent tool contracts](../agents/tool_registry.md) distinguish refresh tools from assessment tools.
 
 ## 2. Apply SindhuBank's design discipline
 
@@ -38,7 +40,7 @@ Every agent receives the same ten-section specification used in SindhuBank:
 7. Failure and uncertainty handling.
 8. Tools and permissions.
 9. State and memory needs.
-10. Automated success tests.
+10. Evidence review and applicable mechanical checks.
 
 Add a SIPOC record — supplier, input, process, output and customer — for each agent.
 
@@ -76,7 +78,7 @@ Before building:
 - Inventory the existing master table, original layers, field records and reference springsheds.
 - Reconcile older acquisition entries with later download and processing records.
 - Check that each pilot site has usable source layers, not merely values extracted at a spring point.
-- Register the two or three reference boundaries with their source, coordinate system, method and evidence status. Distinguish actual recharge boundaries from surface catchments or treatment areas.
+- Inventory any claimed reference boundaries with source, coordinate system, method and evidence status. At present no independently verified recharge polygons have been established for the pilot springs; distinguish reported areas, surface catchments and treatment areas from reference boundaries.
 - Inspect the refreshed duplicate decisions and input/test split. Retain held-out sites and their exclusion buffers; do not use their outcomes to develop rules and then call the same exercise independent validation.
 
 Keep existing raw files unchanged. Retain source values and locators through staging; review apparent duplicates rather than silently merging them.
@@ -110,11 +112,11 @@ Every run gets its own output folder. Re-running an assessment creates a new ver
 
 Wrap existing processing scripts as reusable functions instead of rebuilding their functionality.
 
-Use the existing Copernicus terrain, WorldCover, rainfall, soil and NGDR geological inputs where coverage and metadata pass review. Keep their resolution and limitations visible.
+Before field use, acquire and stage covering terrain, geology, land/soil, and historical rainfall and temperature data where justified and available. Refresh these source collections periodically through a controlled maintenance workflow, rather than on each coordinate request. Retain the observation period, publication date, retrieval time, resolution, coverage and limitations of every source version. An approved active snapshot makes selected local versions available to assessments.
 
-Remote adapters must provide source metadata, coverage status and errors. They use cached, registered responses for reproducible reruns. No credentials enter reports or version control. An unavailable service triggers a recorded fallback or an unavailable result.
+Refresh adapters must record source metadata, coverage, release identity and errors. New downloads enter immutable raw intake with checksums before reproducible staging and review. Promotion to the active snapshot is explicit; a new or incompatible product version is registered and reviewed first. Assessments query only that snapshot, record its ID and each source version, and report missing coordinate coverage as unavailable rather than silently fetching or inventing values. No credentials enter reports or version control.
 
-A satellite basemap is for orientation; it is not the analytical evidence used to establish a recharge boundary.
+A display basemap can mark the supplied spring and overlay generated catchment and candidate recharge polygons. The current interface uses OpenStreetMap tiles for its development preview; a Google Maps satellite/terrain basemap remains an option for the live demo. A basemap is visual context, not the analytical evidence used to establish a boundary; a local terrain view remains the offline display fallback.
 
 ## 4. Module behaviour
 
@@ -221,10 +223,10 @@ Compare Excel outputs with Python calculations using a stated numerical toleranc
 
 ### Evidence-based validation
 
-- Use the two or three reference springsheds as case-level checks.
-- Record reference uncertainty before calculating overlap or area difference.
+- Use independently supported reference springsheds as case-level checks only if such boundaries become available.
+- Record reference method and uncertainty before calculating overlap or area difference; reported area alone cannot verify polygon placement.
 - Where feasible, reserve one site from rule development and freeze rules before assessing it, respecting the repository's existing holdout split.
-- Report each site's overlap, area difference, expert disagreement and sensitivity; do not claim regional accuracy from this small set.
+- Where a suitable boundary exists, report its overlap, area difference, expert disagreement and sensitivity. Otherwise record hydrogeological validation as not assessed; do not claim regional accuracy from a small or unverified set.
 - Freeze vulnerability results before expert ranking review and retain disagreements.
 - DI verification establishes arithmetic and assumptions, not observed impact.
 
@@ -243,6 +245,6 @@ The demo passes when all three modules operate end-to-end on documented pilot in
 | 2–4 November | Complete reproducibility checks, manuals, monitoring handover and limitations report. |
 | 5–6 November | Demonstrate to RDI/WATSAN, record feedback and deliver the reviewed release. |
 
-Defaults: local Python modules; no runtime LLM API; Streamlit demonstration interface; existing local layers first; no supervised boundary model trained on two or three examples; no automatic rule promotion; and no expansion into the other DoCC projects.
+Defaults: local Python modules; no runtime LLM API; Preact field interface (currently a standalone preview); periodic reviewed data refreshes and a pinned local snapshot per assessment; a configurable display basemap for the live demo; no supervised boundary model trained on a few unverified examples; no automatic rule promotion; and no expansion into the other DoCC projects.
 
 Exact hydrological thresholds are outputs of the documented rule-development and review stage, not assumptions fabricated by the implementer. Until frozen, affected outputs remain exploratory.

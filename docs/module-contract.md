@@ -6,7 +6,7 @@ The tool has three modules, built separately and joined later:
 - **Module B:** recharge zone (Rajat's colleague).
 - **Module C:** DI impact.
 
-The whole tool runs locally and calls no paid AI service. A small rule-based orchestrator sits on top. It checks the inputs, runs the modules in order, and puts their results on one local web page (React/JS, to be built later).
+The intended whole tool runs locally and calls no paid AI service. A small rule-based orchestrator is proposed to check inputs and coordinate the modules. A Preact field interface now exists in [`interface/`](../interface/README.md), but it is a standalone preview and is not yet connected to Module A or the catchment/springshed runtime. The latter currently has its own input envelope and does not run Module A. An adapter and shared data-access policy still need to be specified before one field request can run both.
 
 The fuller design is in [`Project1_Agent_System_Implementation_Plan.md`](Project1_Agent_System_Implementation_Plan.md). That plan covers the agent specifications, lineage, memory and testing. This note covers only what each module takes in and gives back, so that the modules join without rework.
 

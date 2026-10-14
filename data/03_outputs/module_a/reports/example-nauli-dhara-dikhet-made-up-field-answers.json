@@ -9,7 +9,7 @@
     "elevation_m": 1481.0
   },
   "result": {
-    "score": 49,
+    "score": 50,
     "class": "Medium",
     "kind": "vulnerability score",
     "coverage_pct": 100,
@@ -31,8 +31,8 @@
         "indicator": "Lean-season flow (May-June)",
         "value": "2.5 L/min",
         "score": 50,
-        "weight_used_pct": 6.0,
-        "points": 3.0,
+        "weight_used_pct": 7.0,
+        "points": 3.5,
         "comparison": "moderate band on the field form scale",
         "why": "A small dry-season flow has little margin left. SOP ch. 5; ICIMOD 2018."
       },
@@ -42,8 +42,8 @@
         "indicator": "Monsoon flow / lean flow",
         "value": "12.0 (30 / 2.5 L/min)",
         "score": 100,
-        "weight_used_pct": 5.0,
-        "points": 5.0,
+        "weight_used_pct": 6.0,
+        "points": 6.0,
         "comparison": "high band on the field form scale",
         "why": "A big swing means a small or shallow store that empties fast after the rains. SOP ch. 5; Dass et al. 2026."
       },
@@ -86,21 +86,10 @@
         "indicator": "Households per L/min of lean flow",
         "value": "14.0 (35 households / 2.5 L/min)",
         "score": 50,
-        "weight_used_pct": 9.0,
-        "points": 4.5,
+        "weight_used_pct": 10.0,
+        "points": 5.0,
         "comparison": "moderate band on the field form scale",
         "why": "Many users on a small flow is the main human pressure. SOP ch. 5; Resource Book."
-      },
-      {
-        "id": "users_vs_past",
-        "group": "Stressor (field)",
-        "indicator": "Users now vs 10-20 years ago",
-        "value": "more",
-        "score": 50,
-        "weight_used_pct": 4.0,
-        "points": 2.0,
-        "comparison": "moderate band on the field form scale",
-        "why": "More households, tourists or piped schemes drawing on the same spring raise demand while supply may not grow. Field form: \"more users\" as a reason for change."
       },
       {
         "id": "disturbance_uphill",
@@ -108,8 +97,8 @@
         "indicator": "Disturbance uphill (roads, fire, grazing, landslides)",
         "value": "major",
         "score": 100,
-        "weight_used_pct": 4.0,
-        "points": 4.0,
+        "weight_used_pct": 5.0,
+        "points": 5.0,
         "comparison": "high band on the field form scale",
         "why": "Cuts infiltration in the likely recharge area. Daniel 2021; SOP."
       },
@@ -125,6 +114,17 @@
         "why": "Threatens use of the water even if flow holds. SOP ch. 4."
       },
       {
+        "id": "users_vs_past",
+        "group": "Stressor (field)",
+        "indicator": "Users now vs 10-20 years ago",
+        "value": "more",
+        "score": 50,
+        "weight_used_pct": 2.0,
+        "points": 1.0,
+        "comparison": "moderate band on the field form scale",
+        "why": "More households, tourists or piped schemes drawing on the same spring raise demand while supply may not grow. Field form: \"more users\" as a reason for change."
+      },
+      {
         "id": "dry_season_rain",
         "group": "Stressor (location)",
         "indicator": "Dry-season rain (Nov-Apr)",
@@ -136,26 +136,15 @@
         "why": "Winter and pre-monsoon rain feeds the spring in the months it is lowest. Daniel 2021 rainfall stressor."
       },
       {
-        "id": "rain_trend",
+        "id": "disturbed_land",
         "group": "Stressor (location)",
-        "indicator": "Rainfall trend 2001-2025",
-        "value": "-0.5% per decade",
-        "score": 23,
+        "indicator": "Built-up, cropland and bare land within 500 m",
+        "value": "2%",
+        "score": 38,
         "weight_used_pct": 5.0,
-        "points": 1.2,
-        "comparison": "Yearly rain changed by -0.5% per decade over 2001-2025 (IMD); 23% of the input springs are drying more slowly or getting wetter.",
-        "why": "Falling rain means less recharge year after year: the rainfall stressor of Daniel et al. 2021. Trend over 24 IMD years (2012 missing); at most cells it is not statistically certain, so read it as a direction."
-      },
-      {
-        "id": "building_growth",
-        "group": "Stressor (location)",
-        "indicator": "Building growth within 1 km, 2016-2023",
-        "value": "-5%",
-        "score": 5,
-        "weight_used_pct": 5.0,
-        "points": 0.2,
-        "comparison": "Buildings within 1 km changed by -5% from 2016 to 2023; 5% of the input springs saw less growth.",
-        "why": "Stand-in for population growth: more houses mean more users and more sealed ground near the spring. Model estimates from yearly imagery, so small changes are noise."
+        "points": 1.9,
+        "comparison": "2% of the land within 500 m is built-up, cropland or bare; 38% of the input springs have less.",
+        "why": "Less forest and more sealed or tilled land means less infiltration near the spring. Stand-in until Module B maps the real recharge zone."
       },
       {
         "id": "aridity",
@@ -169,6 +158,17 @@
         "why": "Less water left over for recharge after evaporation."
       },
       {
+        "id": "rain_trend",
+        "group": "Stressor (location)",
+        "indicator": "Rainfall trend 2001-2025",
+        "value": "-0.5% per decade",
+        "score": 23,
+        "weight_used_pct": 4.0,
+        "points": 0.9,
+        "comparison": "Yearly rain changed by -0.5% per decade over 2001-2025 (IMD); 23% of the input springs are drying more slowly or getting wetter.",
+        "why": "Falling rain means less recharge year after year: the rainfall stressor of Daniel et al. 2021. Trend over 24 IMD years (2012 missing); at most cells it is not statistically certain, so read it as a direction."
+      },
+      {
         "id": "rain_variability",
         "group": "Stressor (location)",
         "indicator": "Year-to-year rain variability",
@@ -180,37 +180,26 @@
         "why": "Dry years hit harder where rain swings a lot from year to year. 24 years of IMD data."
       },
       {
-        "id": "disturbed_land",
-        "group": "Stressor (location)",
-        "indicator": "Built-up, cropland and bare land within 500 m",
-        "value": "2%",
-        "score": 38,
-        "weight_used_pct": 3.0,
-        "points": 1.1,
-        "comparison": "2% of the land within 500 m is built-up, cropland or bare; 38% of the input springs have less.",
-        "why": "Less forest and more sealed or tilled land means less infiltration near the spring. Stand-in until Module B maps the real recharge zone."
-      },
-      {
-        "id": "buildings_nearby",
-        "group": "Stressor (location)",
-        "indicator": "Buildings within 1 km (2023)",
-        "value": "352",
-        "score": 47,
-        "weight_used_pct": 3.0,
-        "points": 1.4,
-        "comparison": "About 352 buildings stand within 1 km; 47% of the input springs have fewer.",
-        "why": "Stand-in for how many people live close enough to depend on the spring, where household counts are not known."
-      },
-      {
         "id": "slope",
         "group": "Stressor (location)",
         "indicator": "Mean slope within 500 m",
         "value": "19 degrees",
         "score": 16,
-        "weight_used_pct": 2.0,
-        "points": 0.3,
+        "weight_used_pct": 3.0,
+        "points": 0.5,
         "comparison": "Mean slope within 500 m is 19 degrees; 16% of the input springs sit on gentler ground.",
         "why": "Steep slopes shed rain as runoff before it can soak in."
+      },
+      {
+        "id": "building_growth",
+        "group": "Stressor (location)",
+        "indicator": "Building growth within 1 km, 2016-2023",
+        "value": "-5%",
+        "score": 5,
+        "weight_used_pct": 3.0,
+        "points": 0.1,
+        "comparison": "Buildings within 1 km changed by -5% from 2016 to 2023; 5% of the input springs saw less growth.",
+        "why": "Stand-in for population growth: more houses mean more users and more sealed ground near the spring. Model estimates from yearly imagery, so small changes are noise."
       },
       {
         "id": "upslope_room",
@@ -218,8 +207,8 @@
         "indicator": "Land rising above the spring within 1 km",
         "value": "274 m",
         "score": 63,
-        "weight_used_pct": 2.0,
-        "points": 1.3,
+        "weight_used_pct": 3.0,
+        "points": 1.9,
         "comparison": "The land rises 274 m above the spring within 1 km; 63% of the input springs have more land above them.",
         "why": "A spring close to a ridge top has little land above it to collect recharge."
       },
@@ -253,6 +242,7 @@
       "Spring type (field): Fracture",
       "Soil 0-30 cm (SoilGrids): clay 27%, sand 33%",
       "Yearly rain (CHIRPS 2018-2025): 1775 mm (IMD 2001-2025: 1102 mm)",
+      "Buildings within 1 km (Google Open Buildings): about 371 in 2016, 352 in 2023",
       "Tree cover within 500 m: 69%",
       "Surface catchment above the spring (DEM): 8.3 ha. This is not the recharge area; Module B will estimate that."
     ],
@@ -280,10 +270,11 @@
       "rock_at_outlet": "Quartzite"
     }
   },
+  "status": "complete",
   "confidence": "High",
   "rationale": [
     "Flow now vs 10-20 years ago adds 10.0 points (scored 50/100): answer: a bit less.",
-    "Monsoon flow / lean flow adds 5.0 points (scored 100/100): answer: 12.0 (30 / 2.5 L/min).",
+    "Monsoon flow / lean flow adds 6.0 points (scored 100/100): answer: 12.0 (30 / 2.5 L/min).",
     "Months with low or no flow adds 5.0 points (scored 100/100): answer: 4 months."
   ],
   "missing_inputs": [],

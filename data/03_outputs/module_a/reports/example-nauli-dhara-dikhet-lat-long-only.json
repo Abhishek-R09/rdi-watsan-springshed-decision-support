@@ -9,10 +9,10 @@
     "elevation_m": 1481.0
   },
   "result": {
-    "score": 33,
+    "score": 34,
     "class": "Low",
     "kind": "exposure score",
-    "coverage_pct": 34,
+    "coverage_pct": 32,
     "indicators": [
       {
         "id": "dry_season_rain",
@@ -20,54 +20,10 @@
         "indicator": "Dry-season rain (Nov-Apr)",
         "value": "211 mm",
         "score": 37,
-        "weight_used_pct": 20.6,
-        "points": 7.5,
+        "weight_used_pct": 21.9,
+        "points": 8.0,
         "comparison": "211 mm falls in November-April on average; 37% of the input springs get more.",
         "why": "Winter and pre-monsoon rain feeds the spring in the months it is lowest. Daniel 2021 rainfall stressor."
-      },
-      {
-        "id": "rain_trend",
-        "group": "Stressor (location)",
-        "indicator": "Rainfall trend 2001-2025",
-        "value": "-0.5% per decade",
-        "score": 23,
-        "weight_used_pct": 14.7,
-        "points": 3.4,
-        "comparison": "Yearly rain changed by -0.5% per decade over 2001-2025 (IMD); 23% of the input springs are drying more slowly or getting wetter.",
-        "why": "Falling rain means less recharge year after year: the rainfall stressor of Daniel et al. 2021. Trend over 24 IMD years (2012 missing); at most cells it is not statistically certain, so read it as a direction."
-      },
-      {
-        "id": "building_growth",
-        "group": "Stressor (location)",
-        "indicator": "Building growth within 1 km, 2016-2023",
-        "value": "-5%",
-        "score": 5,
-        "weight_used_pct": 14.7,
-        "points": 0.7,
-        "comparison": "Buildings within 1 km changed by -5% from 2016 to 2023; 5% of the input springs saw less growth.",
-        "why": "Stand-in for population growth: more houses mean more users and more sealed ground near the spring. Model estimates from yearly imagery, so small changes are noise."
-      },
-      {
-        "id": "aridity",
-        "group": "Stressor (location)",
-        "indicator": "Rain / evaporation demand (aridity index)",
-        "value": "1.36",
-        "score": 66,
-        "weight_used_pct": 11.8,
-        "points": 7.8,
-        "comparison": "Yearly rain is 1.36 times the evaporation demand; 66% of the input springs are wetter.",
-        "why": "Less water left over for recharge after evaporation."
-      },
-      {
-        "id": "rain_variability",
-        "group": "Stressor (location)",
-        "indicator": "Year-to-year rain variability",
-        "value": "18%",
-        "score": 11,
-        "weight_used_pct": 8.8,
-        "points": 0.9,
-        "comparison": "Yearly rain varies by 18% from year to year (IMD 2001-2025); 11% of the input springs vary less.",
-        "why": "Dry years hit harder where rain swings a lot from year to year. 24 years of IMD data."
       },
       {
         "id": "disturbed_land",
@@ -75,21 +31,43 @@
         "indicator": "Built-up, cropland and bare land within 500 m",
         "value": "2%",
         "score": 38,
-        "weight_used_pct": 8.8,
-        "points": 3.4,
+        "weight_used_pct": 15.6,
+        "points": 5.9,
         "comparison": "2% of the land within 500 m is built-up, cropland or bare; 38% of the input springs have less.",
         "why": "Less forest and more sealed or tilled land means less infiltration near the spring. Stand-in until Module B maps the real recharge zone."
       },
       {
-        "id": "buildings_nearby",
+        "id": "aridity",
         "group": "Stressor (location)",
-        "indicator": "Buildings within 1 km (2023)",
-        "value": "352",
-        "score": 47,
-        "weight_used_pct": 8.8,
-        "points": 4.1,
-        "comparison": "About 352 buildings stand within 1 km; 47% of the input springs have fewer.",
-        "why": "Stand-in for how many people live close enough to depend on the spring, where household counts are not known."
+        "indicator": "Rain / evaporation demand (aridity index)",
+        "value": "1.36",
+        "score": 66,
+        "weight_used_pct": 12.5,
+        "points": 8.2,
+        "comparison": "Yearly rain is 1.36 times the evaporation demand; 66% of the input springs are wetter.",
+        "why": "Less water left over for recharge after evaporation."
+      },
+      {
+        "id": "rain_trend",
+        "group": "Stressor (location)",
+        "indicator": "Rainfall trend 2001-2025",
+        "value": "-0.5% per decade",
+        "score": 23,
+        "weight_used_pct": 12.5,
+        "points": 2.9,
+        "comparison": "Yearly rain changed by -0.5% per decade over 2001-2025 (IMD); 23% of the input springs are drying more slowly or getting wetter.",
+        "why": "Falling rain means less recharge year after year: the rainfall stressor of Daniel et al. 2021. Trend over 24 IMD years (2012 missing); at most cells it is not statistically certain, so read it as a direction."
+      },
+      {
+        "id": "rain_variability",
+        "group": "Stressor (location)",
+        "indicator": "Year-to-year rain variability",
+        "value": "18%",
+        "score": 11,
+        "weight_used_pct": 9.4,
+        "points": 1.0,
+        "comparison": "Yearly rain varies by 18% from year to year (IMD 2001-2025); 11% of the input springs vary less.",
+        "why": "Dry years hit harder where rain swings a lot from year to year. 24 years of IMD data."
       },
       {
         "id": "slope",
@@ -97,10 +75,21 @@
         "indicator": "Mean slope within 500 m",
         "value": "19 degrees",
         "score": 16,
-        "weight_used_pct": 5.9,
-        "points": 1.0,
+        "weight_used_pct": 9.4,
+        "points": 1.5,
         "comparison": "Mean slope within 500 m is 19 degrees; 16% of the input springs sit on gentler ground.",
         "why": "Steep slopes shed rain as runoff before it can soak in."
+      },
+      {
+        "id": "building_growth",
+        "group": "Stressor (location)",
+        "indicator": "Building growth within 1 km, 2016-2023",
+        "value": "-5%",
+        "score": 5,
+        "weight_used_pct": 9.4,
+        "points": 0.5,
+        "comparison": "Buildings within 1 km changed by -5% from 2016 to 2023; 5% of the input springs saw less growth.",
+        "why": "Stand-in for population growth: more houses mean more users and more sealed ground near the spring. Model estimates from yearly imagery, so small changes are noise."
       },
       {
         "id": "upslope_room",
@@ -108,8 +97,8 @@
         "indicator": "Land rising above the spring within 1 km",
         "value": "274 m",
         "score": 63,
-        "weight_used_pct": 5.9,
-        "points": 3.7,
+        "weight_used_pct": 9.4,
+        "points": 5.9,
         "comparison": "The land rises 274 m above the spring within 1 km; 63% of the input springs have more land above them.",
         "why": "A spring close to a ridge top has little land above it to collect recharge."
       }
@@ -119,6 +108,7 @@
       "Nearest mapped fault: 2.7 km (Fault Observed)",
       "Soil 0-30 cm (SoilGrids): clay 27%, sand 33%",
       "Yearly rain (CHIRPS 2018-2025): 1775 mm (IMD 2001-2025: 1102 mm)",
+      "Buildings within 1 km (Google Open Buildings): about 371 in 2016, 352 in 2023",
       "Tree cover within 500 m: 69%",
       "Surface catchment above the spring (DEM): 8.3 ha. This is not the recharge area; Module B will estimate that."
     ],
@@ -131,12 +121,13 @@
     "elevation_gap_m": 8,
     "answers_used": {}
   },
+  "status": "provisional",
   "confidence": "Low",
   "rationale": [
     "Nobody has said yet whether the flow has fallen, so this is an exposure score: it shows how exposed the spring's setting is, not whether the spring is declining.",
-    "Rain / evaporation demand (aridity index) adds 7.8 points (scored 66/100): Yearly rain is 1.36 times the evaporation demand; 66% of the input springs are wetter.",
-    "Dry-season rain (Nov-Apr) adds 7.5 points (scored 37/100): 211 mm falls in November-April on average; 37% of the input springs get more.",
-    "Buildings within 1 km (2023) adds 4.1 points (scored 47/100): About 352 buildings stand within 1 km; 47% of the input springs have fewer."
+    "Rain / evaporation demand (aridity index) adds 8.2 points (scored 66/100): Yearly rain is 1.36 times the evaporation demand; 66% of the input springs are wetter.",
+    "Dry-season rain (Nov-Apr) adds 8.0 points (scored 37/100): 211 mm falls in November-April on average; 37% of the input springs get more.",
+    "Built-up, cropland and bare land within 500 m adds 5.9 points (scored 38/100): 2% of the land within 500 m is built-up, cropland or bare; 38% of the input springs have less."
   ],
   "missing_inputs": [
     {
@@ -148,19 +139,19 @@
     {
       "id": "households_per_lpm",
       "indicator": "Households per L/min of lean flow",
-      "weight": 9.0,
+      "weight": 10.0,
       "needs": "field (households + lean flow)"
     },
     {
       "id": "lean_flow",
       "indicator": "Lean-season flow (May-June)",
-      "weight": 6.0,
+      "weight": 7.0,
       "needs": "field (bucket test or fill time)"
     },
     {
       "id": "flow_ratio",
       "indicator": "Monsoon flow / lean flow",
-      "weight": 5.0,
+      "weight": 6.0,
       "needs": "field (two readings)"
     },
     {
@@ -170,15 +161,9 @@
       "needs": "field (month calendar)"
     },
     {
-      "id": "users_vs_past",
-      "indicator": "Users now vs 10-20 years ago",
-      "weight": 4.0,
-      "needs": "field (people's recall)"
-    },
-    {
       "id": "disturbance_uphill",
       "indicator": "Disturbance uphill (roads, fire, grazing, landslides)",
-      "weight": 4.0,
+      "weight": 5.0,
       "needs": "field"
     },
     {
@@ -210,6 +195,12 @@
       "indicator": "Seasonality label",
       "weight": 2.0,
       "needs": "field or dataset label"
+    },
+    {
+      "id": "users_vs_past",
+      "indicator": "Users now vs 10-20 years ago",
+      "weight": 2.0,
+      "needs": "field (people's recall)"
     }
   ],
   "warnings": []

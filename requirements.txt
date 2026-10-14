@@ -1,5 +1,4 @@
-# Module A and the agent (scripts/module_a_vulnerability.py, scripts/spring_agent.py)
-anthropic>=1.13,<2
+# Module A (scripts/module_a_vulnerability.py). Everything runs locally; no paid API.
 rasterio>=1.4
 numpy>=2.0
 scipy>=1.13

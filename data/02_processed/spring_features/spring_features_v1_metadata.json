@@ -1,5 +1,5 @@
 {
-  "built": "2026-10-12",
+  "built": "2026-10-14",
   "input": "data/01_staged/common/csv/spring_records_common_v1.csv",
   "records": 1842,
   "records_with_layer_values": 1805,
@@ -80,6 +80,16 @@
       ],
       "source": "GSI Bhukosh / NGDR state layers (SRC-013, SRC-014, SRC-015), added to the repo 2026-10-10 and 2026-10-12",
       "note": "State-scale map; a spring's polygon is a map overlay, not a field observation."
+    },
+    "Google Open Buildings 2.5D Temporal v1": {
+      "url_pattern": "https://storage.googleapis.com/open-buildings-temporal-data/v1/manifests/39_EPSG_{epsg}_{year}_06_30.json",
+      "years": [
+        2016,
+        2023
+      ],
+      "radius_m": 1000,
+      "licence": "CC BY 4.0 (Google Open Buildings)",
+      "resolution": "0.5 m grid of 4 m effective resolution, read at the 8 m overview"
     },
     "DEM lineament candidates": {
       "file": "data/02_processed/lineaments/dem_lineament_candidates_v1.geojson",

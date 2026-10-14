@@ -4,10 +4,10 @@
   "longitude": 78.55647,
   "elevation_m": 1481.0,
   "answers": {},
-  "score": 44.93154291732491,
+  "score": 40.74900102220983,
   "class": "Medium",
   "confidence": "Low",
-  "coverage_pct": 24.0,
+  "coverage_pct": 34.0,
   "has_trend": false,
   "items": [
     {
@@ -18,10 +18,10 @@
       "comparison": "211 mm falls in November-April on average; 37% of the input springs get more.",
       "group": "Stressor (location)",
       "indicator": "Dry-season rain (Nov-Apr)",
-      "weight": 6.0,
+      "weight": 9.0,
       "why": "Winter and pre-monsoon rain feeds the spring in the months it is lowest. Daniel 2021 rainfall stressor.",
-      "share_pct": 25.0,
-      "points": 9.162717219589258
+      "share_pct": 26.470588235294116,
+      "points": 9.70170058544745
     },
     {
       "id": "aridity",
@@ -31,10 +31,10 @@
       "comparison": "Yearly rain is 1.36 times the evaporation demand; 66% of the input springs are wetter.",
       "group": "Stressor (location)",
       "indicator": "Rain / evaporation demand (aridity index)",
-      "weight": 4.0,
+      "weight": 6.0,
       "why": "Less water left over for recharge after evaporation.",
-      "share_pct": 16.666666666666668,
-      "points": 10.992627698788837
+      "share_pct": 17.647058823529413,
+      "points": 11.639252857541122
     },
     {
       "id": "rain_variability",
@@ -44,10 +44,10 @@
       "comparison": "Yearly rain varies by 13% from year to year; 56% of the input springs vary less.",
       "group": "Stressor (location)",
       "indicator": "Year-to-year rain variability",
-      "weight": 3.0,
+      "weight": 4.0,
       "why": "Dry years hit harder where rain swings a lot. Only 8 years of data, so a weak signal.",
-      "share_pct": 12.5,
-      "points": 6.941153238546604
+      "share_pct": 11.764705882352942,
+      "points": 6.532850106867392
     },
     {
       "id": "disturbed_land",
@@ -57,10 +57,10 @@
       "comparison": "2% of the land within 500 m is built-up, cropland or bare; 38% of the input springs have less.",
       "group": "Stressor (location)",
       "indicator": "Built-up, cropland and bare land within 500 m",
-      "weight": 5.0,
+      "weight": 3.0,
       "why": "Less forest and more sealed or tilled land means less infiltration near the spring. Stand-in until Module B maps the real recharge zone.",
-      "share_pct": 20.833333333333332,
-      "points": 7.931806213796736
+      "share_pct": 8.823529411764707,
+      "points": 3.35935321996097
     },
     {
       "id": "slope",
@@ -70,10 +70,36 @@
       "comparison": "Mean slope within 500 m is 19 degrees; 16% of the input springs sit on gentler ground.",
       "group": "Stressor (location)",
       "indicator": "Mean slope within 500 m",
-      "weight": 3.0,
+      "weight": 2.0,
       "why": "Steep slopes shed rain as runoff before it can soak in.",
-      "share_pct": 12.5,
-      "points": 2.043838862559242
+      "share_pct": 5.882352941176471,
+      "points": 0.9618065235572902
+    },
+    {
+      "id": "building_growth",
+      "score": 4.818325434439179,
+      "value": -5.156597587815598,
+      "unit": "%",
+      "comparison": "Buildings within 1 km changed by -5% from 2016 to 2023; 5% of the input springs saw less growth.",
+      "group": "Stressor (location)",
+      "indicator": "Building growth within 1 km, 2016-2023",
+      "weight": 5.0,
+      "why": "Stand-in for population growth: more houses mean more users and more sealed ground near the spring. Model estimates from yearly imagery, so small changes are noise.",
+      "share_pct": 14.705882352941176,
+      "points": 0.7085772697704674
+    },
+    {
+      "id": "buildings_nearby",
+      "score": 46.998420221169035,
+      "value": 351.9751892089844,
+      "unit": "",
+      "comparison": "About 352 buildings stand within 1 km; 47% of the input springs have fewer.",
+      "group": "Stressor (location)",
+      "indicator": "Buildings within 1 km (2023)",
+      "weight": 3.0,
+      "why": "Stand-in for how many people live close enough to depend on the spring, where household counts are not known.",
+      "share_pct": 8.823529411764707,
+      "points": 4.1469194312796205
     },
     {
       "id": "upslope_room",
@@ -83,10 +109,10 @@
       "comparison": "The land rises 274 m above the spring within 1 km; 63% of the input springs have more land above them.",
       "group": "Stressor (location)",
       "indicator": "Land rising above the spring within 1 km",
-      "weight": 3.0,
+      "weight": 2.0,
       "why": "A spring close to a ridge top has little land above it to collect recharge.",
-      "share_pct": 12.5,
-      "points": 7.8593996840442335
+      "share_pct": 5.882352941176471,
+      "points": 3.6985410277855215
     }
   ],
   "notes": [],
@@ -97,6 +123,7 @@
     "lean_flow",
     "flow_ratio",
     "low_flow_months",
+    "users_vs_past",
     "disturbance_uphill",
     "pollution_30m",
     "protection",

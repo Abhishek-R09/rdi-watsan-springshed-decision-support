@@ -40,6 +40,9 @@ land_cover_majority_500m,,ESA WorldCover 2021,Most common class within 500 m.
 tree_cover_500m_pct,%,ESA WorldCover 2021,
 cropland_500m_pct,%,ESA WorldCover 2021,
 built_up_500m_pct,%,ESA WorldCover 2021,
+buildings_1km_2016,count,Google Open Buildings 2.5D Temporal,Estimated buildings within 1 km in 2016.
+buildings_1km_2023,count,Google Open Buildings 2.5D Temporal,Estimated buildings within 1 km in 2023.
+building_growth_1km_pct,%,Derived,Buildings added 2016-2023 as a share of the 2016 count (base at least 25). A stand-in for population growth near the spring.
 land_use_source_text,,Common file,"Land use as the source described it. WATSAN gives ESA WorldCover codes, decoded here; the class names in WATSAN's own sheet are wrong (e.g. 10 labelled Built-up)."
 rainfall_mean_annual_mm,mm/year,CHIRPS v2 2018-2025 (FAO WaPOR),"Mean annual rainfall, ~5 km."
 rainfall_cv_pct,%,CHIRPS v2 2018-2025,Year-to-year variation.

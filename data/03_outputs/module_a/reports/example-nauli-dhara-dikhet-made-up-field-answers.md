@@ -2,43 +2,46 @@
 
 29.91903, 78.55647 · 1481 m · scored 2026-10-14 · Module A draft weights v1
 
-## Score: 54 / 100, Medium (confidence: High)
+## Score: 51 / 100, Medium (confidence: High)
 
 Indicators with data carry 100% of the full weight.
 
 ## Main reasons
 
-- **Flow now vs 10-20 years ago** (50/100, 15.0 points): answer: a bit less. The direct sign of decline, which is what vulnerability means in this project. Daniel et al. 2021 impact group.
-- **Monsoon flow / lean flow** (100/100, 6.0 points): answer: 12.0 (30 / 2.5 L/min). A big swing means a small or shallow store that empties fast after the rains. SOP ch. 5; Dass et al. 2026.
+- **Flow now vs 10-20 years ago** (50/100, 10.0 points): answer: a bit less. The direct sign of decline, which is what vulnerability means in this project. Daniel et al. 2021 impact group.
+- **Monsoon flow / lean flow** (100/100, 5.0 points): answer: 12.0 (30 / 2.5 L/min). A big swing means a small or shallow store that empties fast after the rains. SOP ch. 5; Dass et al. 2026.
 - **Months with low or no flow** (100/100, 5.0 points): answer: 4 months. Long lean periods leave users short for much of the year. Spring Atlas; SOP.
 
 Holding the score down:
 
+- **Building growth within 1 km, 2016-2023** (5/100): Buildings within 1 km changed by -5% from 2016 to 2023; 5% of the input springs saw less growth.
 - **Pollution sources within 30 m** (0/100): answer: none.
-- **Outlet protection and user committee** (0/100): answer: both.
 
 ## All indicators
 
 | Group | Indicator | Value | Score (0-100) | Weight used | Points |
 |---|---|---|---|---|---|
-| Impact | Flow now vs 10-20 years ago | a bit less | 50 | 30% | 15.0 |
-| State | Lean-season flow (May-June) | 2.5 L/min | 50 | 7% | 3.5 |
-| State | Monsoon flow / lean flow | 12.0 (30 / 2.5 L/min) | 100 | 6% | 6.0 |
+| Impact | Flow now vs 10-20 years ago | a bit less | 50 | 20% | 10.0 |
+| State | Lean-season flow (May-June) | 2.5 L/min | 50 | 6% | 3.0 |
+| State | Monsoon flow / lean flow | 12.0 (30 / 2.5 L/min) | 100 | 5% | 5.0 |
 | State | Months with low or no flow | 4 months | 100 | 5% | 5.0 |
 | State | Water quality | no issue | 0 | 2% | 0.0 |
 | State | Seasonality label | seasonal | 50 | 2% | 1.0 |
-| Stressor (field) | Households per L/min of lean flow | 14.0 (35 households / 2.5 L/min) | 50 | 10% | 5.0 |
-| Stressor (field) | Disturbance uphill (roads, fire, grazing, landslides) | major | 100 | 5% | 5.0 |
+| Stressor (field) | Households per L/min of lean flow | 14.0 (35 households / 2.5 L/min) | 50 | 9% | 4.5 |
+| Stressor (field) | Users now vs 10-20 years ago | more | 50 | 4% | 2.0 |
+| Stressor (field) | Disturbance uphill (roads, fire, grazing, landslides) | major | 100 | 4% | 4.0 |
 | Stressor (field) | Pollution sources within 30 m | none | 0 | 3% | 0.0 |
-| Stressor (location) | Dry-season rain (Nov-Apr) | 211 mm | 37 | 6% | 2.2 |
-| Stressor (location) | Built-up, cropland and bare land within 500 m | 2% | 38 | 5% | 1.9 |
-| Stressor (location) | Rain / evaporation demand (aridity index) | 1.36 | 66 | 4% | 2.6 |
-| Stressor (location) | Year-to-year rain variability | 13% | 56 | 3% | 1.7 |
-| Stressor (location) | Mean slope within 500 m | 19 degrees | 16 | 3% | 0.5 |
-| Stressor (location) | Land rising above the spring within 1 km | 274 m | 63 | 3% | 1.9 |
+| Stressor (location) | Dry-season rain (Nov-Apr) | 211 mm | 37 | 9% | 3.3 |
+| Stressor (location) | Rain / evaporation demand (aridity index) | 1.36 | 66 | 6% | 4.0 |
+| Stressor (location) | Building growth within 1 km, 2016-2023 | -5% | 5 | 5% | 0.2 |
+| Stressor (location) | Year-to-year rain variability | 13% | 56 | 4% | 2.2 |
+| Stressor (location) | Built-up, cropland and bare land within 500 m | 2% | 38 | 3% | 1.1 |
+| Stressor (location) | Buildings within 1 km (2023) | 352 | 47 | 3% | 1.4 |
+| Stressor (location) | Mean slope within 500 m | 19 degrees | 16 | 2% | 0.3 |
+| Stressor (location) | Land rising above the spring within 1 km | 274 m | 63 | 2% | 1.3 |
 | Response | Outlet protection and user committee | both | 0 | 3% | 0.0 |
 | Response | Recharge works uphill | none | 100 | 3% | 3.0 |
-| | **Total** | | | 100% | **54** |
+| | **Total** | | | 100% | **51** |
 
 Location scores are percentiles among the input springs at 700 m or higher (higher = more exposed). Field scores use the field form bands: low 0, moderate 50, high 100.
 

@@ -40,6 +40,9 @@ land_cover_majority_500m,1805,98,,,37
 tree_cover_500m_pct,1805,98,,,37
 cropland_500m_pct,1805,98,,,37
 built_up_500m_pct,1805,98,,,37
+buildings_1km_2016,1805,98,,,37
+buildings_1km_2023,1805,98,,,37
+building_growth_1km_pct,1805,98,,,37
 land_use_source_text,799,43,,,1043
 rainfall_mean_annual_mm,1805,98,,,37
 rainfall_cv_pct,1805,98,,,37

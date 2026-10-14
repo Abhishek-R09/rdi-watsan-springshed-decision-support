@@ -1,15 +1,16 @@
-# Module A (scripts/module_a_vulnerability.py). Everything runs locally; no paid API.
-rasterio>=1.4
+# Module A (scripts/module_a_vulnerability.py, scripts/module_a_checks.py). Everything runs locally; no paid API.
 numpy>=2.0
 scipy>=1.13
+rasterio>=1.4
 shapely>=2.0
 pyproj>=3.6
 pyflwdir>=0.5
-scikit-image>=0.24
+numba>=0.60
+openpyxl>=3.1
 pytest>=8
 
-# Data build steps only (scripts/build_spring_master.py, scripts/literature_spring_records.py, Access import)
-openpyxl>=3.1
+# Data build steps only (scripts/build_spring_features.py lineaments, scripts/literature_spring_records.py, Access import)
+scikit-image>=0.24
 pandas>=2.2
 pdfplumber>=0.11
 access-parser

@@ -1,0 +1,20 @@
+Input springs scored: 1427 (test springs not used); location reference: 1266 input springs at 700 m or higher
+  Low: 354
+  Medium: 875
+  High: 178
+Location-only score (springs at 700 m or higher): median 50, range 15-79
+Location score by seasonality label (does exposure line up with how seasonal the spring is?):
+  perennial: n=4, median 39
+  seasonal_perennial: n=6, median 42
+  seasonal: n=82, median 43
+  highly_seasonal: n=19, median 39
+Spearman, location score vs monsoon/lean flow ratio: -0.06 (n=111; WATSAN text estimates)
+  dry_season_rain vs flow ratio: -0.16
+  aridity vs flow ratio: -0.11
+  rain_trend vs flow ratio: 0.05
+  rain_variability vs flow ratio: -0.11
+  disturbed_land vs flow ratio: -0.06
+  slope vs flow ratio: 0.13
+  building_growth vs flow ratio: 0.11
+  buildings_nearby vs flow ratio: 0.02
+  upslope_room vs flow ratio: 0.06

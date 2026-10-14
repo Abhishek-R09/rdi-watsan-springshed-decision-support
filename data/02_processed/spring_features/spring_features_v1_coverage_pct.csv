@@ -74,6 +74,10 @@ rain_imd_monsoon_share_pct,100,100,0,100,0,100,100,98
 rain_imd_rainy_days,100,100,0,100,0,100,100,98
 rain_imd_max_1day_mm,100,100,0,100,0,100,100,98
 rain_imd_years_used,100,100,0,100,0,100,100,98
+rain_imd_trend_mm_per_year,100,100,0,100,0,100,100,98
+rain_imd_trend_pct_per_decade,100,100,0,100,0,100,100,98
+rain_imd_trend_kendall_p,100,100,0,100,0,100,100,98
+rain_imd_dry_season_trend_pct_per_decade,100,100,0,100,0,100,100,98
 rain_imd_2021_mm,100,100,0,100,0,100,100,98
 rain_imd_2022_mm,100,100,0,100,0,100,100,98
 rain_imd_2023_mm,100,100,0,100,0,100,100,98
@@ -130,6 +134,10 @@ gsi_nearest_fold_type,100,100,0,92,0,100,100,96
 distance_to_gsi_anticline_m,100,100,0,92,0,100,100,96
 distance_to_gsi_syncline_m,100,100,0,92,0,100,100,96
 gsi_fold_axes_within_2km,100,100,0,92,0,100,100,96
+obt_buildings_1km_2016,100,100,0,100,0,100,100,98
+obt_buildings_1km_2023,100,100,0,100,0,100,100,98
+obt_buildings_added_1km,100,100,0,100,0,100,100,98
+obt_building_growth_pct,100,100,0,100,0,100,100,98
 lineament_dem_distance_m,100,100,0,100,0,100,100,98
 lineament_dem_density_1km_km_per_km2,100,100,0,100,0,100,100,98
 processing_notes,6,10,100,3,100,100,0,7

@@ -40,6 +40,9 @@ land_cover_majority_500m,1805,98,,,37
 tree_cover_500m_pct,1805,98,,,37
 cropland_500m_pct,1805,98,,,37
 built_up_500m_pct,1805,98,,,37
+buildings_1km_2016,1805,98,,,37
+buildings_1km_2023,1805,98,,,37
+building_growth_1km_pct,1805,98,,,37
 land_use_source_text,799,43,,,1043
 rainfall_mean_annual_mm,1805,98,,,37
 rainfall_cv_pct,1805,98,,,37
@@ -51,6 +54,9 @@ rainfall_imd_mean_annual_mm,1805,98,,,37
 rainfall_imd_min_annual_mm,1805,98,,,37
 rainfall_imd_cv_pct,1805,98,,,37
 rainfall_imd_max_1day_mm,1805,98,,,37
+rainfall_imd_trend_pct_per_decade,1805,98,,,37
+rainfall_imd_trend_p,1805,98,,,37
+rainfall_imd_dry_season_trend_pct_per_decade,1805,98,,,37
 rainfall_source_mm,316,17,,,1526
 soil_clay_pct,1801,98,,,41
 soil_silt_pct,1801,98,,,41

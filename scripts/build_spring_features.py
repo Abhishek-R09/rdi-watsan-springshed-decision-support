@@ -10,10 +10,12 @@ Public layers (downloaded once into a local cache, never committed):
 - CHIRPS precipitation, annual and monthly 2018-2025, as republished by FAO WaPOR v3 (L1-PCP-A/M, ~5 km)
 - FAO WaPOR v3 reference evapotranspiration, annual 2018-2025 (L1-RET-A, ~30 km)
 - FAO/IIASA Harmonized World Soil Database v2.0 (30 arc-second raster + database tables exported to CSV)
+- Google Open Buildings 2.5D Temporal v1 (building counts within 1 km, 2016 and 2023; Google Cloud Storage)
 
 Layers downloaded by hand (logins or manual export), read from --local-layers DIR:
 - Bhoonidhi/*.zip      NRSC CartoDEM v3 30 m tiles, as downloaded from Bhoonidhi
-- IMD/*.nc             IMD 0.25 degree daily gridded rainfall (one calendar year per file; 2021-2025 used)
+- IMD/*.nc             IMD 0.25 degree daily gridded rainfall (one calendar year per file; every year found is used,
+                       2001-2025 with 2012 missing as of 2026-10-14)
 - SoilGrids/<prop>_<depth>_mean.tif   ISRIC SoilGrids 2.0 exports (clay, silt, sand, bdod, ocd, cfvo;
                        depths 0-5, 5-15 and 15-30 cm)
 DEM lineament candidates come from scripts/extract_dem_lineaments.py (--lineaments FILE).
@@ -35,7 +37,9 @@ import os
 import re
 import statistics
 import subprocess
+import threading
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
 
@@ -43,6 +47,7 @@ import numpy as np
 import rasterio
 from rasterio.merge import merge
 from rasterio.windows import from_bounds
+from scipy.stats import kendalltau
 from pyproj import Transformer
 from shapely import STRtree, LineString, Point
 from shapely.geometry import shape
@@ -63,6 +68,10 @@ HWSD_URLS = [
     "https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/HWSD/HWSD2_DB.zip",
 ]
 YEARS = list(range(2018, 2026))
+OBT_URL = "https://storage.googleapis.com/open-buildings-temporal-data/v1/manifests/39_EPSG_{epsg}_{year}_06_30.json"
+OBT_YEARS = (2016, 2023)
+OBT_RADIUS_M = 1000
+OBT_MIN_BASE = 25  # growth % is taken against at least this many buildings, so a few new houses in an empty area do not read as +300 %
 NGDR_DIR = ROOT / "data" / "00_raw" / "ngdr_geology"
 NGDR_LITHOLOGY = NGDR_DIR / "lithology" / "LITHOLOGY_STATE_UTTARAKHAND.geojson"
 NGDR_FAULTS = NGDR_DIR / "faults" / "FAULT_STATE_UTTARAKHAND.geojson"
@@ -82,6 +91,7 @@ SOILGRID_PROPERTIES = [
 SOILGRIDS = [(f"{prop}_{depth}_mean", f"{stem}_{label}_{unit.replace('%', 'pct').replace('/', '_')}", divisor)
              for prop, stem, unit, divisor, _ in SOILGRID_PROPERTIES for depth, label in SOILGRID_DEPTHS]
 IMD_MONSOON_MONTHS = (6, 9)
+IMD_TREND_MIN_YEARS = 15
 
 # Study region: Uttarakhand and Himachal Pradesh springs in the common file.
 REGION = {"lat_min": 28.5, "lat_max": 33.5, "lon_min": 75.5, "lon_max": 81.5}
@@ -162,6 +172,11 @@ def parse_numbers(text):
     if "~" in text or "approx" in lowered:
         note += "; approximate in source"
     return min(numbers), max(numbers), note
+
+
+def sen_slope(xs, ys):
+    """Theil-Sen slope: median of the slopes between every pair of years (robust to one very wet or dry year)."""
+    return float(np.median([(ys[j] - ys[i]) / (xs[j] - xs[i]) for i in range(len(xs)) for j in range(i + 1, len(xs))]))
 
 
 def metres_per_degree(lat):
@@ -387,6 +402,101 @@ class Hwsd:
         }
 
 
+class OpenBuildingsTemporal:
+    """Google Open Buildings 2.5D Temporal v1: estimated building count within OBT_RADIUS_M in 2016 and 2023.
+
+    Tiles are 12.5 km squares in UTM 43N/44N; the building_fractional_count band summed over an area gives
+    the number of buildings. Read at the 8 m overview (enough for a 1 km circle). Only tiles in the same UTM
+    zone as the spring are read, so a circle crossing the 78 E zone edge loses the part in the other zone.
+    """
+
+    def __init__(self, cache):
+        self.tiles = {}
+        for year in OBT_YEARS:
+            self.tiles[year] = []
+            for epsg in (32643, 32644):
+                path = cache / "open_buildings" / f"39_EPSG_{epsg}_{year}_06_30.json"
+                download(OBT_URL.format(epsg=epsg, year=year), path)
+                manifest = json.loads(path.read_text(encoding="utf-8"))
+                prefix = manifest["uriPrefix"].replace("gs://", "/vsicurl/https://storage.googleapis.com/")
+                for source in manifest["tilesets"][0]["sources"]:
+                    a, size = source["affineTransform"], source["dimensions"]
+                    self.tiles[year].append((epsg, a["translateX"], a["translateY"] + a["scaleY"] * size["height"],
+                                             a["translateX"] + a["scaleX"] * size["width"], a["translateY"], prefix + source["uris"][0]))
+        self.local = threading.local()  # open tiles and transformers per thread (neither is thread-safe)
+        self.done = {}
+
+    def _open(self, url):
+        handles = self.local.__dict__.setdefault("handles", {})
+        if url not in handles:
+            if len(handles) > 64:
+                for handle in handles.values():
+                    handle.close()
+                handles.clear()
+            handles[url] = rasterio.open(url)
+        return handles[url]
+
+    def _to_utm(self, epsg):
+        transformers = self.local.__dict__.setdefault("to_utm", {})
+        if epsg not in transformers:
+            transformers[epsg] = Transformer.from_crs("EPSG:4326", f"EPSG:{epsg}", always_xy=True)
+        return transformers[epsg]
+
+    def prefetch(self, points, workers=8):
+        """Fetch many springs in parallel (remote reads dominate); features() then returns the stored values."""
+        with ThreadPoolExecutor(workers) as pool:
+            for (lat, lon), result in zip(points, pool.map(lambda p: self._features(p[1], p[0]), points)):
+                self.done[(lon, lat)] = result
+
+    def count(self, year, lon, lat):
+        tiles = self.tiles[year]
+        home = None
+        for epsg, left, bottom, right, top, _ in tiles:
+            x, y = self._to_utm(epsg).transform(lon, lat)
+            if left <= x < right and bottom < y <= top:
+                home = epsg
+                break
+        if home is None:
+            return None
+        r = OBT_RADIUS_M
+        box = (x - r, y - r, x + r, y + r)
+        cells = int(2 * r / 8)
+        stack = []
+        for epsg, left, bottom, right, top, url in tiles:
+            if epsg != home or right <= box[0] or left >= box[2] or top <= box[1] or bottom >= box[3]:
+                continue
+            ds = self._open(url)
+            window = from_bounds(*box, transform=ds.transform)
+            data = ds.read(1, window=window, out_shape=(cells, cells), boundless=True, fill_value=-99.0)
+            stack.append(np.where(data < -90, np.nan, data))
+        if not stack:
+            return None
+        grid = np.nanmax(np.stack(stack), axis=0) if len(stack) > 1 else stack[0]
+        yy, xx = (np.indices(grid.shape) + 0.5) * (2 * r / cells) - r
+        inside = (np.hypot(xx, yy) <= r) & ~np.isnan(grid)
+        if inside.sum() < 0.5 * (np.hypot(xx, yy) <= r).sum():
+            return None
+        # mean count per 0.5 m pixel x number of 0.5 m pixels in the circle
+        return float(np.mean(grid[inside]) * math.pi * r * r / 0.25)
+
+    def features(self, lon, lat):
+        if (lon, lat) in self.done:
+            return self.done[(lon, lat)]
+        return self._features(lon, lat)
+
+    def _features(self, lon, lat):
+        counts = {year: self.count(year, lon, lat) for year in OBT_YEARS}
+        if any(v is None for v in counts.values()):
+            return {}
+        first, last = counts[OBT_YEARS[0]], counts[OBT_YEARS[-1]]
+        return {
+            f"obt_buildings_1km_{OBT_YEARS[0]}": first,
+            f"obt_buildings_1km_{OBT_YEARS[-1]}": last,
+            "obt_buildings_added_1km": last - first,
+            "obt_building_growth_pct": 100 * (last - first) / max(first, OBT_MIN_BASE),
+        }
+
+
 class LocalLayers:
     """Layers Rajat downloaded by hand (CartoDEM, IMD, SoilGrids) plus DEM lineament candidates."""
 
@@ -463,7 +573,10 @@ class LocalLayers:
             start = date(year, IMD_MONSOON_MONTHS[0], 1).timetuple().tm_yday - 1
             end = date(year, IMD_MONSOON_MONTHS[1], 30).timetuple().tm_yday
             total = np.nansum(series)
+            # dry season as in the CHIRPS columns: January-April and November-December of the same calendar year
+            may_1, nov_1 = ((date(year, m, 1) - date(year, 1, 1)).days for m in (5, 11))
             years[year] = {"total": total, "monsoon": np.nansum(series[start:end]),
+                           "dry": np.nansum(series[:may_1]) + np.nansum(series[nov_1:]),
                            "rainy_days": int(np.sum(series >= 2.5)), "max_1day": np.nanmax(series)}
             result[f"rain_imd_{year}_mm"] = total
         if years:
@@ -476,7 +589,17 @@ class LocalLayers:
             result["rain_imd_monsoon_share_pct"] = 100 * sum(v["monsoon"] for v in years.values()) / sum(totals) if sum(totals) else None
             result["rain_imd_rainy_days"] = statistics.fmean(v["rainy_days"] for v in years.values())
             result["rain_imd_max_1day_mm"] = max(v["max_1day"] for v in years.values())
-            result["rain_imd_years_used"] = f"{min(years)}-{max(years)}" if len(years) == max(years) - min(years) + 1 else ", ".join(map(str, years))
+            missing = [y for y in range(min(years), max(years) + 1) if y not in years]
+            result["rain_imd_years_used"] = f"{min(years)}-{max(years)}" + (f" ({len(years)} years; missing {', '.join(map(str, missing))})" if missing else "")
+            if len(years) >= IMD_TREND_MIN_YEARS:
+                xs = sorted(years)
+                annual_slope = sen_slope(xs, [years[y]["total"] for y in xs])
+                dry_totals = [years[y]["dry"] for y in xs]
+                result["rain_imd_trend_mm_per_year"] = annual_slope
+                result["rain_imd_trend_pct_per_decade"] = 1000 * annual_slope / mean if mean else None
+                result["rain_imd_trend_kendall_p"] = kendalltau(xs, [years[y]["total"] for y in xs]).pvalue
+                dry_mean = statistics.fmean(dry_totals)
+                result["rain_imd_dry_season_trend_pct_per_decade"] = 1000 * sen_slope(xs, dry_totals) / dry_mean if dry_mean else None
         for column, (grid, transform) in self.soil.items():
             cell = self._cell(transform, grid.shape, lon, lat)
             if cell and grid[cell] > 0:
@@ -642,14 +765,18 @@ COLUMNS = [
     ("et0_wapor_mean_annual_mm_2018_2025", "mm/year", "FAO WaPOR v3 L1-RET-A", "Mean annual reference evapotranspiration at the ~30 km cell."),
     ("aridity_index_p_over_et0", "", "Derived", "Mean annual CHIRPS rain divided by mean annual ET0."),
     ("rain_source_minus_chirps_mm", "mm/year", "Derived", "Source rainfall minus CHIRPS mean, where the source gives rainfall."),
-    ("rain_imd_mean_annual_mm", "mm/year", "IMD 0.25 degree gridded daily rainfall", "Mean of the yearly totals 2021-2025 at the ~25 km cell."),
-    ("rain_imd_min_annual_mm", "mm/year", "IMD 0.25 degree gridded daily rainfall", "Driest year 2021-2025."),
-    ("rain_imd_max_annual_mm", "mm/year", "IMD 0.25 degree gridded daily rainfall", "Wettest year 2021-2025."),
-    ("rain_imd_cv_annual_pct", "%", "IMD 0.25 degree gridded daily rainfall", "Year-to-year coefficient of variation, 2021-2025."),
-    ("rain_imd_monsoon_share_pct", "%", "IMD 0.25 degree gridded daily rainfall", "Share of 2021-2025 rain falling 1 June-30 September."),
+    ("rain_imd_mean_annual_mm", "mm/year", "IMD 0.25 degree gridded daily rainfall", "Mean of the yearly totals over the IMD years used (rain_imd_years_used) at the ~25 km cell."),
+    ("rain_imd_min_annual_mm", "mm/year", "IMD 0.25 degree gridded daily rainfall", "Driest year."),
+    ("rain_imd_max_annual_mm", "mm/year", "IMD 0.25 degree gridded daily rainfall", "Wettest year."),
+    ("rain_imd_cv_annual_pct", "%", "IMD 0.25 degree gridded daily rainfall", "Year-to-year coefficient of variation."),
+    ("rain_imd_monsoon_share_pct", "%", "IMD 0.25 degree gridded daily rainfall", "Share of rain falling 1 June-30 September."),
     ("rain_imd_rainy_days", "days/year", "IMD 0.25 degree gridded daily rainfall", "Mean days per year with at least 2.5 mm (IMD rainy-day definition)."),
-    ("rain_imd_max_1day_mm", "mm", "IMD 0.25 degree gridded daily rainfall", "Wettest single day, 2021-2025."),
+    ("rain_imd_max_1day_mm", "mm", "IMD 0.25 degree gridded daily rainfall", "Wettest single day."),
     ("rain_imd_years_used", "", "IMD 0.25 degree gridded daily rainfall", "IMD years found and used."),
+    ("rain_imd_trend_mm_per_year", "mm/year per year", "Derived from IMD", f"Theil-Sen trend of yearly rainfall (median of all year-pair slopes); negative = getting drier. Needs at least {IMD_TREND_MIN_YEARS} years."),
+    ("rain_imd_trend_pct_per_decade", "% per decade", "Derived from IMD", "The same trend as a share of mean yearly rain, per 10 years."),
+    ("rain_imd_trend_kendall_p", "", "Derived from IMD", "Mann-Kendall test p-value for the yearly totals (below 0.05 = a trend unlikely to be chance)."),
+    ("rain_imd_dry_season_trend_pct_per_decade", "% per decade", "Derived from IMD", "Theil-Sen trend of January-April plus November-December rain, as a share of its mean, per 10 years."),
 ] + [
     (f"rain_imd_{year}_mm", "mm", "IMD 0.25 degree gridded daily rainfall", f"Total rain in {year}.") for year in range(2021, 2026)
 ] + [
@@ -691,6 +818,11 @@ COLUMNS = [
     ("distance_to_gsi_anticline_m", "m", "GSI NGDR Uttarakhand folds", "Distance to the nearest anticline or antiform axis (rocks dip away; fractured crest)."),
     ("distance_to_gsi_syncline_m", "m", "GSI NGDR Uttarakhand folds", "Distance to the nearest syncline or synform axis (rocks dip inward; can trap groundwater)."),
     ("gsi_fold_axes_within_2km", "count", "GSI NGDR Uttarakhand folds", "Number of fold axes within 2 km."),
+    # Settlement growth
+    (f"obt_buildings_1km_{OBT_YEARS[0]}", "count", "Google Open Buildings 2.5D Temporal v1", f"Estimated number of buildings within {OBT_RADIUS_M} m in {OBT_YEARS[0]} (building_fractional_count summed over the circle, 8 m overview)."),
+    (f"obt_buildings_1km_{OBT_YEARS[-1]}", "count", "Google Open Buildings 2.5D Temporal v1", f"Same for {OBT_YEARS[-1]}."),
+    ("obt_buildings_added_1km", "count", "Derived", f"Buildings in {OBT_YEARS[-1]} minus buildings in {OBT_YEARS[0]}; a stand-in for population growth near the spring. Model estimates from yearly imagery, so small changes are noise."),
+    ("obt_building_growth_pct", "%", "Derived", f"Buildings added as a share of the {OBT_YEARS[0]} count (at least {OBT_MIN_BASE} buildings used as the base)."),
     ("lineament_dem_distance_m", "m", "Derived from Copernicus DEM GLO-30", "Distance to the nearest DEM lineament candidate (scripts/extract_dem_lineaments.py). Unvalidated."),
     ("lineament_dem_density_1km_km_per_km2", "km/km2", "Derived from Copernicus DEM GLO-30", "Length of DEM lineament candidates within 1 km, per km2."),
     ("processing_notes", "", "Derived", "Row-level notes on missing or questionable inputs."),
@@ -785,6 +917,71 @@ def clean_row(src):
     return row
 
 
+def open_layers(points, cache, local_layers, lineaments=LINEAMENTS_FILE):
+    """Open every layer once; DEM and WorldCover tiles covering the points are downloaded into the cache."""
+    cache = Path(cache)
+    os.environ.setdefault("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
+    if Path("/root/.ccr/ca-bundle.crt").exists():
+        os.environ.setdefault("CURL_CA_BUNDLE", "/root/.ccr/ca-bundle.crt")
+    print("Opening layers")
+    layers = argparse.Namespace(
+        dem=[rasterio.open(p) for p in dem_tiles_for(points, cache)],
+        wc=[rasterio.open(p) for p in worldcover_tiles_for(points, cache)],
+        pcp_a=WaporStack("L1-PCP-A", [str(y) for y in YEARS]),
+        pcp_m=WaporStack("L1-PCP-M", [f"{y}-{m:02d}" for y in YEARS for m in range(1, 13)]),
+        ret_a=WaporStack("L1-RET-A", [str(y) for y in YEARS]),
+        hwsd=Hwsd(cache),
+        local=LocalLayers(local_layers, lineaments),
+        ngdr=NgdrGeology(),
+        buildings=OpenBuildingsTemporal(cache),
+    )
+    ngdr = layers.ngdr
+    print("GSI NGDR geology: " + (f"{len(ngdr.units)} lithology polygons, {len(ngdr.faults)} faults, {len(ngdr.folds)} fold axes" if ngdr.ok else "not found"))
+    print("Local layers: " + ("; ".join(layers.local.found) or "none found"))
+    return layers
+
+
+def point_features(layers, lon, lat, source_elevation=None, notes=None):
+    """All layer values at one coordinate, keyed by the spring_features_v1 column names."""
+    notes = [] if notes is None else notes
+    row = dem_features(layers.dem, lon, lat)
+    if row.get("dem_elevation_m") is not None and source_elevation is not None:
+        row["dem_minus_source_elevation_m"] = row["dem_elevation_m"] - source_elevation
+        if abs(row["dem_minus_source_elevation_m"]) > ELEVATION_GAP_M:
+            notes.append(f"DEM and source elevation differ by more than {ELEVATION_GAP_M} m; check coordinate")
+            row["elevation_match_distance_m"] = elevation_match_distance(layers.dem, lon, lat, source_elevation)
+    row.update(hydrology_features(read_window, centre_index, metres_per_degree, layers.dem, lon, lat))
+    row.update(worldcover_features(layers.wc, lon, lat))
+
+    annual = [layers.pcp_a.sample(str(y), lon, lat) for y in YEARS]
+    annual = [v for v in annual if not math.isnan(v)]
+    if annual:
+        mean = statistics.fmean(annual)
+        row["rain_chirps_mean_annual_mm_2018_2025"] = mean
+        row["rain_chirps_min_annual_mm_2018_2025"] = min(annual)
+        row["rain_chirps_max_annual_mm_2018_2025"] = max(annual)
+        row["rain_chirps_cv_annual_pct"] = 100 * statistics.pstdev(annual) / mean if mean else None
+        monthly = {(y, m): layers.pcp_m.sample(f"{y}-{m:02d}", lon, lat) for y in YEARS for m in range(1, 13)}
+        year_totals = [sum(monthly[(y, m)] for m in range(1, 13)) for y in YEARS]
+        monsoon = [sum(monthly[(y, m)] for m in (6, 7, 8, 9)) for y in YEARS]
+        dry = [sum(monthly[(y, m)] for m in (1, 2, 3, 4, 11, 12)) for y in YEARS]
+        if not any(math.isnan(v) for v in year_totals) and sum(year_totals):
+            row["rain_chirps_monsoon_share_pct"] = 100 * sum(monsoon) / sum(year_totals)
+            row["rain_chirps_dry_season_mm"] = statistics.fmean(dry)
+        et0 = [layers.ret_a.sample(str(y), lon, lat) for y in YEARS]
+        et0 = [v for v in et0 if not math.isnan(v)]
+        if et0:
+            row["et0_wapor_mean_annual_mm_2018_2025"] = statistics.fmean(et0)
+            row["aridity_index_p_over_et0"] = mean / statistics.fmean(et0)
+    row.update(layers.hwsd.features(lon, lat))
+    row.update(layers.local.features(lon, lat))
+    row.update(layers.ngdr.features(lon, lat))  # blank outside Uttarakhand
+    row.update(layers.buildings.features(lon, lat))
+    if row.get("cartodem_elevation_m") is not None and row.get("dem_elevation_m") is not None:
+        row["cartodem_minus_copernicus_m"] = row["cartodem_elevation_m"] - row["dem_elevation_m"]
+    return row
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--cache", default=os.environ.get("SPRING_LAYER_CACHE", str(ROOT / ".layer_cache")))
@@ -792,9 +989,6 @@ def main():
     parser.add_argument("--lineaments", default=str(LINEAMENTS_FILE))
     args = parser.parse_args()
     cache = Path(args.cache)
-    os.environ.setdefault("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
-    if Path("/root/.ccr/ca-bundle.crt").exists():
-        os.environ.setdefault("CURL_CA_BUNDLE", "/root/.ccr/ca-bundle.crt")
 
     with COMMON_CSV.open(encoding="utf-8", newline="") as handle:
         source_rows = list(csv.DictReader(handle))
@@ -802,58 +996,15 @@ def main():
     colocated_groups(rows)
     points = [(r["latitude_dd"], r["longitude_dd"]) for r in rows if r["coordinate_status"] == "ok"]
 
-    print("Opening layers")
-    dem_sets = [rasterio.open(p) for p in dem_tiles_for(points, cache)]
-    wc_sets = [rasterio.open(p) for p in worldcover_tiles_for(points, cache)]
-    pcp_a = WaporStack("L1-PCP-A", [str(y) for y in YEARS])
-    pcp_m = WaporStack("L1-PCP-M", [f"{y}-{m:02d}" for y in YEARS for m in range(1, 13)])
-    ret_a = WaporStack("L1-RET-A", [str(y) for y in YEARS])
-    hwsd = Hwsd(cache)
-    local = LocalLayers(args.local_layers, args.lineaments)
-    ngdr = NgdrGeology()
-    print("GSI NGDR geology: " + (f"{len(ngdr.units)} lithology polygons, {len(ngdr.faults)} faults, {len(ngdr.folds)} fold axes" if ngdr.ok else "not found"))
-    print("Local layers: " + ("; ".join(local.found) or "none found"))
-
+    layers = open_layers(points, cache, args.local_layers, args.lineaments)
+    print("Reading building counts")
+    layers.buildings.prefetch(points)
     for index, row in enumerate(rows):
         if row["coordinate_status"] != "ok":
             continue
-        lon, lat = row["longitude_dd"], row["latitude_dd"]
-        row.update(dem_features(dem_sets, lon, lat))
-        if row["dem_elevation_m"] != "" and row["source_elevation_m"] is not None:
-            row["dem_minus_source_elevation_m"] = row["dem_elevation_m"] - row["source_elevation_m"]
-            if abs(row["dem_minus_source_elevation_m"]) > ELEVATION_GAP_M:
-                row["_notes"].append(f"DEM and source elevation differ by more than {ELEVATION_GAP_M} m; check coordinate")
-                row["elevation_match_distance_m"] = elevation_match_distance(dem_sets, lon, lat, row["source_elevation_m"])
-        row.update(hydrology_features(read_window, centre_index, metres_per_degree, dem_sets, lon, lat))
-        row.update(worldcover_features(wc_sets, lon, lat))
-
-        annual = [pcp_a.sample(str(y), lon, lat) for y in YEARS]
-        annual = [v for v in annual if not math.isnan(v)]
-        if annual:
-            mean = statistics.fmean(annual)
-            row["rain_chirps_mean_annual_mm_2018_2025"] = mean
-            row["rain_chirps_min_annual_mm_2018_2025"] = min(annual)
-            row["rain_chirps_max_annual_mm_2018_2025"] = max(annual)
-            row["rain_chirps_cv_annual_pct"] = 100 * statistics.pstdev(annual) / mean if mean else None
-            monthly = {(y, m): pcp_m.sample(f"{y}-{m:02d}", lon, lat) for y in YEARS for m in range(1, 13)}
-            year_totals = [sum(monthly[(y, m)] for m in range(1, 13)) for y in YEARS]
-            monsoon = [sum(monthly[(y, m)] for m in (6, 7, 8, 9)) for y in YEARS]
-            dry = [sum(monthly[(y, m)] for m in (1, 2, 3, 4, 11, 12)) for y in YEARS]
-            if not any(math.isnan(v) for v in year_totals) and sum(year_totals):
-                row["rain_chirps_monsoon_share_pct"] = 100 * sum(monsoon) / sum(year_totals)
-                row["rain_chirps_dry_season_mm"] = statistics.fmean(dry)
-            et0 = [ret_a.sample(str(y), lon, lat) for y in YEARS]
-            et0 = [v for v in et0 if not math.isnan(v)]
-            if et0:
-                row["et0_wapor_mean_annual_mm_2018_2025"] = statistics.fmean(et0)
-                row["aridity_index_p_over_et0"] = mean / statistics.fmean(et0)
-            if row["source_rainfall_mm"] is not None:
-                row["rain_source_minus_chirps_mm"] = row["source_rainfall_mm"] - mean
-        row.update(hwsd.features(lon, lat))
-        row.update(local.features(lon, lat))
-        row.update(ngdr.features(lon, lat))  # blank outside Uttarakhand
-        if row.get("cartodem_elevation_m", "") != "" and row["dem_elevation_m"] != "":
-            row["cartodem_minus_copernicus_m"] = row["cartodem_elevation_m"] - row["dem_elevation_m"]
+        row.update(point_features(layers, row["longitude_dd"], row["latitude_dd"], row["source_elevation_m"], row["_notes"]))
+        if row["source_rainfall_mm"] is not None and row.get("rain_chirps_mean_annual_mm_2018_2025", "") != "":
+            row["rain_source_minus_chirps_mm"] = row["source_rainfall_mm"] - row["rain_chirps_mean_annual_mm_2018_2025"]
         if (index + 1) % 200 == 0:
             print(f"  {index + 1} rows")
 
@@ -867,7 +1018,7 @@ def main():
             for name in COLUMN_NAMES:
                 value = row.get(name, "")
                 if isinstance(value, (float, np.floating)):
-                    digits = (6 if name in ("latitude_dd", "longitude_dd") else 3 if name == "aridity_index_p_over_et0"
+                    digits = (6 if name in ("latitude_dd", "longitude_dd") else 3 if name in ("aridity_index_p_over_et0", "rain_imd_trend_kendall_p")
                               else 2 if name == "dem_twi" or "drainage_area" in name or "bulk_density" in name else 1)
                     value = fmt(value, digits)
                 elif value is None:
@@ -908,7 +1059,7 @@ def main():
             "HWSD v2.0": {"urls": HWSD_URLS, "resolution": "30 arc-second (~1 km)", "licence": "FAO/IIASA, CC BY-NC-SA 3.0 IGO (non-commercial)"},
             "NRSC CartoDEM v3 30 m": {"source": "Bhoonidhi (bhoonidhi.nrsc.gov.in), downloaded by hand 2026-10-10; 1-degree tiles P5_PAN_CD_N*_E*_30m",
                                       "licence": "NRSC data policy; raw tiles not committed"},
-            "IMD 0.25 degree daily gridded rainfall": {"source": "IMD Pune, files RF25_ind2021_rfp25.nc to RF25_ind2025_rfp25.nc (calendar years 2021-2025), downloaded by hand 2026-10-10 (2025) and 2026-10-12 (2021-2024)",
+            "IMD 0.25 degree daily gridded rainfall": {"source": "IMD Pune, files RF25_ind2001_rfp25.nc to RF25_ind2025_rfp25.nc (calendar years 2001-2025; 2012 not downloaded), downloaded by hand 2026-10-10 (2025), 2026-10-12 (2021-2024) and 2026-10-14 (2001-2020)",
                                                        "licence": "IMD data policy; raw file not committed"},
             "ISRIC SoilGrids 2.0": {"source": "soilgrids.org map export, mean, bbox lon 76-81 lat 28.7-32.4; 0-5 cm downloaded by hand 2026-10-10, "
                                               "5-15 and 15-30 cm (files named by property) on 2026-10-12",
@@ -923,12 +1074,14 @@ def main():
             "GSI NGDR Uttarakhand lithology, faults and folds": {"files": [str(p.relative_to(ROOT)) for p in (NGDR_LITHOLOGY, NGDR_FAULTS, NGDR_FOLDS)],
                                                          "source": "GSI Bhukosh / NGDR state layers (SRC-013, SRC-014, SRC-015), added to the repo 2026-10-10 and 2026-10-12",
                                                          "note": "State-scale map; a spring's polygon is a map overlay, not a field observation."},
+            "Google Open Buildings 2.5D Temporal v1": {"url_pattern": OBT_URL, "years": list(OBT_YEARS), "radius_m": OBT_RADIUS_M,
+                                                       "licence": "CC BY 4.0 (Google Open Buildings)", "resolution": "0.5 m grid of 4 m effective resolution, read at the 8 m overview"},
             "DEM lineament candidates": {"file": str(LINEAMENTS_FILE.relative_to(ROOT)), "method": "scripts/extract_dem_lineaments.py"},
             "DEM hydrology": {"method": "scripts/spring_hydrology.py: depression filling and D8 routing with pyflwdir, Freeman (1991) MFD area, "
                                         "TWI = ln(a / tan slope)", "stream_threshold_km2": STREAM_THRESHOLD_KM2,
                               "window": "+/- 5 km around each spring, +/- 20 km when the D8 catchment reaches the edge"},
         },
-        "local_layers_found": local.found,
+        "local_layers_found": layers.local.found,
         "not_acquired": {
             "Bhuvan LULC 1:50k": "Bhuvan services blocked from the build environment; download needs a request.",
         },

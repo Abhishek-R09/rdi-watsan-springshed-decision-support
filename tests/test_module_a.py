@@ -3,6 +3,7 @@
 Run: python -m pytest tests
 """
 
+import csv
 import json
 import sys
 from pathlib import Path
@@ -62,3 +63,24 @@ def test_bad_answer_is_reported_not_scored(session):
     out = module_a.assess(spring_input(flow_vs_past="sometimes"), session)
     assert not any(i["id"] == "flow_vs_past" for i in out["result"]["indicators"])
     assert any("flow_vs_past" in w for w in out["warnings"])
+
+
+def test_validation_scores_without_the_outcome_and_logs_repeat_looks(tmp_path, monkeypatch):
+    import module_a_checks as checks
+    monkeypatch.setattr(checks, "OUT", tmp_path)
+    ids = [r["record_id"] for r in module_a.read_csv(module_a.INPUT_CSV)[:40]
+           if r["coordinate_status"] == "ok"][:6]
+    path = tmp_path / "springs.csv"
+    with path.open("w", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["name", "record_id", "decline_label", "flow_vs_past"])
+        labels = [("declining", ""), ("steady", ""), ("", "much_less"), ("", "same"), ("", "a_bit_less"), ("", "")]
+        for i, (record_id, (label, trend)) in enumerate(zip(ids, labels)):
+            writer.writerow([f"spring {i}", record_id, label, trend])
+    results = checks.validate(path, None, None)
+    assert len(results) == 5  # the row with no outcome is skipped
+    assert sum(r["a_bit_less"] for r in results) == 1
+    assert all("flow_vs_past" not in r for r in results)
+    checks.validate(path, None, None)
+    assert len(module_a.read_csv(tmp_path / "validation_log.csv")) == 2
+    assert any("checked before" in p.read_text() for p in tmp_path.glob("validation_*.txt"))

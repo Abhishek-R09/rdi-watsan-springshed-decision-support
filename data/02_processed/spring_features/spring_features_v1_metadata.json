@@ -2,11 +2,11 @@
   "built": "2026-10-12",
   "input": "data/01_staged/common/csv/spring_records_common_v1.csv",
   "records": 1842,
-  "records_with_layer_values": 1803,
+  "records_with_layer_values": 1805,
   "coordinate_status_counts": {
-    "ok": 1803,
+    "ok": 1805,
     "missing": 36,
-    "outside_study_region": 3
+    "outside_study_region": 1
   },
   "colocated_groups": 217,
   "layers": {

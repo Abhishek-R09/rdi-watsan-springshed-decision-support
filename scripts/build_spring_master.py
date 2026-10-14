@@ -3,7 +3,8 @@
 Inputs:  data/01_staged/common/csv/spring_records_common_v1.csv
          data/02_processed/spring_features/spring_features_v1.csv
 Output:  data/02_processed/spring_master/spring_master_v1.csv (+ data dictionary,
-         fill summary) and spring_master_v1.xlsx
+         fill summary, duplicate pairs, and the input / test split as
+         spring_master_v1_input.csv and spring_master_v1_test.csv) and spring_master_v1.xlsx
 
 How gaps are filled (nothing is invented or interpolated; every filled value says
 where it came from in a *_from column):
@@ -12,12 +13,16 @@ where it came from in a *_from column):
   own value is kept beside it for comparison.
 - Field-only values (discharge, pH, TDS, spring type, lithology, recharge area) come
   from the record itself. Where the record lacks one, a record from another source
-  within 30 m (same colocated group) fills it, named in the *_from column. Otherwise
-  the value stays blank and gaps_remaining lists it.
+  confirmed as the same spring (scripts/spring_duplicates.py) fills it, named in the *_from
+  column. Otherwise the value stays blank and gaps_remaining lists it.
+- Duplicates: records within 30 m are sorted into same spring / different springs / needs
+  review. Team decisions in data/01_staged/common/duplicate_review_decisions_v1.csv override
+  the rules on the next build.
 Usage: python scripts/build_spring_master.py
 """
 
 import csv
+import math
 import re
 from collections import Counter
 from pathlib import Path
@@ -25,6 +30,8 @@ from pathlib import Path
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
+
+from spring_duplicates import load_decisions, resolve_group
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,6 +43,15 @@ WORLDCOVER = {"10": "Tree cover", "20": "Shrubland", "30": "Grassland", "40": "C
 DISTRICTS = ["Almora", "Bageshwar", "Chamoli", "Champawat", "Dehradun", "Haridwar", "Nainital", "Pauri Garhwal", "Pithoragarh",
              "Rudraprayag", "Tehri Garhwal", "Udham Singh Nagar", "Uttarkashi"]
 OUT_DIR = ROOT / "data" / "02_processed" / "spring_master"
+DECISIONS_CSV = ROOT / "data" / "01_staged" / "common" / "duplicate_review_decisions_v1.csv"
+# Test set, kept out of model building and tuning (agreed with Rajat 2026-10-14): one whole district, the
+# Spring Atlas profile springs (the only real recharge-area delineations with coordinates), every record in
+# the same 30 m group as a test record, and every spring within TEST_BUFFER_M of one, so no test spring
+# has a near-identical neighbour in the input data.
+TEST_DISTRICTS = {"Tehri Garhwal"}
+TEST_SOURCE_PREFIXES = ("ATP",)
+TEST_BUFFER_M = 2000
+DECISION_COLUMNS = ["record_id_a", "record_id_b", "decision", "decided_by", "decided_on", "note"]
 
 # Preferred record when several sources list the same spring: richest field data first.
 SOURCE_PRIORITY = {"ATP": 0, "RDI": 1, "HIM": 2, "WAT": 3, "DAN": 4, "RAT": 5, "ATL": 6}
@@ -72,14 +88,19 @@ COLUMNS = [
     ("longitude", "decimal degrees", "Processed features", ""),
     ("coordinate_status", "", "Processed features", "ok, missing or outside_study_region. Mapped values exist only for ok."),
     ("coordinate_precision_decimals", "", "Processed features", "2 or fewer decimals means about 1 km uncertainty."),
+    ("coordinate_correction", "", "Processed features", "What was corrected in the source coordinate and why. Only 2 records, where the fix is certain."),
     ("colocated_group_id", "", "Processed features", "Records within 30 m of each other; probably the same spring listed by two sources."),
     ("colocated_group_size", "", "Processed features", ""),
-    ("is_primary_record", "", "Derived", "Y for one record per spring: the only record, or the richest record in its colocated group. Use Y rows to count distinct springs."),
-    ("duplicate_group", "", "Derived", "Blank for springs listed once. Otherwise the colocated group, its size, the other records in it and which one is primary. Highlighted orange in the workbook; see the Duplicate groups sheet."),
+    ("is_primary_record", "", "Derived", "Y for one record per spring: the only record, or the richest record among those confirmed as the same spring. Use Y rows to count distinct springs."),
+    ("spring_id", "", "Derived", "Record id of the primary record of this spring. Records with the same spring_id are one spring listed more than once."),
+    ("dataset_split", "", "Derived", "input = use to build and tune the tool; test = keep aside until the tool is finished, then score once. Test: Tehri Garhwal, the 10 Spring Atlas profile springs, their 30 m groups, and springs within 2 km of these."),
+    ("split_reason", "", "Derived", "Why a record is in the test set."),
+    ("duplicate_status", "", "Derived", "Blank for records with no other record within 30 m. Otherwise: same spring, different springs, partly the same spring, or needs review (for the whole 30 m group)."),
+    ("duplicate_group", "", "Derived", "For records within 30 m of another: the group, which records are the same spring, which are separate springs and why, and which still need a person's decision. Coloured in the workbook; every pair is on the Duplicate pairs sheet."),
     # terrain
     ("elevation_m", "m", "Copernicus DEM GLO-30", "DEM elevation at the spring (same layer for all springs)."),
     ("elevation_source_m", "m", "Common file", "Elevation the source gave, for comparison."),
-    ("elevation_check", "", "Derived", "'gap >150 m' when DEM and source differ by more than 150 m (check the coordinate)."),
+    ("elevation_check", "", "Derived", "Only where DEM and source elevation differ by more than 150 m: which is probably wrong. Copied coordinate (another record at the same point fits the DEM), coordinate a little off (the source elevation is found within 300 m), coordinate off by the stated distance, or no point within 2 km has the source elevation."),
     ("slope_deg", "degrees", "Copernicus DEM GLO-30", "Slope at the spring."),
     ("slope_mean_500m_deg", "degrees", "Copernicus DEM GLO-30", "Mean slope within 500 m."),
     ("aspect_class", "", "Copernicus DEM GLO-30", "8-point aspect or Flat."),
@@ -235,15 +256,64 @@ def richness(record_id, values):
     return (sum(1 for k in FIELD_ONLY if values[k]), -SOURCE_PRIORITY.get(record_id[:3], 9))
 
 
-def duplicate_label(feature, groups, primary):
-    group = feature["colocated_group_id"]
+def assign_split(rows, groups):
+    by_id = {r["record_id"]: r for r in rows}
+    reason = {}
+    for r in rows:
+        if r["district"] in TEST_DISTRICTS:
+            reason[r["record_id"]] = f"{r['district']} (held-out district)"
+        elif r["record_id"].startswith(TEST_SOURCE_PREFIXES):
+            reason[r["record_id"]] = "Spring Atlas profile spring (delineated recharge area)"
+    for members in groups.values():
+        held = [m for m in members if m in reason]
+        for m in members:
+            if held and m not in reason:
+                reason[m] = f"same 30 m group as {held[0]}"
+    anchors = [(by_id[rid]["latitude"], by_id[rid]["longitude"], rid) for rid in reason if by_id[rid]["latitude"]]
+    for r in rows:
+        if r["record_id"] in reason or not r["latitude"]:
+            continue
+        lat, lon = float(r["latitude"]), float(r["longitude"])
+        for a_lat, a_lon, rid in anchors:
+            d = math.hypot((lat - float(a_lat)) * 111_000, (lon - float(a_lon)) * 111_000 * math.cos(math.radians(lat)))
+            if d <= TEST_BUFFER_M:
+                reason[r["record_id"]] = f"within {d / 1000:.1f} km of test spring {rid}"
+                break
+    for r in rows:
+        r["dataset_split"] = "test" if r["record_id"] in reason else "input"
+        r["split_reason"] = reason.get(r["record_id"], "")
+
+
+def duplicate_label(rid, group, size, spring_of, pairs):
     if not group:
         return ""
-    members = groups[group]
-    others = ", ".join(m for m in members if m != feature["record_id"])
-    main_record = next(m for m in members if m in primary)
-    role = "this is the primary record" if main_record == feature["record_id"] else f"primary is {main_record}"
-    return f"{group}: {len(members)} records within 30 m; also {others}; {role}"
+    parts = [f"{group} ({size} records within 30 m)"]
+    same = [b if a == rid else a for a, b, d, _ in pairs if rid in (a, b) and d == "same"]
+    if same:
+        parts.append(f"same spring as {', '.join(same)}; " + ("this is the primary record" if spring_of[rid] == rid else f"primary is {spring_of[rid]}"))
+    for a, b, d, reason in pairs:
+        if rid in (a, b) and d != "same":
+            other = b if a == rid else a
+            parts.append(("separate spring from " if d == "different" else "needs review against ") + f"{other} ({reason})")
+    return "; ".join(parts)
+
+
+def elevation_check(f, shared_with, features_by_id):
+    gap = f["dem_minus_source_elevation_m"]
+    if not gap or abs(float(gap)) <= 150:
+        return ""
+    for other in shared_with:
+        o = features_by_id[other]
+        if o["dem_minus_source_elevation_m"] and abs(float(o["dem_minus_source_elevation_m"])) <= 50:
+            return f"coordinate probably copied: {other} has the same point and its elevation fits the DEM"
+    rounded = " (coordinate rounded to about 1 km)" if f["coordinate_precision_decimals"] and int(f["coordinate_precision_decimals"]) <= 2 else ""
+    match = f["elevation_match_distance_m"]
+    if not match:
+        return "no point within 2 km has the source elevation: coordinate or source elevation badly wrong" + rounded
+    match = float(match)
+    if match <= 300:
+        return f"coordinate a little off: the source elevation is {match:.0f} m away on the slope" + rounded
+    return f"coordinate off by about {match / 1000:.1f} km (nearest point at the source elevation)" + rounded
 
 
 def main():
@@ -251,17 +321,34 @@ def main():
     watsan_seasonal = {(r["Latitude"], r["Longitude"]): r for r in read(WATSAN_DISCHARGE_CSV)}
     features = read(FEATURES_CSV)
     own = {f["record_id"]: field_values(common[f["record_id"]], f) for f in features}
+    features_by_id = {f["record_id"]: f for f in features}
     groups = {}
     for f in features:
         if f["colocated_group_id"]:
             groups.setdefault(f["colocated_group_id"], []).append(f["record_id"])
-    primary = {max(members, key=lambda rid: richness(rid, own[rid])) for members in groups.values()}
+    links = {frozenset((rid, c["candidate_match_record_ids"].split()[0])) for rid, c in common.items()
+             if "matching name/coordinates" in c["candidate_match_record_ids"]}
+    decisions = load_decisions(DECISIONS_CSV)
+    spring_of, cluster_of, status_of, group_pairs = {}, {}, {}, {}
+    for group, members in groups.items():
+        records = [{"record_id": m, "spring_name": common[m]["spring_name"], "village": common[m]["village"],
+                    "elevation_source_m": features_by_id[m]["source_elevation_m"]} for m in members]
+        pairs, clusters, status = resolve_group(records, links, decisions)
+        group_pairs[group] = pairs
+        for cluster in clusters:
+            main_record = max(cluster, key=lambda rid: richness(rid, own[rid]))
+            for rid in cluster:
+                spring_of[rid], cluster_of[rid], status_of[rid] = main_record, cluster, status
+    at_point = {}
+    for f in features:
+        if f["coordinate_status"] == "ok":
+            at_point.setdefault((f["latitude_dd"], f["longitude_dd"]), []).append(f["record_id"])
 
     rows = []
     for f in features:
         rid = f["record_id"]
         c = common[rid]
-        partners = [p for p in groups.get(f["colocated_group_id"], []) if p != rid]
+        partners = [p for p in cluster_of.get(rid, []) if p != rid]
         partners.sort(key=lambda p: richness(p, own[p]), reverse=True)
 
         def take(keys):
@@ -270,7 +357,7 @@ def main():
                 return {k: own[rid][k] for k in keys}, "this record"
             for p in partners:
                 if any(own[p][k] for k in keys):
-                    return {k: own[p][k] for k in keys}, f"colocated record {p} (within 30 m)"
+                    return {k: own[p][k] for k in keys}, f"colocated record {p} (same spring, within 30 m)"
             return {k: "" for k in keys}, ""
 
         row = {n: "" for n in NAMES}
@@ -281,15 +368,19 @@ def main():
             "latitude": f["latitude_dd"], "longitude": f["longitude_dd"], "coordinate_status": f["coordinate_status"],
             "coordinate_precision_decimals": f["coordinate_precision_decimals"],
             "colocated_group_id": f["colocated_group_id"], "colocated_group_size": f["colocated_group_size"],
-            "is_primary_record": "Y" if (not f["colocated_group_id"] or rid in primary) else "N",
-            "duplicate_group": duplicate_label(f, groups, primary),
+            "coordinate_correction": f["coordinate_correction"],
+            "is_primary_record": "Y" if spring_of.get(rid, rid) == rid else "N",
+            "spring_id": spring_of.get(rid, rid),
+            "duplicate_status": status_of.get(rid, ""),
+            "duplicate_group": duplicate_label(rid, f["colocated_group_id"], f["colocated_group_size"], spring_of,
+                                               group_pairs.get(f["colocated_group_id"], [])),
             "drainage_area_ha": f["dem_drainage_area_ha"], "drainage_area_max30m_ha": f["dem_drainage_area_max30m_ha"],
             "wetness_index_twi": f["dem_twi"], "distance_to_stream_m": f["dem_distance_to_stream_m"],
             "nearest_stream_order": f["dem_nearest_stream_order"], "height_above_stream_m": f["dem_height_above_stream_m"],
             "gsi_fold_distance_m": f["distance_to_gsi_fold_axis_m"], "gsi_nearest_fold_type": f["gsi_nearest_fold_type"],
             "gsi_anticline_distance_m": f["distance_to_gsi_anticline_m"], "gsi_syncline_distance_m": f["distance_to_gsi_syncline_m"],
             "elevation_m": f["dem_elevation_m"], "elevation_source_m": f["source_elevation_m"],
-            "elevation_check": "gap >150 m" if f["dem_minus_source_elevation_m"] and abs(float(f["dem_minus_source_elevation_m"])) > 150 else "",
+            "elevation_check": elevation_check(f, [o for o in at_point.get((f["latitude_dd"], f["longitude_dd"]), []) if o != rid], features_by_id),
             "slope_deg": f["dem_slope_deg"], "slope_mean_500m_deg": f["dem_mean_slope_500m_deg"], "aspect_class": f["dem_aspect_class"],
             "relief_1km_m": f["dem_relief_1km_m"], "upslope_relief_1km_m": f["dem_upslope_relief_1km_m"], "tpi_300m_m": f["dem_tpi_300m_m"],
             "slope_source_deg": f["source_slope_deg"],
@@ -377,7 +468,13 @@ def main():
         row["gaps_remaining"] = "; ".join(missing)
         rows.append(row)
 
+    assign_split(rows, groups)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    for split in ("input", "test"):
+        with (OUT_DIR / f"spring_master_v1_{split}.csv").open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=NAMES, lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(r for r in rows if r["dataset_split"] == split)
     with (OUT_DIR / "spring_master_v1.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=NAMES, lineterminator="\n")
         writer.writeheader()
@@ -402,7 +499,26 @@ def main():
     with (OUT_DIR / "spring_master_v1_fill_summary.csv").open("w", newline="", encoding="utf-8") as handle:
         csv.writer(handle, lineterminator="\n").writerows(summary)
 
-    write_workbook(rows, summary)
+    pair_rows = []
+    by_id = {r["record_id"]: r for r in rows}
+    for group, pairs in group_pairs.items():
+        for a, b, decision, reason in pairs:
+            ra, rb = by_id[a], by_id[b]
+            pair_rows.append([group, decision, reason, a, ra["spring_name"], ra["village"], ra["elevation_source_m"],
+                              b, rb["spring_name"], rb["village"], rb["elevation_source_m"], ra["elevation_m"]])
+    pair_header = ["colocated_group_id", "decision", "reason", "record_a", "name_a", "village_a", "source_elevation_a_m",
+                   "record_b", "name_b", "village_b", "source_elevation_b_m", "dem_elevation_m"]
+    with (OUT_DIR / "spring_master_v1_duplicate_pairs.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle, lineterminator="\n")
+        writer.writerow(pair_header)
+        writer.writerows(pair_rows)
+    if not DECISIONS_CSV.exists():
+        with DECISIONS_CSV.open("w", newline="", encoding="utf-8") as handle:
+            csv.writer(handle, lineterminator="\n").writerow(DECISION_COLUMNS)
+
+    write_workbook(rows, summary, pair_header, pair_rows)
+    print(Counter(status_of[group[0]] for group in groups.values()), "groups;",
+          Counter(d for pairs in group_pairs.values() for *_, d, _ in pairs), "pairs")
     primaries = sum(1 for r in rows if r["is_primary_record"] == "Y")
     print(f"{len(rows)} records, {primaries} primary (distinct springs)")
     print(Counter(r["key_fields_filled"] for r in rows if r["is_primary_record"] == "Y"))
@@ -411,9 +527,17 @@ def main():
 GUIDE = [
     ("What this is", "One row per spring record from the common file (WATSAN, Spring Atlas annexure, Himmotthan, Atlas profiles, "
                      "Chamba report, Rathi 2021, Daniel 2021), with every gap filled that public data or a matching record can fill."),
-    ("Counting springs", "Some springs are listed by two sources. Filter is_primary_record = Y to keep one row per spring. "
-                         "Records in a duplicate group are highlighted orange in duplicate_group; the Duplicate groups sheet lists each group "
-                         "for review."),
+    ("Input and test data", "The records are split in two. Input data is for building and tuning the tool. Test data (Tehri Garhwal, "
+                            "the 10 Spring Atlas profile springs, and everything within 2 km of them) is kept aside: do not look at it or "
+                            "tune rules on it, and score the finished tool on it once. Field-visit springs will be added to the test data. "
+                            "spring_master_v1_input.csv and spring_master_v1_test.csv hold the same split; spring_master_v1.csv has all records."),
+    ("Counting springs", "Some springs are listed by two sources. Filter is_primary_record = Y to keep one row per spring; "
+                         "spring_id links the records of one spring."),
+    ("Duplicates", "Records within 30 m of each other were compared by name, position word (Talla / Malla, I / II), village and "
+                   "source elevation. duplicate_status is coloured: orange = same spring (merged), green = different springs that share "
+                   "a coordinate (kept apart), yellow = needs review. The Duplicate review sheet lists only the pairs a person must "
+                   "decide; enter same or different there and the decision goes into data/01_staged/common/"
+                   "duplicate_review_decisions_v1.csv for the next build. Until then those records count as separate springs."),
     ("Mapped values", "Terrain, land cover, rainfall, soil, GSI geology, faults and lineaments come from the same layer for every spring, so springs can be "
                       "compared fairly. The source's own value is kept in a *_source column beside it."),
     ("Field values", "Discharge, pH, TDS, spring type, lithology and recharge area come from the record itself. Where it had none, a "
@@ -429,7 +553,7 @@ GUIDE = [
 ]
 
 
-def write_workbook(rows, summary):
+def write_workbook(rows, summary, pair_header, pair_rows):
     header_fill = PatternFill("solid", fgColor="1F4E78")
     header_font = Font(name="Arial", bold=True, color="FFFFFF", size=10)
     body_font = Font(name="Arial", size=10)
@@ -467,21 +591,24 @@ def write_workbook(rows, summary):
     wide = {n: 40 for n in ("lithology_source_text", "spring_type_source_text", "discharge_text", "gaps_remaining", "notes",
                             "geological_structure_text", "intervention_text", "land_use_source_text")}
     wide.update({n: 30 for n in ("lithology_from", "spring_type_from", "discharge_from", "water_quality_from", "recharge_area_from", "source_dataset")})
-    wide["duplicate_group"] = 45
-    springs = wb.create_sheet("Springs")
-    table(springs, NAMES, [[r[n] for n in NAMES] for r in rows], wide)
-    dup_fill = PatternFill("solid", fgColor="FCE4D6")
-    primary_fill = PatternFill("solid", fgColor="F8CBAD")
-    col = NAMES.index("duplicate_group") + 1
-    for i, r in enumerate(rows, start=2):
-        if r["duplicate_group"]:
-            springs.cell(row=i, column=col).fill = primary_fill if r["is_primary_record"] == "Y" else dup_fill
-    dup_columns = ["colocated_group_id", "colocated_group_size", "record_id", "is_primary_record", "source_dataset", "spring_name",
-                   "village", "district", "latitude", "longitude", "elevation_m", "elevation_source_m", "discharge_text", "spring_type_source_text"]
-    grouped = sorted((r for r in rows if r["colocated_group_id"]), key=lambda r: (r["colocated_group_id"], r["is_primary_record"] != "Y"))
-    table(wb.create_sheet("Duplicate groups"), dup_columns + ["same_spring_confirmed"],
-          [[r[n] for n in dup_columns] + [""] for r in grouped],
-          {"source_dataset": 30, "spring_name": 24, "discharge_text": 40, "spring_type_source_text": 30, "same_spring_confirmed": 22})
+    wide.update({"duplicate_group": 60, "elevation_check": 45, "coordinate_correction": 40, "duplicate_status": 20})
+    wide["split_reason"] = 35
+    fills = {"same spring": "FCE4D6", "partly the same spring": "FCE4D6", "different springs": "E2EFDA", "needs review": "FFF2CC"}
+    status_col, label_col = NAMES.index("duplicate_status") + 1, NAMES.index("duplicate_group") + 1
+    for title, split in (("Input data", "input"), ("Test data", "test")):
+        part = [r for r in rows if r["dataset_split"] == split]
+        sheet = wb.create_sheet(title)
+        table(sheet, NAMES, [[r[n] for n in NAMES] for r in part], wide)
+        for i, r in enumerate(part, start=2):
+            if r["duplicate_status"]:
+                fill = PatternFill("solid", fgColor=fills[r["duplicate_status"]])
+                sheet.cell(row=i, column=status_col).fill = fill
+                sheet.cell(row=i, column=label_col).fill = fill
+    review = [p for p in pair_rows if p[1] == "review"]
+    table(wb.create_sheet("Duplicate review"), pair_header + ["your_decision (same / different)", "note"],
+          [p + ["", ""] for p in review],
+          {"reason": 40, "name_a": 24, "name_b": 24, "your_decision (same / different)": 22, "note": 30})
+    table(wb.create_sheet("Duplicate pairs"), pair_header, pair_rows, {"reason": 45, "name_a": 24, "name_b": 24})
     table(wb.create_sheet("Data dictionary"), ["column", "unit", "from", "meaning"], [list(c) for c in COLUMNS],
           {"column": 30, "from": 40, "meaning": 90})
     table(wb.create_sheet("Fill summary"), summary[0], summary[1:], {"column": 32})

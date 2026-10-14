@@ -1,0 +1,250 @@
+colocated_group_id,decision,reason,record_a,name_a,village_a,source_elevation_a_m,record_b,name_b,village_b,source_elevation_b_m,dem_elevation_m
+COLOC-0001,same,matched during transcription (Atlas profile to its annexure row),ATL-SPR-0012,Dansil naula,Loshgyani,2124.0,ATP-SPR-0006,Dansil Naula,Losgyani,2100.0,2106.4
+COLOC-0002,different,different spring names sharing a coordinate,ATL-SPR-0023,Shiv Mandir Naula,Balyali,1395.0,ATL-SPR-0032,School,Basgaon,1369.0,1372.6
+COLOC-0002,different,different spring names sharing a coordinate,ATL-SPR-0023,Shiv Mandir Naula,Balyali,1395.0,ATP-SPR-0007,Basgaon School Naula,Basgaon,1370.0,1372.6
+COLOC-0002,same,matched during transcription (Atlas profile to its annexure row),ATL-SPR-0032,School,Basgaon,1369.0,ATP-SPR-0007,Basgaon School Naula,Basgaon,1370.0,1372.6
+COLOC-0003,different,source elevations differ by 518 m,ATL-SPR-0024,Talla Balyali Naula,Balyali,1248.0,ATL-SPR-0094,Tawalekh Dhara,Basgaon,1766.0,1728.2
+COLOC-0004,same,matched during transcription (Atlas profile to its annexure row),ATL-SPR-0029,kulgad,kulgad,1140.0,ATP-SPR-0004,Kulgarh Naula,Kulgarh,1140.0,1146.4
+COLOC-0005,different,different spring names sharing a coordinate,ATL-SPR-0033,road,Manarsa,1049.0,ATL-SPR-0417,Sana Dhara,Manarsa,1047.0,1037.7
+COLOC-0006,same,matched during transcription (Atlas profile to its annexure row),ATL-SPR-0034,Salkuli,Salkuli,1307.0,ATP-SPR-0003,Salkuli Naula,Salkuli,1310.0,1329.8
+COLOC-0007,same,matched during transcription (Atlas profile to its annexure row),ATL-SPR-0040,Meherkhola,Mouna,1432.0,ATP-SPR-0009,Meherkhola Dhara,Meherkhola,1350.0,1453.8
+COLOC-0008,different,different position in the name (malla vs talla),ATL-SPR-0041,Mall,Mouna,1386.0,ATL-SPR-0042,Tall,Mouna,1386.0,1407.2
+COLOC-0008,different,different position in the name (malla vs talla),ATL-SPR-0041,Mall,Mouna,1386.0,ATP-SPR-0005,Mouna Talla Dhara,Mouna,1350.0,1407.2
+COLOC-0008,same,matched during transcription (Atlas profile to its annexure row),ATL-SPR-0042,Tall,Mouna,1386.0,ATP-SPR-0005,Mouna Talla Dhara,Mouna,1350.0,1407.2
+COLOC-0009,review,one name is generic; cannot tell from the records,ATL-SPR-0043,Dhara,Kumati,1520.0,HIM-SPR-0397,Chapad Naula,Chapad,1518.0,1525.1
+COLOC-0010,different,different spring names sharing a coordinate,ATL-SPR-0046,Bhumka,Simayal,1804.0,ATP-SPR-0008,Para Naula,Harinagar,1800.0,1814.0
+COLOC-0011,same,matched during transcription (Atlas profile to its annexure row),ATL-SPR-0048,Ghatgar,Chattola,1881.0,ATP-SPR-0002,Ghatgarh Dhara,Chattola,1850.0,1875.5
+COLOC-0012,different,source elevations differ by 278 m,ATL-SPR-0053,Datta,Pandeygaon,1729.0,ATL-SPR-0056,Kholi,Bilaspur,1451.0,1755.6
+COLOC-0013,different,source elevations differ by 262 m,ATL-SPR-0054,Talla,Malwatal,1332.0,ATL-SPR-0055,Brahampani,Songaon,1594.0,1344.4
+COLOC-0014,different,different spring names sharing a coordinate,ATL-SPR-0059,Dikki,Parbara,2097.0,ATL-SPR-0270,KathnaulaGadhera,Parwada,2126.0,2112.3
+COLOC-0015,review,one name is generic; cannot tell from the records,ATL-SPR-0065,Dhara,Nauna,1078.0,ATL-SPR-0188,Majheda Dhara,Majheda,1090.0,1091.9
+COLOC-0016,different,source elevations differ by 488 m,ATL-SPR-0068,Talla,Uchakot,1151.0,ATL-SPR-0453,Jolasling,Beena,1639.0,1180.0
+COLOC-0017,review,one name is generic; cannot tell from the records,ATL-SPR-0084,Gadhera Naula,Peora,1444.0,ATL-SPR-0430,Dhara Ka Naula I,Pura,1502.0,1492.4
+COLOC-0017,review,one name is generic; cannot tell from the records,ATL-SPR-0084,Gadhera Naula,Peora,1444.0,ATL-SPR-0432,Dhara Ka Naula II,Pura,1501.0,1492.4
+COLOC-0017,different,different position in the name (1 vs 2),ATL-SPR-0430,Dhara Ka Naula I,Pura,1502.0,ATL-SPR-0432,Dhara Ka Naula II,Pura,1501.0,1492.4
+COLOC-0018,different,different spring names sharing a coordinate,ATL-SPR-0090,Bhagat Naula,Chopra,1231.0,ATL-SPR-0368,Kankar Naula,Chopda,1229.0,1221.8
+COLOC-0019,same,"names match, elevations within 6 m",ATL-SPR-0091,Road Dhara,Basgaon,1320.0,ATL-SPR-0093,Basgaon Road Dhara,Basgaon,1326.0,1297.0
+COLOC-0020,different,different position in the name (none vs 2),ATL-SPR-0095,Kholiya Naula,Gargaon,1753.0,ATL-SPR-0096,Kholiya Naula 2,Gargaon,1815.0,1796.1
+COLOC-0021,different,source elevations differ by 104 m,ATL-SPR-0100,Gottho Naula,Meora,1810.0,HIM-SPR-0482,Balitok naula,Meora,1706.0,1746.0
+COLOC-0022,review,names only partly alike,ATL-SPR-0103,Gairigar Naula,Losgayani,1890.0,HIM-SPR-0404,Gaderigad,Losgyani,1838.0,1859.5
+COLOC-0023,same,"names match, elevations within 21 m",ATL-SPR-0105,Raikudi Naula,Haringar,1669.0,ATL-SPR-0106,Raikudi Naula II Dhariram,Haringar,1690.0,1677.3
+COLOC-0024,different,different spring names sharing a coordinate,ATL-SPR-0108,Acharikhet Naula Buraspani,Haringar,1685.0,ATL-SPR-0422,Gaon Naula,Nathuwakhan,1679.0,1665.2
+COLOC-0025,review,one name is generic; cannot tell from the records,ATL-SPR-0122,Malla Dhara,Ghuana,1107.0,ATL-SPR-0178,Gajar Naula,Ghuna,1106.0,1096.6
+COLOC-0026,review,one name is generic; cannot tell from the records,ATL-SPR-0123,Naula,Ghuana,1131.0,ATL-SPR-0171,Tusar Pani Naula,Ghuna,1132.0,1124.4
+COLOC-0027,different,different spring names sharing a coordinate,ATL-SPR-0124,Paadli Naula,Paadli,1358.0,ATL-SPR-0163,Naula Chak Basot,Chaursa,1355.0,1337.6
+COLOC-0028,different,different spring names sharing a coordinate,ATL-SPR-0125,Paadli Dhara,Paadli,1309.0,ATL-SPR-0162,Chak Basot II,Chaursa,1313.0,1292.5
+COLOC-0029,review,names only partly alike,ATL-SPR-0184,Birani Dhara,Jakh,1262.0,ATL-SPR-0185,Dharapani Source,Jakh,1262.0,1265.1
+COLOC-0029,different,different spring names sharing a coordinate,ATL-SPR-0184,Birani Dhara,Jakh,1262.0,ATL-SPR-0186,Deena Dhara,Jakh,1262.0,1265.1
+COLOC-0029,different,different spring names sharing a coordinate,ATL-SPR-0185,Dharapani Source,Jakh,1262.0,ATL-SPR-0186,Deena Dhara,Jakh,1262.0,1265.1
+COLOC-0030,different,different position in the name (2 vs 1),ATL-SPR-0214,Gulamadi Spring II,Baret,1097.0,ATL-SPR-0215,Gulamadi Spring I,Baret,1097.0,1081.8
+COLOC-0031,different,different position in the name (3 vs 2),ATL-SPR-0230,Baga Naula III,Gumal Gaon,1032.0,ATL-SPR-0233,Baga Naula II,Gumal Gaon,1036.0,1027.4
+COLOC-0032,different,different position in the name (1 vs 2),ATL-SPR-0234,Goradhara Naula I,Hediyagaon,1481.0,ATL-SPR-0235,Goradhara Naula II,Hediyagaon,1487.0,1476.7
+COLOC-0033,review,names only partly alike,ATL-SPR-0256,Rautora Naula,Jalna Neel Pahari,2187.0,ATL-SPR-0283,RaturaGadhera Naula,Silalekh,2187.0,2177.4
+COLOC-0034,different,different spring names sharing a coordinate,ATL-SPR-0271,Tiquanaula Spring,Parwada,2001.0,ATL-SPR-0272,Tikhawa Naula,Parwada,2002.0,1995.2
+COLOC-0035,same,"names match, elevations within 3 m",ATL-SPR-0285,Kagrad MallaGadhera,Amgadhi,912.0,ATL-SPR-0286,Kagrad TallaGadhera,Amgadhi,915.0,896.4
+COLOC-0036,different,different spring names sharing a coordinate,ATL-SPR-0291,Pathharkhani Spring,Amjhar,1208.0,ATL-SPR-0292,Udisani Spring,Amjhar,1208.0,1203.4
+COLOC-0037,different,different spring names sharing a coordinate,ATL-SPR-0355,Bhawan,Suwakot Pokhari,1275.0,ATL-SPR-0356,Pokhari TalliGadhera,Suwakot Pokhari,1263.0,1267.0
+COLOC-0038,different,different position in the name (1 vs 2),ATL-SPR-0360,Belwalgaon I,Chaphi,1288.0,ATL-SPR-0361,Belwalgaon II,Chaphi,1288.0,1277.3
+COLOC-0039,different,different spring names sharing a coordinate,ATL-SPR-0363,Acharar Source,Chimi,1511.0,ATL-SPR-0364,Asurad,Chimi,1511.0,1504.8
+COLOC-0040,different,different spring names sharing a coordinate,ATL-SPR-0370,Bachi Singh Ka Naula,Darima,1756.0,ATL-SPR-0371,Chorani Ka Naula II,Darima,1756.0,1752.1
+COLOC-0040,different,different spring names sharing a coordinate,ATL-SPR-0370,Bachi Singh Ka Naula,Darima,1756.0,ATL-SPR-0372,Chorani Ka Naula I,Darima,1760.0,1752.1
+COLOC-0040,different,different position in the name (2 vs 1),ATL-SPR-0371,Chorani Ka Naula II,Darima,1756.0,ATL-SPR-0372,Chorani Ka Naula I,Darima,1760.0,1752.1
+COLOC-0041,different,different position in the name (1 vs none),ATL-SPR-0377,Shenhanga Naula I,Darima,1789.0,ATL-SPR-0378,Shenhanga Dhara,Darima,1786.0,1783.5
+COLOC-0042,different,different position in the name (2 vs 3),ATL-SPR-0379,Shenhanga Naula II,Darima,1781.0,ATL-SPR-0380,Shenhanga Naula III,Darima,1780.0,1772.2
+COLOC-0043,different,different spring names sharing a coordinate,ATL-SPR-0384,Akhrani Spring,Darima,1989.0,HIM-SPR-0481,Bhalugad,Dubkhad,1934.0,1978.2
+COLOC-0044,different,different position in the name (2 vs 1),ATL-SPR-0385,Gadhera Dhara II,Darima,1933.0,ATL-SPR-0386,Gadhera Dhara I,Darima,1936.0,1922.4
+COLOC-0045,different,different position in the name (talla vs malla),ATL-SPR-0394,Gangori Talla Naula,Gangori,1098.0,ATL-SPR-0395,Gangori Malla Naula,Gangori,1102.0,1106.2
+COLOC-0046,different,different spring names sharing a coordinate,ATL-SPR-0406,Naukuda Naula,Kool,1491.0,ATL-SPR-0409,Devki Devi Naula,Kool,1491.0,1481.1
+COLOC-0047,different,different position in the name (2 vs 1),ATL-SPR-0413,Nurssary Naula II,Loshayani,2048.0,ATL-SPR-0414,Nurssary Naula I,Loshayani,2050.0,2039.1
+COLOC-0048,different,different spring names sharing a coordinate,ATL-SPR-0431,Raja Ka Naula,Pura,1499.0,ATL-SPR-0433,Ghar Ka Naula,Pura,1509.0,1491.5
+COLOC-0049,different,different spring names sharing a coordinate,ATL-SPR-0434,Nigrad Dhara,Nigrad,1558.0,ATL-SPR-0435,Dhare ka naula,Nigrad,1560.0,1558.5
+COLOC-0050,different,"same first name, different qualifier (pandit vs sc)",ATL-SPR-0492,Bheda Pandit,Lodh,1664.0,ATL-SPR-0493,Bheda SC,Lodh,1683.0,1745.2
+COLOC-0051,different,"same first name, different qualifier (pandit vs sc)",ATL-SPR-0501,Uttroda Pandit,Uttroda,1577.0,ATL-SPR-0502,Uttroda SC,Uttroda,1577.0,1581.6
+COLOC-0052,different,different spring names sharing a coordinate,ATL-SPR-0515,Nageshwar Naula,Pantgaun,1519.0,ATL-SPR-0530,Shiv Mandir Dhara,Maloj,1546.0,1558.1
+COLOC-0053,different,different spring names sharing a coordinate,ATL-SPR-0543,Kaligar Naula,Bhatkhola -II,1430.0,ATL-SPR-0589,Naula (Walnut Tree),Bhatkhola,1431.0,1421.1
+COLOC-0054,same,"names match, elevations within 2 m",ATL-SPR-0549,Behargoun Dhara,Behar Gaon,1148.0,ATL-SPR-0576,Behergaon Dhara,Behergaon,1150.0,1140.8
+COLOC-0055,different,different spring names sharing a coordinate,ATL-SPR-0555,Bakarmuna,Behargaon,1020.0,ATL-SPR-0591,Khola Naula,Bhergaon,969.0,951.9
+COLOC-0056,same,matched during transcription (Atlas profile to its annexure row),ATL-SPR-0558,Dhargara,Rakholi,1575.0,ATP-SPR-0001,Dhargara Dhara,Raikholi,1550.0,1550.9
+COLOC-0057,same,matched during transcription (Atlas profile to its annexure row),ATL-SPR-0560,Naula,Naghar,1837.0,ATP-SPR-0010,Naghar Naula,Naghar,1800.0,1414.7
+COLOC-0058,different,different spring names sharing a coordinate,ATL-SPR-0586,Dhara Mausami,Rakholi,1217.0,ATL-SPR-0587,Dhara Sadabahaar,Rakholi,1262.0,1212.4
+COLOC-0059,review,one name is generic; cannot tell from the records,ATL-SPR-0667,Mudi Pani,Judh,1303.0,ATL-SPR-0668,Malla Dhara,Judh,1310.0,1301.5
+COLOC-0060,same,"names match, elevations within 1 m",ATL-SPR-0669,Dhandi Dhara,Judh,1320.0,ATL-SPR-0670,Dhandi Naula,Judh,1321.0,1333.2
+COLOC-0061,different,different spring names sharing a coordinate,ATL-SPR-0672,Andruwani,Dhonri,1308.0,ATL-SPR-0673,Magra Dhara,Dhonri,1302.0,1328.2
+COLOC-0062,different,different spring names sharing a coordinate,ATL-SPR-0682,Aam Naula,Dhutfud,1241.0,ATL-SPR-0683,School Dhara,Dhutfud,1241.0,1263.7
+COLOC-0063,same,"names match, elevations within 0 m",ATL-SPR-0696,Parsuli Dhara,Parsuli,1545.0,ATL-SPR-0697,Parsuli Dhara,Parsuli,1545.0,1565.2
+COLOC-0064,different,different spring names sharing a coordinate,ATL-SPR-0710,Bichola Pani,Dashmeri,1423.0,ATL-SPR-0711,Jethuna Tok,Dashmeri,1412.0,1419.3
+COLOC-0065,same,"names match, elevations within 0 m",ATL-SPR-0723,Sonkihaat Naula,Sonkihaat,1339.0,HIM-SPR-0290,Sonkihaat Naula,Sonkihaat,1339.0,1337.7
+COLOC-0066,same,"names match, elevations within 0 m",ATL-SPR-0724,Chaoli,Chaoli,1350.0,HIM-SPR-0063,Chaoli Naula,Chaoli,1350.0,1343.2
+COLOC-0067,same,"names match, elevations within 0 m",ATL-SPR-0725,Khulet,Khulet,1267.0,HIM-SPR-0173,Khulet Naula,Khulet,1267.0,1248.1
+COLOC-0068,same,"names match, elevations within 0 m",ATL-SPR-0726,Sinyadi,sinyadi,1259.0,HIM-SPR-0287,Sinyadi Dhara,Sinyadi,1259.0,1256.4
+COLOC-0069,same,"names match, elevations within 0 m",ATL-SPR-0727,Brisim,Lavecural Joshi,1449.0,HIM-SPR-0053,Brisim Dhara,Lavecural joshi,1449.0,1448.8
+COLOC-0070,same,"names match, elevations within 0 m",ATL-SPR-0728,Mallagarkha,Mallagarkha,1506.0,HIM-SPR-0210,Mallagrkha Dhara,Mallagarkha,1506.0,1502.3
+COLOC-0071,same,"names match, elevations within 0 m",ATL-SPR-0729,Gotadi Naula,Bayalkatiya,1227.0,HIM-SPR-0123,Gotadi Naula,Bayalkatiya,1227.0,1224.9
+COLOC-0072,same,"names match, elevations within 0 m",ATL-SPR-0730,Malla Panyar,Virgoli,1373.0,HIM-SPR-0209,Malla Panyar,Virgoli,1373.0,1364.3
+COLOC-0073,same,"names match, elevations within 0 m",ATL-SPR-0731,Garali Dhara,Garali,987.0,HIM-SPR-0115,Garali Dhara,Garali,987.0,992.1
+COLOC-0074,same,"names match, elevations within 0 m",ATL-SPR-0732,Nargwadi Dhara,Nargwadi,876.0,HIM-SPR-0240,Nargwadi Dhara,Nargwadi,876.0,878.0
+COLOC-0075,same,"names match, elevations within 0 m",ATL-SPR-0733,Bahilkot Dhara,Bahilkot,937.0,HIM-SPR-0010,Bahilkot Dhara,Bahilkot,937.0,936.6
+COLOC-0076,same,"names match, elevations within 0 m",ATL-SPR-0734,Chaukodi Naula,Kamadkot,1088.0,HIM-SPR-0065,Chaukodi Naula,Jamadkot,1088.0,1076.9
+COLOC-0077,same,"names match, elevations within 0 m",ATL-SPR-0735,Bhumka Spring,Tunad,1287.0,HIM-SPR-0045,Bhumka Spring,Tunad,1287.0,1276.0
+COLOC-0078,same,"names match, elevations within 0 m",ATL-SPR-0736,Dhami Spring,Beluri,1219.0,HIM-SPR-0082,Dhani Spring,Beluri,1219.0,1224.0
+COLOC-0079,same,"names match, elevations within 0 m",ATL-SPR-0737,Hardiya Spirng,Hardiya,1151.0,HIM-SPR-0131,Hardiya Spring,Hardiya,1151.0,1133.7
+COLOC-0080,same,"names match, elevations within 0 m",ATL-SPR-0738,Kasna Naula,Guligaon,1299.0,HIM-SPR-0163,Kasna Naula,Guligaon,1299.0,1307.6
+COLOC-0081,same,"names match, elevations within 0 m",ATL-SPR-0739,Salikhet Dhara,Salikhet,1194.0,HIM-SPR-0269,Salikhet Dhara,Salikhet,1194.0,1193.3
+COLOC-0082,same,"names match, elevations within 0 m",ATL-SPR-0740,Piplet Dhara,Piplet,1440.0,HIM-SPR-0259,Piplet Dhara,Piplet,1440.0,1421.2
+COLOC-0083,same,"names match, elevations within 0 m",ATL-SPR-0741,Gothani Dhara,Gothani,1562.0,HIM-SPR-0124,Gothani Dhara,Gothani,1562.0,1550.6
+COLOC-0084,same,"names match, elevations within 0 m",ATL-SPR-0742,Kimani Khola,Bayal,1255.0,HIM-SPR-0174,Kimani Khola Spring,Bayal,1255.0,1264.6
+COLOC-0085,same,"names match, elevations within 0 m",ATL-SPR-0743,Kanigad,Sakar & Suval,1135.0,HIM-SPR-0161,Kanigad Spring,Sakar &Suval,1135.0,1127.2
+COLOC-0086,same,"names match, elevations within 0 m",ATL-SPR-0744,Songaon,Songaon,1328.0,HIM-SPR-0289,Songaon Spring,Songaon,1328.0,1313.5
+COLOC-0087,same,"names match, elevations within 0 m",ATL-SPR-0745,Baichuliya,Devrala,948.0,HIM-SPR-0012,Baichuliya naula,Devrala,948.0,930.7
+COLOC-0088,same,"names match, elevations within 0 m",ATL-SPR-0746,Rangal,Rangal,966.0,HIM-SPR-0261,Rangal naula,Rangal,966.0,951.6
+COLOC-0089,same,"names match, elevations within 0 m",ATL-SPR-0747,Talla Naula,Khetigaon,1473.0,HIM-SPR-0301,Talla Naula,Khetigaon,1473.0,1488.1
+COLOC-0090,same,"names match, elevations within 0 m",ATL-SPR-0748,Kotera Naula,Kothera,1493.0,HIM-SPR-0181,Kotera Naula,Kothera,1493.0,1546.7
+COLOC-0091,same,"names match, elevations within 0 m",ATL-SPR-0749,Balakucha Gadhera,Balakuchera,1732.0,HIM-SPR-0013,Balakucha gadera,Balakucha,1732.0,1616.5
+COLOC-0092,same,"names match, elevations within 0 m",ATL-SPR-0750,Banapani,Rithaya,1322.0,HIM-SPR-0014,Banapani,Rithayat,1322.0,1369.2
+COLOC-0093,same,"names match, elevations within 0 m",ATL-SPR-0751,Malla Dhara,Nakuna,1366.0,HIM-SPR-0200,Malla Dhara,Nakuna,1366.0,1440.4
+COLOC-0093,same,"names match, elevations within 0 m",ATL-SPR-0751,Malla Dhara,Nakuna,1366.0,HIM-SPR-0202,Malla Dhara,Nakuna,1366.0,1440.4
+COLOC-0093,same,"names match, elevations within 0 m",HIM-SPR-0200,Malla Dhara,Nakuna,1366.0,HIM-SPR-0202,Malla Dhara,Nakuna,1366.0,1440.4
+COLOC-0094,same,"names match, elevations within 0 m",ATL-SPR-0752,Kuwanger,Nakot,1407.0,HIM-SPR-0188,kuwanger,Nakot,1407.0,1529.3
+COLOC-0095,same,"names match, elevations within 0 m",ATL-SPR-0753,Jamadlekh Dhara,Jamadlekh,1295.0,HIM-SPR-0138,jamdlekh Dhara,Jamadlekh,1295.0,1318.7
+COLOC-0096,review,names only partly alike,ATL-SPR-0754,kanaghar Naula,Pilkhi,1378.0,HIM-SPR-0158,Kanaghar Dhara,Kanagair (Pilkhi),1461.0,1430.0
+COLOC-0096,same,"names match, elevations within 0 m",ATL-SPR-0754,kanaghar Naula,Pilkhi,1378.0,HIM-SPR-0159,Kanaghar Naula,Pilkhi,1378.0,1430.0
+COLOC-0096,review,names only partly alike,HIM-SPR-0158,Kanaghar Dhara,Kanagair (Pilkhi),1461.0,HIM-SPR-0159,Kanaghar Naula,Pilkhi,1378.0,1430.0
+COLOC-0097,same,"names match, elevations within 0 m",ATL-SPR-0755,Jwal Dhara,Jwal,1374.0,HIM-SPR-0146,Jwal Dhara,Jwal,1374.0,1429.4
+COLOC-0098,same,"names match, elevations within 0 m",ATL-SPR-0756,Khetigaon,Khetigaon,1340.0,HIM-SPR-0171,Khetigaon Dhara,Khetigaon,1340.0,1326.8
+COLOC-0099,same,"names match, elevations within 0 m",ATL-SPR-0757,Itna Naula,Itna,1378.0,HIM-SPR-0132,Itna Naula,Itna,1378.0,1423.5
+COLOC-0100,same,"names match, elevations within 0 m",ATL-SPR-0758,Bhumiya Dhara,Dobhalkhet,1227.0,HIM-SPR-0042,Bhumiya Dhara,Dobhalkhet,1227.0,1274.7
+COLOC-0101,same,"names match, elevations within 0 m",ATL-SPR-0760,Nanidhara,Oligaon,1562.0,HIM-SPR-0237,Nanidhara,Oligaon,1562.0,1584.5
+COLOC-0102,same,"names match, elevations within 0 m",ATL-SPR-0761,Nagugad Naula,Bhuligaon,1384.0,HIM-SPR-0234,Nagugad naula,Bhuligaon,1384.0,1442.2
+COLOC-0103,same,"names match, elevations within 0 m",ATL-SPR-0774,Bhamdari gaon panyar,Bhandarigaon,1450.0,HIM-SPR-0026,Bhandarigaon Panyar,Bhandarigaon,1450.0,1467.9
+COLOC-0104,same,"names match, elevations within 0 m",ATL-SPR-0775,Mallakhola Naula,Kandara,1432.0,HIM-SPR-0211,Mallakhola Naula,Kandara,1432.0,1422.7
+COLOC-0105,same,"names match, elevations within 0 m",ATL-SPR-0776,Dungai Panyar,Dungai Kanyuri,1474.0,HIM-SPR-0097,Dungai Panyar,Dungai Kanyuri,1474.0,1446.7
+COLOC-0106,same,"names match, elevations within 0 m",ATL-SPR-0777,Agar Panyar,Agar,1516.0,HIM-SPR-0003,Agar Panyar,Agar,1516.0,1505.6
+COLOC-0107,same,"names match, elevations within 0 m",ATL-SPR-0778,Badichena,Baruda,1429.0,HIM-SPR-0001,Badichena Spring,Baruda,1429.0,1413.9
+COLOC-0108,review,one name is generic; cannot tell from the records,ATL-SPR-0779,Talla Naula,Sanyuda,1580.0,HIM-SPR-0109,Talla Naula,Sanyuda,1482.0,1578.1
+COLOC-0108,same,"names match, elevations within 0 m",ATL-SPR-0779,Talla Naula,Sanyuda,1580.0,HIM-SPR-0302,Talla Naula,Sanyuda,1580.0,1578.1
+COLOC-0108,review,one name is generic; cannot tell from the records,HIM-SPR-0109,Talla Naula,Sanyuda,1482.0,HIM-SPR-0302,Talla Naula,Sanyuda,1580.0,1578.1
+COLOC-0109,same,"names match, elevations within 0 m",ATL-SPR-0780,Gadera Naula,Sailani,1482.0,HIM-SPR-0108,Gadera Naula,Sailani,1482.0,1463.9
+COLOC-0110,same,"names match, elevations within 0 m",ATL-SPR-0781,Nanoli Naula,Nainoli,1498.0,HIM-SPR-0238,Nanoli Naula,Nainoli,1498.0,1487.2
+COLOC-0111,different,different position in the name (none vs malla),ATL-SPR-0782,Panyar,Gwansilkot,1328.0,HIM-SPR-0252,Malla Panyar,Gwansikot,1328.0,1311.8
+COLOC-0112,same,"names match, elevations within 0 m",ATL-SPR-0783,Dhrarekund,Dhrarikund,1020.0,HIM-SPR-0089,Dhrarekund Spring,Dhrarikund,1020.0,1009.6
+COLOC-0113,same,"names match, elevations within 0 m",ATL-SPR-0784,Agyun Dhara,Balatadi,1541.0,HIM-SPR-0004,Agyun Dhara,Balatadi,1541.0,1538.0
+COLOC-0114,same,"names match, elevations within 0 m",ATL-SPR-0785,Gada Dhara,Siroli,1384.0,HIM-SPR-0104,Gada Dhara,Siroli,1384.0,1377.1
+COLOC-0115,same,"names match, elevations within 0 m",ATL-SPR-0786,Churmal Naula,Sutargaon,1340.0,HIM-SPR-0070,Churmal Naula,Sutargaon,1340.0,1327.7
+COLOC-0116,same,"names match, elevations within 0 m",ATL-SPR-0787,Rankad Dhara,Rankad,1170.0,HIM-SPR-0262,Rankad Dhara,Rankad,1170.0,1154.2
+COLOC-0117,same,"names match, elevations within 0 m",ATL-SPR-0788,Kasedi,Kasedi,1350.0,HIM-SPR-0162,Kasedi Spring,Kasedi,1350.0,1344.6
+COLOC-0118,same,"names match, elevations within 0 m",ATL-SPR-0789,Dharapani,Gopil,1661.0,HIM-SPR-0085,Dharapani,Gopil,1661.0,1644.5
+COLOC-0119,same,"names match, elevations within 0 m",ATL-SPR-0790,Bagar,Bagar,1650.0,HIM-SPR-0009,Bagar Spring,Bagar,1650.0,1634.2
+COLOC-0120,review,names only partly alike,ATL-SPR-0791,Gunagad,Sintoliya,1613.0,HIM-SPR-0094,Dubegad,Rankot,1593.0,1595.9
+COLOC-0120,same,"names match, elevations within 0 m",ATL-SPR-0791,Gunagad,Sintoliya,1613.0,HIM-SPR-0125,Gunagad,Sintoliya,1613.0,1595.9
+COLOC-0120,review,names only partly alike,HIM-SPR-0094,Dubegad,Rankot,1593.0,HIM-SPR-0125,Gunagad,Sintoliya,1613.0,1595.9
+COLOC-0121,same,"names match, elevations within 0 m",ATL-SPR-0794,Nemanyagad,Susan,1478.0,HIM-SPR-0243,Nemanyagad,Susan,1478.0,1489.7
+COLOC-0122,same,"names match, elevations within 0 m",ATL-SPR-0795,Kwinad Panyar,Kwinad,937.0,HIM-SPR-0189,Kwinad Panyar,Kwinad,937.0,916.6
+COLOC-0123,same,"names match, elevations within 0 m",ATL-SPR-0796,Panyar,Kanaragunth,950.0,HIM-SPR-0253,Panyar,Kanaragunth,950.0,937.8
+COLOC-0124,same,"names match, elevations within 0 m",ATL-SPR-0797,Khawa Naula,Pabhein,1872.0,HIM-SPR-0169,Khawa Naula,Pabhein,1872.0,1854.8
+COLOC-0125,same,"names match, elevations within 0 m",ATL-SPR-0798,Koti Dhara,Koti,1438.0,HIM-SPR-0182,Koti Dhara,Koti,1438.0,1436.1
+COLOC-0126,same,"names match, elevations within 0 m",ATL-SPR-0799,Gada Dhara,Bokta,1216.0,HIM-SPR-0105,Gada Dhara,Bokta,1216.0,1209.5
+COLOC-0127,same,"names match, elevations within 0 m",ATL-SPR-0800,Matoli,Matoli,1499.0,HIM-SPR-0218,Matoli Spring,Matoli,1499.0,1475.0
+COLOC-0128,same,"names match, elevations within 0 m",ATL-SPR-0801,Malla Naula,Jarmalgaon,1474.0,HIM-SPR-0203,Malla Naula,Jarmalgaon,1474.0,1452.4
+COLOC-0129,same,"names match, elevations within 0 m",ATL-SPR-0802,Upnamaafi Panyar,Upnamaafi,1237.0,HIM-SPR-0321,Upnamaafi Panyar,Upnamaafi,1237.0,1237.3
+COLOC-0130,same,"names match, elevations within 0 m",ATL-SPR-0803,Madaknali Naula,Madaknali,1836.0,HIM-SPR-0198,Madaknali Naula,Madaknali,1836.0,1827.2
+COLOC-0131,same,"names match, elevations within 0 m",ATL-SPR-0804,Bhumka Naula,Jakhni,1907.0,HIM-SPR-0044,Bhumka Naula,Jakhni,1907.0,1919.4
+COLOC-0132,same,"names match, elevations within 0 m",ATL-SPR-0805,Kathotala Naula,Bhama,1964.0,HIM-SPR-0002,Kathotala Naula,Pabhin,1964.0,1968.7
+COLOC-0133,same,"names match, elevations within 0 m",ATL-SPR-0806,Nyalmuda Naula,Dantoli,2046.0,HIM-SPR-0246,Nyalmuda Naula,Dantoli,2046.0,2004.4
+COLOC-0134,same,"names match, elevations within 0 m",ATL-SPR-0807,Lavisar,Lavisar,1446.0,HIM-SPR-0190,Lavisar Spring,Lavisar,1446.0,1460.1
+COLOC-0135,same,"names match, elevations within 0 m",ATL-SPR-0808,Malla Panyar,Brusambadi,777.0,HIM-SPR-0208,Malla Panyar,Brusambadi,777.0,766.4
+COLOC-0136,same,"names match, elevations within 0 m",ATL-SPR-0809,Tadaga,Tadaga,996.0,HIM-SPR-0298,Tadaga Spring,Tadaga,996.0,1094.8
+COLOC-0137,same,"names match, elevations within 0 m",ATL-SPR-0810,Damde Panyar,Damde,946.0,HIM-SPR-0073,Damde Panyar,Damde,946.0,934.2
+COLOC-0138,same,"names match, elevations within 0 m",ATL-SPR-0811,Tudi Naula,Tudi,768.0,HIM-SPR-0318,Tudil Naula,Tudil,768.0,762.4
+COLOC-0139,same,"names match, elevations within 0 m",ATL-SPR-0812,Duni Naula,Duni,1253.0,HIM-SPR-0098,Duni Naula,Duni,1253.0,1243.1
+COLOC-0140,same,"names match, elevations within 0 m",ATL-SPR-0813,Duni,Khet,1115.0,HIM-SPR-0099,Duni Spring,Khet,1115.0,1089.4
+COLOC-0141,different,different spring names sharing a coordinate,ATL-SPR-0814,Talla Panyar,Naini,1035.0,HIM-SPR-0086,Dharme,Kupola,1025.0,1029.7
+COLOC-0141,same,"names match, elevations within 0 m",ATL-SPR-0814,Talla Panyar,Naini,1035.0,HIM-SPR-0303,Talla panyar,Naini,1035.0,1029.7
+COLOC-0141,different,different spring names sharing a coordinate,HIM-SPR-0086,Dharme,Kupola,1025.0,HIM-SPR-0303,Talla panyar,Naini,1035.0,1029.7
+COLOC-0142,same,"names match, elevations within 0 m",ATL-SPR-0815,Jahajarwa Naula,Sunkhola,1353.0,HIM-SPR-0136,Jahajarwa Naula,Sunkhola,1353.0,1377.4
+COLOC-0143,same,"names match, elevations within 0 m",ATL-SPR-0816,Sarkande Naula,Khailadi,1288.0,HIM-SPR-0273,Sarkande Naula,Khailadi,1288.0,1293.9
+COLOC-0144,same,"names match, elevations within 0 m",ATL-SPR-0817,Kaltir Naula,Kaltir,1209.0,HIM-SPR-0155,Kaltir Naula,Kaltir,1209.0,1214.7
+COLOC-0145,review,one name is generic; cannot tell from the records,ATL-SPR-0818,Khatigaon,Khatigaon,1279.0,HIM-SPR-0204,Malla Naula,Khatigaon,1279.0,1279.6
+COLOC-0145,review,one name is generic; cannot tell from the records,ATL-SPR-0818,Khatigaon,Khatigaon,1279.0,HIM-SPR-0207,Malla Naula,Khatigaon,1279.0,1279.6
+COLOC-0145,same,"names match, elevations within 0 m",HIM-SPR-0204,Malla Naula,Khatigaon,1279.0,HIM-SPR-0207,Malla Naula,Khatigaon,1279.0,1279.6
+COLOC-0146,same,"names match, elevations within 0 m",ATL-SPR-0819,Kafal pani,Sarkande,1627.0,HIM-SPR-0149,Kafal Pani,Sarkande,1627.0,1617.1
+COLOC-0147,same,"names match, elevations within 0 m",ATL-SPR-0820,Bhaniya panyar,Kalipatal,1603.0,HIM-SPR-0028,Bhaniya Panyar,Kalipatal,1603.0,1613.1
+COLOC-0148,same,"names match, elevations within 0 m",ATL-SPR-0821,Gad Naula,Pipalinigalti,1371.0,HIM-SPR-0103,Gad Naula,Pipalinigalti,1371.0,1352.8
+COLOC-0149,same,"names match, elevations within 0 m",ATL-SPR-0822,Malla Naula,Dyulhadakot,1463.0,HIM-SPR-0205,Malla Naula,Dyulhadakot,1463.0,1475.6
+COLOC-0150,same,"names match, elevations within 0 m",ATL-SPR-0823,Chanali Naula,Chahaj,1532.0,HIM-SPR-0062,Chanali Naula,Chahaj,1532.0,1401.9
+COLOC-0151,same,"names match, elevations within 0 m",ATL-SPR-0824,Kamadiya Naula,Rauteda,1226.0,HIM-SPR-0157,Kamadiya Naula,Rauteda,1226.0,1242.8
+COLOC-0152,same,"names match, elevations within 0 m",ATL-SPR-0825,Kimgad Naula,Tulkhand,1323.0,HIM-SPR-0175,Kimgad Naula,Tulkhand,1323.0,1312.4
+COLOC-0153,same,"names match, elevations within 0 m",ATL-SPR-0826,Malla Naula,Naani,1104.0,HIM-SPR-0206,Malla Naula,Naani,1104.0,1092.8
+COLOC-0154,same,"names match, elevations within 0 m",ATL-SPR-0827,Ghanela Naula,Jeeba,1861.0,HIM-SPR-0118,Ghanela Naula,Jeebal,1861.0,1850.2
+COLOC-0155,same,"names match, elevations within 0 m",ATL-SPR-0828,Palyal Naula,Palipalyal,1240.0,HIM-SPR-0249,Palyal Naula,Palipalyal,1240.0,1215.4
+COLOC-0156,same,"names match, elevations within 0 m",ATL-SPR-0829,Panera Naula,Sugadi,1441.0,HIM-SPR-0251,Panera Naula,Sugadi,1441.0,1426.0
+COLOC-0157,same,"names match, elevations within 0 m",ATL-SPR-0830,Churgaon Dhara,Virtola,533.0,HIM-SPR-0069,Churgaon Dhara,Virtola,533.0,539.5
+COLOC-0158,same,"names match, elevations within 0 m",ATL-SPR-0831,Jadtola Naula,Jadtola,777.0,HIM-SPR-0134,Jadtola Naula,Jadtola,777.0,768.5
+COLOC-0159,same,"names match, elevations within 0 m",ATL-SPR-0832,Kunda Naula,Timta,982.0,HIM-SPR-0186,Kunda Naula,Timta,982.0,970.8
+COLOC-0160,same,"names match, elevations within 0 m",ATL-SPR-0833,Timta Naula,Timtachamdungra,1020.0,HIM-SPR-0314,Timta Naula,Timtachamdungra,1020.0,1028.4
+COLOC-0161,same,"names match, elevations within 0 m",ATL-SPR-0834,Timul Dhara,Jarajakhni,1843.0,HIM-SPR-0315,Timul Dhara,Jarajakhni,1843.0,1825.1
+COLOC-0162,same,"names match, elevations within 0 m",ATL-SPR-0835,Toiyan Dhara,Nanolikaina,891.0,HIM-SPR-0316,Toiyan Dhara,Nainolikaina,891.0,870.9
+COLOC-0163,same,"names match, elevations within 0 m",ATL-SPR-0836,Naani Naula,Nanolikaina,1096.0,HIM-SPR-0228,Naani Naula,Nainolikaina,1096.0,1076.0
+COLOC-0164,same,"names match, elevations within 5 m",ATL-SPR-0837,Sargada Dhara,Kuntola,1006.0,ATL-SPR-0838,Sargada Dhara,Sargada,1001.0,985.0
+COLOC-0164,different,different spring names sharing a coordinate,ATL-SPR-0837,Sargada Dhara,Kuntola,1006.0,HIM-SPR-0187,Kuntola Naula,Kuntola,1006.0,985.0
+COLOC-0164,same,"names match, elevations within 5 m",ATL-SPR-0837,Sargada Dhara,Kuntola,1006.0,HIM-SPR-0272,Sargada Dhara,Sargada,1001.0,985.0
+COLOC-0164,different,different spring names sharing a coordinate,ATL-SPR-0838,Sargada Dhara,Sargada,1001.0,HIM-SPR-0187,Kuntola Naula,Kuntola,1006.0,985.0
+COLOC-0164,same,"names match, elevations within 0 m",ATL-SPR-0838,Sargada Dhara,Sargada,1001.0,HIM-SPR-0272,Sargada Dhara,Sargada,1001.0,985.0
+COLOC-0164,different,different spring names sharing a coordinate,HIM-SPR-0187,Kuntola Naula,Kuntola,1006.0,HIM-SPR-0272,Sargada Dhara,Sargada,1001.0,985.0
+COLOC-0165,same,"names match, elevations within 0 m",ATL-SPR-0839,Malli Naula,Dodari,1876.0,HIM-SPR-0212,Malli naula,Dodari,1876.0,1876.1
+COLOC-0166,same,"names match, elevations within 0 m",ATL-SPR-0840,Dhar Naula,Surkhal,1715.0,HIM-SPR-0083,Dhar Naula,Surkhal Sahu,1715.0,1707.5
+COLOC-0167,same,"names match, elevations within 0 m",ATL-SPR-0841,Ridigad,Banelagaon,1864.0,HIM-SPR-0265,Ridigad,Banelagaon,1864.0,1414.0
+COLOC-0168,same,"names match, elevations within 0 m",ATL-SPR-0842,Chamlekh Naula,Chamlekh,1574.0,HIM-SPR-0058,Chamlekh Naula,Chamlekh,1574.0,1588.6
+COLOC-0169,same,"names match, elevations within 0 m",ATL-SPR-0843,Dhuroli Dhara,Dhuroli,1573.0,HIM-SPR-0090,Dhuroli Dhara,Dhuroli,1573.0,1734.9
+COLOC-0170,same,"names match, elevations within 0 m",ATL-SPR-0844,Kund Naula,Kund,1046.0,HIM-SPR-0185,Kund Naula,Kund,1046.0,1075.2
+COLOC-0171,same,"names match, elevations within 0 m",ATL-SPR-0845,Malli Naula,Badena,1110.0,HIM-SPR-0213,Malli naula,Badena,1110.0,1128.9
+COLOC-0172,same,"names match, elevations within 0 m",ATL-SPR-0846,Kharkoli Naula,Mankhola,913.0,HIM-SPR-0168,Kharkoli Naula,Mankhola,913.0,908.3
+COLOC-0173,same,"names match, elevations within 0 m",ATL-SPR-0847,Kingad Naula,Askoda,1133.0,HIM-SPR-0176,Kingad Naula,Askoda,1133.0,1165.7
+COLOC-0174,same,"names match, elevations within 0 m",ATL-SPR-0848,Koti Gad,Bandani,1913.0,HIM-SPR-0183,Koti Gad,Bandani,1913.0,1905.7
+COLOC-0175,same,"names match, elevations within 0 m",ATL-SPR-0849,Salyad Gad,Pyantoli,1872.0,HIM-SPR-0270,Salyad Gad,Pyantoli,1872.0,1887.4
+COLOC-0176,same,"names match, elevations within 0 m",ATL-SPR-0850,Dunga dhara,Dharmoli,1781.0,HIM-SPR-0096,Dunga Dhara,Dharmoli,1781.0,1785.3
+COLOC-0177,same,"names match, elevations within 0 m",ATL-SPR-0851,Mungron Gad,Sukna,1781.0,HIM-SPR-0225,Mungron Gad,Sukna,1781.0,1786.0
+COLOC-0178,same,"names match, elevations within 0 m",ATL-SPR-0852,Bisa Paani,Dhunkholi,1805.0,HIM-SPR-0050,Bisa paani,Dhunkholi,1805.0,1788.3
+COLOC-0179,same,"names match, elevations within 0 m",ATL-SPR-0853,Ghangal Naula,Ghangal,1810.0,HIM-SPR-0119,Ghangal Naula,Ghangal,1810.0,1789.3
+COLOC-0180,same,"names match, elevations within 0 m",ATL-SPR-0854,Bhikudi Gadhera,Kanara,1795.0,HIM-SPR-0037,Bhikudi Gadera,kanara,1795.0,1759.4
+COLOC-0181,same,"names match, elevations within 0 m",ATL-SPR-0855,Lyunkhuri,Chak,1937.0,HIM-SPR-0197,Lyunkhuri,Chak,1937.0,1929.7
+COLOC-0182,review,names only partly alike,ATL-SPR-0856,Bhakani Paani,Bhakani paani,1959.0,ATL-SPR-0857,Bahkani,Dyotari,1962.0,1954.0
+COLOC-0182,review,names only partly alike,ATL-SPR-0856,Bhakani Paani,Bhakani paani,1959.0,HIM-SPR-0011,Bahkani,Dyotari,1962.0,1954.0
+COLOC-0182,same,"names match, elevations within 0 m",ATL-SPR-0856,Bhakani Paani,Bhakani paani,1959.0,HIM-SPR-0024,Bhakani paani,Thyantoli,1959.0,1954.0
+COLOC-0182,same,"names match, elevations within 0 m",ATL-SPR-0857,Bahkani,Dyotari,1962.0,HIM-SPR-0011,Bahkani,Dyotari,1962.0,1954.0
+COLOC-0182,review,names only partly alike,ATL-SPR-0857,Bahkani,Dyotari,1962.0,HIM-SPR-0024,Bhakani paani,Thyantoli,1959.0,1954.0
+COLOC-0182,review,names only partly alike,HIM-SPR-0011,Bahkani,Dyotari,1962.0,HIM-SPR-0024,Bhakani paani,Thyantoli,1959.0,1954.0
+COLOC-0183,same,"names match, elevations within 0 m",ATL-SPR-0858,Talla Panyar,Kakda,1181.0,HIM-SPR-0304,Talla Panyar,Kakda,1181.0,1057.2
+COLOC-0184,same,"names match, elevations within 0 m",ATL-SPR-0859,Malli Panyar,Nayal,1151.0,HIM-SPR-0214,Malli Panyar,Nayal,1151.0,1140.2
+COLOC-0185,same,"names match, elevations within 0 m",ATL-SPR-0860,Dharaghar,Fadiyali,1124.0,HIM-SPR-0084,Dharaghar,Fadiyali,1124.0,1118.9
+COLOC-0186,same,"names match, elevations within 0 m",ATL-SPR-0861,Giwa Naula,Lakhtoli,1192.0,HIM-SPR-0120,Giwa Naula,Lakhtoli,1192.0,1211.3
+COLOC-0187,same,"names match, elevations within 0 m",ATL-SPR-0862,Bhatgada Dhara,Bhatgada,1016.0,HIM-SPR-0032,Bhatgada dhara,Bhatgada,1016.0,1004.5
+COLOC-0188,same,"names match, elevations within 0 m",ATL-SPR-0863,Gorkhali Dhara,Agron,1524.0,HIM-SPR-0122,Gorkhali Dhara,Agron,1524.0,1522.0
+COLOC-0189,same,"names match, elevations within 0 m",ATL-SPR-0864,Malla Chauda Naula,Chauda,1292.0,HIM-SPR-0199,Malla Chauda Naula,Chauda,1292.0,1294.3
+COLOC-0190,same,"names match, elevations within 0 m",ATL-SPR-0865,Bhida pani,Golthi,1255.0,HIM-SPR-0036,Bhida paani,Golthi,1255.0,1276.5
+COLOC-0191,same,"names match, elevations within 0 m",ATL-SPR-0866,Basani Dhara,Pabhya,1120.0,HIM-SPR-0017,Basani Dhara,Pabhya,1120.0,1111.7
+COLOC-0192,same,"names match, elevations within 0 m",ATL-SPR-0867,Siradi Dhara,Siradi,1777.0,HIM-SPR-0288,Siradi Dhara,Siradi,1777.0,1783.1
+COLOC-0193,same,"names match, elevations within 27 m",ATL-SPR-0868,Nha Naula,Bungli,1263.0,HIM-SPR-0244,Nha Naula,Bungli,1236.0,1225.3
+COLOC-0194,same,"names match, elevations within 0 m",ATL-SPR-0869,Nagdhura Naula,Nagdhura,868.0,HIM-SPR-0230,Nagdhura Naula,Nagdhura,868.0,882.1
+COLOC-0195,same,"names match, elevations within 0 m",ATL-SPR-0870,Anargaon Naula,Anargaon,1315.0,HIM-SPR-0005,Anargaon Naula,Anargaon,1315.0,1341.5
+COLOC-0196,same,"names match, elevations within 0 m",ATL-SPR-0871,Jatadi Naula,Jatadi,1358.0,HIM-SPR-0141,Jatadi Naula,Jatadi,1358.0,1372.1
+COLOC-0197,same,"names match, elevations within 0 m",ATL-SPR-0872,Paltodi Dhara,Paltodi,1347.0,HIM-SPR-0247,Paltodi Dhara,Paltodi,1347.0,1338.2
+COLOC-0198,same,"names match, elevations within 0 m",ATL-SPR-0873,Maukhala Naula,Bankot,1403.0,HIM-SPR-0219,Maukhala Naula,Bankot,1403.0,1394.1
+COLOC-0199,same,"names match, elevations within 0 m",ATL-SPR-0874,Sunyadi Dhara,Sunyadi,1394.0,HIM-SPR-0295,Sunyadi Dhara,Sunyadi,1394.0,1408.4
+COLOC-0200,same,"names match, elevations within 0 m",ATL-SPR-0875,Simsimani Dhara,Simsimani,1200.0,HIM-SPR-0284,Simsimani Dhara,Simsimani,1200.0,1209.9
+COLOC-0201,same,"names match, elevations within 0 m",ATL-SPR-0876,Timlani Naula,Bans,1131.0,HIM-SPR-0313,Timlani Naula,Bans,1131.0,1134.7
+COLOC-0202,same,"names match, elevations within 0 m",ATL-SPR-0877,Bhyun Naula,Bhyun,1096.0,HIM-SPR-0048,Bhyun Naula,Bhyun,1096.0,1121.8
+COLOC-0203,different,different position in the name (malla vs talla),ATL-SPR-0917,Paikhuti Malla Dhara,Paikhuti,1565.0,ATL-SPR-0918,Paikhuti Talla Dhara,Paikhuti,1560.0,1558.9
+COLOC-0204,different,different position in the name (talla vs malla),ATL-SPR-0929,Kawwa Dhar Talla,Kawwa Dhar,1619.0,ATL-SPR-0930,Kawwa Dhar Malla,Kawwa Dhar,1624.0,1595.7
+COLOC-0205,same,"names match, elevations within 0 m",ATL-SPR-0936,Bansi,Almas,1547.0,HIM-SPR-0015,Bansi Spring,Almas Madhya Bansi,1547.0,1542.3
+COLOC-0206,same,"names match, elevations within 0 m",ATL-SPR-0937,Ganjra,Rautu,2090.0,HIM-SPR-0113,Ganjra,Rautu Ki Beli,2090.0,2073.1
+COLOC-0207,same,"names match, elevations within 0 m",ATL-SPR-0938,Kinsu,Kinsu,2022.0,HIM-SPR-0177,Kinsu Spring,Kinsu,2022.0,2003.2
+COLOC-0208,same,"names match, elevations within 0 m",ATL-SPR-0939,Thik udarsu,Thikk udarsu,1999.0,HIM-SPR-0312,Thik-Udarsu Spring,Thikk Udarsu,1999.0,1853.6
+COLOC-0209,same,"names match, elevations within 0 m",ATL-SPR-0940,Jangru,Kudiyalgaon,1440.0,HIM-SPR-0140,Jangru,Kudiyal Gaon,1440.0,1425.9
+COLOC-0210,same,"names match, elevations within 0 m",ATL-SPR-0941,Selwani,Kemari Gaon,1351.0,HIM-SPR-0277,Selwani,Kemari Gaon,1351.0,1347.7
+COLOC-0211,different,different spring names sharing a coordinate,ATL-SPR-0942,Selwani,Arogi & Nakote,1487.0,HIM-SPR-0278,Arogi,Arogi & Nakote,1487.0,1459.4
+COLOC-0212,same,"names match, elevations within 0 m",ATL-SPR-0943,Ludru ka pani,Saud,2268.0,HIM-SPR-0194,Ludru Ka Pani,Saud,2268.0,2252.4
+COLOC-0213,same,"names match, elevations within 0 m",ATL-SPR-0946,Dangla Spring,Dangla,1371.0,HIM-SPR-0075,Dangla Dhara,Dangala,1371.0,1398.6
+COLOC-0214,different,source elevations differ by 360 m,HIM-SPR-0201,Malla Dhara,Simalta,1056.0,HIM-SPR-0222,Mungron Dhara,Ghodasil,1416.0,1423.1
+COLOC-0215,different,different spring names sharing a coordinate,HIM-SPR-0357,Nagari naula,Satkhol,1855.0,HIM-SPR-0382,Hedakhan,Satkhol,1833.0,1850.4
+COLOC-0216,different,source elevations differ by 440 m,HIM-SPR-0454,Dadoli,Dadoli,1473.0,HIM-SPR-0457,Saud Gadera,Maroda,1033.0,1472.8
+COLOC-0217,different,different spring names sharing a coordinate,HIM-SPR-0519,Nir Jalara Spring,Thandoli village,,HIM-SPR-0520,Judi Spring,Dagyon village,,941.4

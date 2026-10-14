@@ -98,7 +98,8 @@ Limits to keep in mind:
 | Household dependency and use | Field survey / RDI village records (for example, the Malan table) | Team with WATSAN |
 | DI before/after data | RDI monitoring records for the Chamba and Gairsain handpumps | WATSAN |
 | Real recharge areas | Field hydrogeology at pilot springs, or Module B estimates checked against the 10 Atlas profiles, Rathi and Chamba | Team |
-| Duplicates | Review the 217 groups on the master workbook's Duplicate groups sheet (mostly Atlas with Himmotthan) and fill `same_spring_confirmed` | Team |
+| Duplicates | Decide the 22 pairs on the master workbook's Duplicate review sheet (14 groups); the other 203 groups were settled by rule (section 7) | Team / WATSAN |
+| Elevation gaps | Re-take GPS at the 12 springs where no point within 2 km has the source elevation (section 7) | Field team |
 | Rathi and Mathamali coordinates | Ask NIH Roorkee or the authors | Team |
 
 ## 5. Final comprehensive file
@@ -106,8 +107,8 @@ Limits to keep in mind:
 `data/02_processed/spring_master/spring_master_v1.csv` (and `.xlsx`, with a Guide, Data dictionary and Fill summary sheet) brings everything into one table of 102 columns, one row per record:
 - **Mapped values** (terrain, land cover, rainfall, soil, lineaments) come from the same layer for every spring, so springs can be compared. Each source's own value sits beside it.
 - **Field values** (discharge, pH, TDS, spring type, lithology, recharge area) come from the record itself, or else from a record of another source within 30 m. That filled about 160 records per field, mostly Atlas annexure rows matched to Himmotthan. The `*_from` column names the record used.
-- **`is_primary_record = Y`** keeps one row per spring: 1,611 distinct springs.
-- **`duplicate_group`** (added 2026-10-12) names the group, the other records in it and the primary record for the 448 records in the 217 duplicate groups. It is highlighted orange in the workbook (darker for the primary record), and a Duplicate groups sheet lists every group with a blank `same_spring_confirmed` column for the team's review.
+- **`is_primary_record = Y`** keeps one row per spring: 1,679 distinct springs after the 2026-10-12 cleanup (section 7).
+- **`duplicate_status` and `duplicate_group`** (added 2026-10-12) say, for the 448 records in the 217 groups within 30 m, which records are the same spring, which are separate springs and why, and which still need a person. See section 7.
 - **Springshed inputs** (added 2026-10-12): drainage area, wetness index, distance to stream, stream order, height above stream, IMD 2021-2025 rainfall, 0-30 cm soil with coarse fragments, and fold distances.
 - **Rock type:** `rock_class` uses the field description where there is one (980 records) and the GSI map otherwise (781), so 95% of distinct springs now have a rock class. Both the field and GSI versions stay in their own columns.
 - **Spring type and lithology classes** group the free text (with spelling fixes) into Fracture, Depression, Contact, Karst, ... and Carbonate, Quartzite, Phyllite, Schist, Mixed, ...
@@ -129,3 +130,40 @@ python scripts/export_hwsd_tables.py .layer_cache/hwsd/HWSD2.mdb  # only if the 
 ```
 
 `.local_layers/` holds the hand downloads: `Bhoonidhi/*.zip`, `IMD/*.nc` (one file per year) and `SoilGrids/{clay,silt,sand,cfvo,bdod,ocd}_{0-5,5-15,15-30}cm_mean.tif` (the SoilGrids exports renamed; see the metadata JSON for which `out (n).tif` is which). Without it those columns stay blank. Layers were accessed on 2026-10-10 and 2026-10-12. The feature build takes about 25 minutes because of the hydrology step. URLs, versions, resolutions and licences are in `spring_features_v1_metadata.json`.
+
+## 7. Cleanup round (2026-10-12)
+
+**Duplicates.** `scripts/spring_duplicates.py` compares every pair of records within 30 m of each other (249 pairs in 217 groups):
+- **Same spring (165 pairs):** the names match after removing generic words (naula, dhara, spring) and the source elevations agree within 60 m, or the pair was matched during transcription (an Atlas profile and its annexure row). Most are the Spring Atlas listing a Himmotthan spring again.
+- **Different springs (62 pairs):** the source elevations differ by more than 100 m; the same base name carries a different position word (Talla / Malla, I / II, 2); or both names are specific and clearly different. These are separate springs sharing one coordinate, often a coordinate copied in the source. Before, they were all treated as one spring.
+- **Needs review (22 pairs, 14 groups):** one name is generic ("Dhara", "Naula") or the names are only partly alike ("Gairigar Naula" / "Gaderigad", 52 m apart). These are on the workbook's Duplicate review sheet. Until decided they count as separate springs and share no values.
+
+Result: 151 groups are one spring, 48 are different springs, 4 are partly the same, 14 need review. Distinct springs (`is_primary_record = Y`) go from 1,611 to 1,679. Values borrowed from a neighbouring record now come only from a record confirmed as the same spring (151 discharges instead of 160). Every pair, its decision and the reason are in `spring_master_v1_duplicate_pairs.csv`. Team decisions go in `data/01_staged/common/duplicate_review_decisions_v1.csv` (record_id_a, record_id_b, same or different, who, when) and override the rules on the next build.
+
+**Coordinates.** Two of the three coordinates outside the study area were typing slips with a certain fix, applied in `build_spring_features.py` and named in `coordinate_correction` (the staged value is not edited):
+- ATL-SPR-0006 (Sunkiya Dhara): latitude 26.44050 is 29.44050. Its sister spring is at 29.44343, and the DEM at the corrected point is 2,049 m against 2,035 m in the source.
+- ATL-SPR-0818 (Khatigaon): the longitude repeated the latitude. HIM-SPR-0204 has the same latitude and the same elevation (1,279 m), so its longitude was used.
+- ATL-SPR-0792 (Gunagad, Simalkhet) stays out: the latitude repeats the longitude and cannot be recovered. It is probably ATL-SPR-0791 (same longitude, 1,613 m against 1,612 m).
+
+**Elevation gaps.** For the 77 records whose source elevation is more than 150 m from the DEM, the build now searches the DEM within 2 km for the nearest point at the source elevation (±25 m). `elevation_check` says which side is probably wrong:
+- 4 have a coordinate copied from another record at the same point whose elevation fits.
+- 9 are a little off: the source elevation lies within 300 m, on a steep slope.
+- 52 are off by 0.3-1.8 km (37 within 1 km). The coordinate is probably wrong, and the source elevation probably right.
+- 12 have no point within 2 km at the source elevation. Either the coordinate or the elevation is badly wrong; these need a new GPS reading.
+
+60 of the 77 are Spring Atlas annexure rows.
+
+The 36 records with no coordinates stay unmapped. Placing them from a village name would add a precision the data does not have.
+
+## 8. Input and test data (2026-10-14)
+
+The master is split so the tool can be checked honestly. `dataset_split` is `input` (build and tune the tool) or `test` (keep aside; score the finished tool on it once). The test set is:
+- every record in **Tehri Garhwal**, a whole held-out district where the field visit also takes place;
+- the **10 Spring Atlas profile springs**, the only springs with both a delineated recharge area and a coordinate;
+- every record in the same 30 m group as one of these;
+- every spring **within 2 km** of one of these. Nearby springs share rainfall, rocks and sometimes a coordinate, so leaving a neighbour in the input data would make the test too easy.
+
+That gives 216 distinct springs for testing and 1,463 for input. The test set holds 11 highly seasonal and 5 perennial springs, plus 130 with a discharge figure. The workbook has separate Input data and Test data sheets, and the same split is in `spring_master_v1_input.csv` and `spring_master_v1_test.csv`. Field-visit springs will be added to the test data.
+
+Vulnerability is judged by decline over time (less flow than before, drying earlier, perennial turned seasonal), not by seasonality alone. A spring that has always been seasonal is not vulnerable for that reason. Seasonality, especially "highly seasonal", is one sign among several. The best test labels will be field answers to "has this spring declined?".
+

@@ -9,6 +9,7 @@ latitude_dd,decimal degrees,Common file,Source latitude parsed as a number.
 longitude_dd,decimal degrees,Common file,Source longitude parsed as a number.
 coordinate_status,,Derived,"ok, missing, or outside_study_region (lat 28.5-33.5, lon 75.5-81.5). Layer values are only computed for ok."
 coordinate_precision_decimals,,Derived,Decimal places in the source latitude; 2 or fewer means about 1 km uncertainty.
+coordinate_correction,,Derived,"Blank, or what was corrected in the source coordinate and why (only where the fix is certain)."
 colocated_group_id,,Derived,Records from different rows within 30 m of each other share a group id; likely the same spring listed twice. Not merged.
 colocated_group_size,,Derived,Number of records in the group.
 source_elevation_m,m,Common file,Source elevation parsed as a number.
@@ -26,6 +27,7 @@ source_tds_mg_l,mg/l,Common file,Source TDS parsed as a number.
 source_ph,,Common file,Source pH parsed as a number.
 dem_elevation_m,m (EGM2008),Copernicus DEM GLO-30,Elevation of the 30 m cell containing the coordinate.
 dem_minus_source_elevation_m,m,Derived,DEM elevation minus source elevation; large gaps point to coordinate or elevation errors.
+elevation_match_distance_m,m,Derived from Copernicus DEM GLO-30,"Only where the gap is over 150 m: distance to the nearest DEM cell within 25 m of the source elevation, searched up to 2 km. Small = the coordinate is a little off on a steep slope; blank = no such cell nearby, so the coordinate or the source elevation is badly wrong."
 dem_slope_deg,degrees,Copernicus DEM GLO-30,Slope at the cell (central differences).
 dem_aspect_deg,degrees from north,Copernicus DEM GLO-30,Direction the slope faces; blank when slope < 2 degrees.
 dem_aspect_class,,Copernicus DEM GLO-30,"8-point aspect class, or Flat."

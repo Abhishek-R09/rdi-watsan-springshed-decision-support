@@ -37,6 +37,7 @@ import os
 import re
 import statistics
 import subprocess
+import sys
 import threading
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
@@ -68,6 +69,7 @@ HWSD_URLS = [
     "https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/HWSD/HWSD2_DB.zip",
 ]
 YEARS = list(range(2018, 2026))
+IMD_BOUNDS = (75.0, 28.0, 82.0, 34.0)  # lon / lat box around the Uttarakhand and Himachal hills; IMD is blank outside it
 OBT_URL = "https://storage.googleapis.com/open-buildings-temporal-data/v1/manifests/39_EPSG_{epsg}_{year}_06_30.json"
 OBT_YEARS = (2016, 2023)
 OBT_RADIUS_M = 1000
@@ -321,9 +323,15 @@ def worldcover_features(wc_sets, lon, lat):
 class WaporStack:
     """Reads one regional window per WaPOR raster, then samples points from memory."""
 
-    def __init__(self, code, periods, scale=0.1):
+    def __init__(self, code, periods, scale=0.1, cache=None):
+        """With a cache folder, each regional window is saved there once, so later runs start fast and work offline."""
         self.grids = {}
         for period in periods:
+            saved = Path(cache) / "wapor" / f"{code}.{period}.npz" if cache else None
+            if saved and saved.exists():
+                with np.load(saved) as stored:
+                    self.grids[period] = (stored["data"], rasterio.Affine(*stored["transform"]))
+                continue
             url = "/vsicurl/" + WAPOR_URL.format(code=code, period=period)
             with rasterio.open(url) as ds:
                 window = from_bounds(REGION["lon_min"], REGION["lat_min"], REGION["lon_max"], REGION["lat_max"], ds.transform)
@@ -331,6 +339,9 @@ class WaporStack:
                 data = ds.read(1, window=window).astype("float64")
                 data[data == ds.nodata] = np.nan
                 self.grids[period] = (data * scale, ds.window_transform(window))
+            if saved:
+                saved.parent.mkdir(parents=True, exist_ok=True)
+                np.savez_compressed(saved, data=self.grids[period][0], transform=np.array(self.grids[period][1])[:6])
 
     def sample(self, period, lon, lat):
         data, transform = self.grids[period]
@@ -338,6 +349,13 @@ class WaporStack:
         if 0 <= row < data.shape[0] and 0 <= col < data.shape[1]:
             return data[row, col]
         return float("nan")
+
+
+class NoLayer:
+    """Stands in for a layer that was not opened: no values at any point."""
+
+    def features(self, lon, lat):
+        return {}
 
 
 class Hwsd:
@@ -485,7 +503,11 @@ class OpenBuildingsTemporal:
         return self._features(lon, lat)
 
     def _features(self, lon, lat):
-        counts = {year: self.count(year, lon, lat) for year in OBT_YEARS}
+        try:
+            counts = {year: self.count(year, lon, lat) for year in OBT_YEARS}
+        except rasterio.errors.RasterioIOError as error:  # offline, or the tile server is down: leave the columns blank
+            print(f"Open Buildings not read at {lat:.5f}, {lon:.5f}: {error}", file=sys.stderr)
+            return {}
         if any(v is None for v in counts.values()):
             return {}
         first, last = counts[OBT_YEARS[0]], counts[OBT_YEARS[-1]]
@@ -503,16 +525,25 @@ class LocalLayers:
     def __init__(self, folder, lineaments_file):
         folder = Path(folder)
         self.found = []
-        self.cartodem = [rasterio.open(f"zip://{p}!{name}") for p in sorted((folder / "Bhoonidhi").glob("*.zip"))
-                         for name in self._zip_tifs(p)]
+        self.cartodem = []
+        for path in sorted((folder / "Bhoonidhi").glob("*.zip")):
+            for name in self._zip_tifs(path):
+                try:  # GDAL's /vsizip/ form with forward slashes also works for Windows paths
+                    self.cartodem.append(rasterio.open(f"/vsizip/{path.resolve().as_posix()}/{name}"))
+                except rasterio.errors.RasterioIOError as error:
+                    print(f"CartoDEM tile not opened, skipped: {path.name} ({error})", file=sys.stderr)
         if self.cartodem:
             self.found.append(f"CartoDEM: {len(self.cartodem)} tiles")
         self.imd = {}  # year -> (days x rows x cols array, transform)
         for path in sorted((folder / "IMD").glob("*.nc")):
             with rasterio.open(path) as ds:
-                data = ds.read().astype("float64")
+                # read only the hills (IMD_BOUNDS): the all-India grid for 24 years would need over 1 GB of memory
+                rows, cols = zip(*(centre_index(ds.transform, x, y) for x in IMD_BOUNDS[::2] for y in IMD_BOUNDS[1::2]))
+                r0, c0 = max(0, min(rows)), max(0, min(cols))
+                window = rasterio.windows.Window(c0, r0, min(ds.width, max(cols) + 1) - c0, min(ds.height, max(rows) + 1) - r0)
+                data = ds.read(window=window).astype("float64")
                 year = date.fromordinal(date(1900, 12, 31).toordinal() + int(ds.tags(1)["NETCDF_DIM_TIME"])).year
-                transform = ds.transform
+                transform = ds.window_transform(window)
             data[data < 0] = np.nan
             self.imd[year] = (data, transform)
         if self.imd:
@@ -917,8 +948,9 @@ def clean_row(src):
     return row
 
 
-def open_layers(points, cache, local_layers, lineaments=LINEAMENTS_FILE):
-    """Open every layer once; DEM and WorldCover tiles covering the points are downloaded into the cache."""
+def open_layers(points, cache, local_layers, lineaments=LINEAMENTS_FILE, soil_hwsd=True):
+    """Open every layer once; DEM and WorldCover tiles covering the points are downloaded into the cache.
+    soil_hwsd=False skips the 2 GB HWSD soil map (Module A does not use it; its tables need a Linux export step)."""
     cache = Path(cache)
     os.environ.setdefault("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
     if Path("/root/.ccr/ca-bundle.crt").exists():
@@ -927,10 +959,10 @@ def open_layers(points, cache, local_layers, lineaments=LINEAMENTS_FILE):
     layers = argparse.Namespace(
         dem=[rasterio.open(p) for p in dem_tiles_for(points, cache)],
         wc=[rasterio.open(p) for p in worldcover_tiles_for(points, cache)],
-        pcp_a=WaporStack("L1-PCP-A", [str(y) for y in YEARS]),
-        pcp_m=WaporStack("L1-PCP-M", [f"{y}-{m:02d}" for y in YEARS for m in range(1, 13)]),
-        ret_a=WaporStack("L1-RET-A", [str(y) for y in YEARS]),
-        hwsd=Hwsd(cache),
+        pcp_a=WaporStack("L1-PCP-A", [str(y) for y in YEARS], cache=cache),
+        pcp_m=WaporStack("L1-PCP-M", [f"{y}-{m:02d}" for y in YEARS for m in range(1, 13)], cache=cache),
+        ret_a=WaporStack("L1-RET-A", [str(y) for y in YEARS], cache=cache),
+        hwsd=Hwsd(cache) if soil_hwsd else NoLayer(),
         local=LocalLayers(local_layers, lineaments),
         ngdr=NgdrGeology(),
         buildings=OpenBuildingsTemporal(cache),

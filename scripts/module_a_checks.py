@@ -24,6 +24,7 @@ import argparse
 import csv
 import hashlib
 import math
+import os
 import random
 import statistics
 import sys
@@ -255,8 +256,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0], formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--sensitivity", action="store_true")
     parser.add_argument("--validate", metavar="CSV")
-    parser.add_argument("--cache", default=str(ROOT / ".layer_cache"))
-    parser.add_argument("--local-layers", default=str(ROOT / ".local_layers"))
+    parser.add_argument("--cache", default=os.environ.get("SPRING_LAYER_CACHE", str(ROOT / ".layer_cache")))
+    parser.add_argument("--local-layers", default=os.environ.get("SPRING_LOCAL_LAYERS", str(ROOT / ".local_layers")))
     args = parser.parse_args()
     if args.sensitivity:
         sensitivity()

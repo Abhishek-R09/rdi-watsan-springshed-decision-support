@@ -1,0 +1,3 @@
+name,latitude,longitude,elevation_m,flow_vs_past,lean_flow_lpm,monsoon_flow_lpm,low_flow_months,households,water_quality,pollution_30m,disturbance_uphill,protection,recharge_works,seasonality,spring_type,rock_at_outlet
+"Example - Nauli Dhara, Dikhet (lat-long only)",29.91903,78.55647,1481,,,,,,,,,,,,,
+"Example - Nauli Dhara, Dikhet (made-up field answers)",29.91903,78.55647,1481,a_bit_less,2.5,30,4,35,no_issue,none,major,both,none,seasonal,Fracture,Quartzite

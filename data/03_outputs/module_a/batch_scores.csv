@@ -1,0 +1,3 @@
+name,latitude,longitude,elevation_m,score,class,confidence,weight_with_data_pct,notes
+"Example - Nauli Dhara, Dikhet (lat-long only)",29.91903,78.55647,1481.0,45,Medium,Low,24,
+"Example - Nauli Dhara, Dikhet (made-up field answers)",29.91903,78.55647,1481.0,54,Medium,High,100,

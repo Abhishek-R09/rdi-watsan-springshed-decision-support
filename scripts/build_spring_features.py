@@ -785,6 +785,69 @@ def clean_row(src):
     return row
 
 
+def open_layers(points, cache, local_layers, lineaments=LINEAMENTS_FILE):
+    """Open every layer once; DEM and WorldCover tiles covering the points are downloaded into the cache."""
+    cache = Path(cache)
+    os.environ.setdefault("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
+    if Path("/root/.ccr/ca-bundle.crt").exists():
+        os.environ.setdefault("CURL_CA_BUNDLE", "/root/.ccr/ca-bundle.crt")
+    print("Opening layers")
+    layers = argparse.Namespace(
+        dem=[rasterio.open(p) for p in dem_tiles_for(points, cache)],
+        wc=[rasterio.open(p) for p in worldcover_tiles_for(points, cache)],
+        pcp_a=WaporStack("L1-PCP-A", [str(y) for y in YEARS]),
+        pcp_m=WaporStack("L1-PCP-M", [f"{y}-{m:02d}" for y in YEARS for m in range(1, 13)]),
+        ret_a=WaporStack("L1-RET-A", [str(y) for y in YEARS]),
+        hwsd=Hwsd(cache),
+        local=LocalLayers(local_layers, lineaments),
+        ngdr=NgdrGeology(),
+    )
+    ngdr = layers.ngdr
+    print("GSI NGDR geology: " + (f"{len(ngdr.units)} lithology polygons, {len(ngdr.faults)} faults, {len(ngdr.folds)} fold axes" if ngdr.ok else "not found"))
+    print("Local layers: " + ("; ".join(layers.local.found) or "none found"))
+    return layers
+
+
+def point_features(layers, lon, lat, source_elevation=None, notes=None):
+    """All layer values at one coordinate, keyed by the spring_features_v1 column names."""
+    notes = [] if notes is None else notes
+    row = dem_features(layers.dem, lon, lat)
+    if row.get("dem_elevation_m") is not None and source_elevation is not None:
+        row["dem_minus_source_elevation_m"] = row["dem_elevation_m"] - source_elevation
+        if abs(row["dem_minus_source_elevation_m"]) > ELEVATION_GAP_M:
+            notes.append(f"DEM and source elevation differ by more than {ELEVATION_GAP_M} m; check coordinate")
+            row["elevation_match_distance_m"] = elevation_match_distance(layers.dem, lon, lat, source_elevation)
+    row.update(hydrology_features(read_window, centre_index, metres_per_degree, layers.dem, lon, lat))
+    row.update(worldcover_features(layers.wc, lon, lat))
+
+    annual = [layers.pcp_a.sample(str(y), lon, lat) for y in YEARS]
+    annual = [v for v in annual if not math.isnan(v)]
+    if annual:
+        mean = statistics.fmean(annual)
+        row["rain_chirps_mean_annual_mm_2018_2025"] = mean
+        row["rain_chirps_min_annual_mm_2018_2025"] = min(annual)
+        row["rain_chirps_max_annual_mm_2018_2025"] = max(annual)
+        row["rain_chirps_cv_annual_pct"] = 100 * statistics.pstdev(annual) / mean if mean else None
+        monthly = {(y, m): layers.pcp_m.sample(f"{y}-{m:02d}", lon, lat) for y in YEARS for m in range(1, 13)}
+        year_totals = [sum(monthly[(y, m)] for m in range(1, 13)) for y in YEARS]
+        monsoon = [sum(monthly[(y, m)] for m in (6, 7, 8, 9)) for y in YEARS]
+        dry = [sum(monthly[(y, m)] for m in (1, 2, 3, 4, 11, 12)) for y in YEARS]
+        if not any(math.isnan(v) for v in year_totals) and sum(year_totals):
+            row["rain_chirps_monsoon_share_pct"] = 100 * sum(monsoon) / sum(year_totals)
+            row["rain_chirps_dry_season_mm"] = statistics.fmean(dry)
+        et0 = [layers.ret_a.sample(str(y), lon, lat) for y in YEARS]
+        et0 = [v for v in et0 if not math.isnan(v)]
+        if et0:
+            row["et0_wapor_mean_annual_mm_2018_2025"] = statistics.fmean(et0)
+            row["aridity_index_p_over_et0"] = mean / statistics.fmean(et0)
+    row.update(layers.hwsd.features(lon, lat))
+    row.update(layers.local.features(lon, lat))
+    row.update(layers.ngdr.features(lon, lat))  # blank outside Uttarakhand
+    if row.get("cartodem_elevation_m") is not None and row.get("dem_elevation_m") is not None:
+        row["cartodem_minus_copernicus_m"] = row["cartodem_elevation_m"] - row["dem_elevation_m"]
+    return row
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--cache", default=os.environ.get("SPRING_LAYER_CACHE", str(ROOT / ".layer_cache")))
@@ -792,9 +855,6 @@ def main():
     parser.add_argument("--lineaments", default=str(LINEAMENTS_FILE))
     args = parser.parse_args()
     cache = Path(args.cache)
-    os.environ.setdefault("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
-    if Path("/root/.ccr/ca-bundle.crt").exists():
-        os.environ.setdefault("CURL_CA_BUNDLE", "/root/.ccr/ca-bundle.crt")
 
     with COMMON_CSV.open(encoding="utf-8", newline="") as handle:
         source_rows = list(csv.DictReader(handle))
@@ -802,58 +862,13 @@ def main():
     colocated_groups(rows)
     points = [(r["latitude_dd"], r["longitude_dd"]) for r in rows if r["coordinate_status"] == "ok"]
 
-    print("Opening layers")
-    dem_sets = [rasterio.open(p) for p in dem_tiles_for(points, cache)]
-    wc_sets = [rasterio.open(p) for p in worldcover_tiles_for(points, cache)]
-    pcp_a = WaporStack("L1-PCP-A", [str(y) for y in YEARS])
-    pcp_m = WaporStack("L1-PCP-M", [f"{y}-{m:02d}" for y in YEARS for m in range(1, 13)])
-    ret_a = WaporStack("L1-RET-A", [str(y) for y in YEARS])
-    hwsd = Hwsd(cache)
-    local = LocalLayers(args.local_layers, args.lineaments)
-    ngdr = NgdrGeology()
-    print("GSI NGDR geology: " + (f"{len(ngdr.units)} lithology polygons, {len(ngdr.faults)} faults, {len(ngdr.folds)} fold axes" if ngdr.ok else "not found"))
-    print("Local layers: " + ("; ".join(local.found) or "none found"))
-
+    layers = open_layers(points, cache, args.local_layers, args.lineaments)
     for index, row in enumerate(rows):
         if row["coordinate_status"] != "ok":
             continue
-        lon, lat = row["longitude_dd"], row["latitude_dd"]
-        row.update(dem_features(dem_sets, lon, lat))
-        if row["dem_elevation_m"] != "" and row["source_elevation_m"] is not None:
-            row["dem_minus_source_elevation_m"] = row["dem_elevation_m"] - row["source_elevation_m"]
-            if abs(row["dem_minus_source_elevation_m"]) > ELEVATION_GAP_M:
-                row["_notes"].append(f"DEM and source elevation differ by more than {ELEVATION_GAP_M} m; check coordinate")
-                row["elevation_match_distance_m"] = elevation_match_distance(dem_sets, lon, lat, row["source_elevation_m"])
-        row.update(hydrology_features(read_window, centre_index, metres_per_degree, dem_sets, lon, lat))
-        row.update(worldcover_features(wc_sets, lon, lat))
-
-        annual = [pcp_a.sample(str(y), lon, lat) for y in YEARS]
-        annual = [v for v in annual if not math.isnan(v)]
-        if annual:
-            mean = statistics.fmean(annual)
-            row["rain_chirps_mean_annual_mm_2018_2025"] = mean
-            row["rain_chirps_min_annual_mm_2018_2025"] = min(annual)
-            row["rain_chirps_max_annual_mm_2018_2025"] = max(annual)
-            row["rain_chirps_cv_annual_pct"] = 100 * statistics.pstdev(annual) / mean if mean else None
-            monthly = {(y, m): pcp_m.sample(f"{y}-{m:02d}", lon, lat) for y in YEARS for m in range(1, 13)}
-            year_totals = [sum(monthly[(y, m)] for m in range(1, 13)) for y in YEARS]
-            monsoon = [sum(monthly[(y, m)] for m in (6, 7, 8, 9)) for y in YEARS]
-            dry = [sum(monthly[(y, m)] for m in (1, 2, 3, 4, 11, 12)) for y in YEARS]
-            if not any(math.isnan(v) for v in year_totals) and sum(year_totals):
-                row["rain_chirps_monsoon_share_pct"] = 100 * sum(monsoon) / sum(year_totals)
-                row["rain_chirps_dry_season_mm"] = statistics.fmean(dry)
-            et0 = [ret_a.sample(str(y), lon, lat) for y in YEARS]
-            et0 = [v for v in et0 if not math.isnan(v)]
-            if et0:
-                row["et0_wapor_mean_annual_mm_2018_2025"] = statistics.fmean(et0)
-                row["aridity_index_p_over_et0"] = mean / statistics.fmean(et0)
-            if row["source_rainfall_mm"] is not None:
-                row["rain_source_minus_chirps_mm"] = row["source_rainfall_mm"] - mean
-        row.update(hwsd.features(lon, lat))
-        row.update(local.features(lon, lat))
-        row.update(ngdr.features(lon, lat))  # blank outside Uttarakhand
-        if row.get("cartodem_elevation_m", "") != "" and row["dem_elevation_m"] != "":
-            row["cartodem_minus_copernicus_m"] = row["cartodem_elevation_m"] - row["dem_elevation_m"]
+        row.update(point_features(layers, row["longitude_dd"], row["latitude_dd"], row["source_elevation_m"], row["_notes"]))
+        if row["source_rainfall_mm"] is not None and row.get("rain_chirps_mean_annual_mm_2018_2025", "") != "":
+            row["rain_source_minus_chirps_mm"] = row["source_rainfall_mm"] - row["rain_chirps_mean_annual_mm_2018_2025"]
         if (index + 1) % 200 == 0:
             print(f"  {index + 1} rows")
 
@@ -928,7 +943,7 @@ def main():
                                         "TWI = ln(a / tan slope)", "stream_threshold_km2": STREAM_THRESHOLD_KM2,
                               "window": "+/- 5 km around each spring, +/- 20 km when the D8 catchment reaches the edge"},
         },
-        "local_layers_found": local.found,
+        "local_layers_found": layers.local.found,
         "not_acquired": {
             "Bhuvan LULC 1:50k": "Bhuvan services blocked from the build environment; download needs a request.",
         },

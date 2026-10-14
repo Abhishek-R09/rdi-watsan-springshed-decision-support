@@ -19,7 +19,7 @@ The tool is decision support, not a substitute for hydrogeological verification.
 - **00_raw:** received or downloaded files, unchanged after intake. Add a register entry first.
 - **01_staged:** standardised copies with source, date, units and transformations recorded.
 - **02_processed:** reproducible analysis-ready files. Most are generated locally; the small per-spring tables (`spring_features/`, `spring_master/`) and the DEM lineament file are committed so the team can open them without rebuilding. Start with `data/02_processed/spring_master/spring_master_v1.xlsx`.
-- **03_outputs:** maps, tables and tool exports; generate them from scripts and staged inputs. Module A (vulnerability score) results are in `data/03_outputs/module_a/`; method and how to run it: `docs/module-a-vulnerability.md`.
+- **03_outputs:** maps, tables and tool exports; generate them from scripts and staged inputs. Module A (vulnerability score) results are in `data/03_outputs/module_a/`; method and how to run it: `docs/module-a-vulnerability.md`. To use it through a chat assistant, see `scripts/spring_agent.py`. For how Modules A, B and C fit together, see `docs/module-contract.md`.
 
 Do not put credentials, personal contact details, consent-sensitive photos, or unapproved community data in the repository.
 

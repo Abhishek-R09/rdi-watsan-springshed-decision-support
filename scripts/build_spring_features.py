@@ -14,7 +14,8 @@ Public layers (downloaded once into a local cache, never committed):
 
 Layers downloaded by hand (logins or manual export), read from --local-layers DIR:
 - Bhoonidhi/*.zip      NRSC CartoDEM v3 30 m tiles, as downloaded from Bhoonidhi
-- IMD/*.nc             IMD 0.25 degree daily gridded rainfall (one calendar year per file; 2021-2025 used)
+- IMD/*.nc             IMD 0.25 degree daily gridded rainfall (one calendar year per file; every year found is used,
+                       2001-2025 with 2012 missing as of 2026-10-14)
 - SoilGrids/<prop>_<depth>_mean.tif   ISRIC SoilGrids 2.0 exports (clay, silt, sand, bdod, ocd, cfvo;
                        depths 0-5, 5-15 and 15-30 cm)
 DEM lineament candidates come from scripts/extract_dem_lineaments.py (--lineaments FILE).
@@ -46,6 +47,7 @@ import numpy as np
 import rasterio
 from rasterio.merge import merge
 from rasterio.windows import from_bounds
+from scipy.stats import kendalltau
 from pyproj import Transformer
 from shapely import STRtree, LineString, Point
 from shapely.geometry import shape
@@ -89,6 +91,7 @@ SOILGRID_PROPERTIES = [
 SOILGRIDS = [(f"{prop}_{depth}_mean", f"{stem}_{label}_{unit.replace('%', 'pct').replace('/', '_')}", divisor)
              for prop, stem, unit, divisor, _ in SOILGRID_PROPERTIES for depth, label in SOILGRID_DEPTHS]
 IMD_MONSOON_MONTHS = (6, 9)
+IMD_TREND_MIN_YEARS = 15
 
 # Study region: Uttarakhand and Himachal Pradesh springs in the common file.
 REGION = {"lat_min": 28.5, "lat_max": 33.5, "lon_min": 75.5, "lon_max": 81.5}
@@ -169,6 +172,11 @@ def parse_numbers(text):
     if "~" in text or "approx" in lowered:
         note += "; approximate in source"
     return min(numbers), max(numbers), note
+
+
+def sen_slope(xs, ys):
+    """Theil-Sen slope: median of the slopes between every pair of years (robust to one very wet or dry year)."""
+    return float(np.median([(ys[j] - ys[i]) / (xs[j] - xs[i]) for i in range(len(xs)) for j in range(i + 1, len(xs))]))
 
 
 def metres_per_degree(lat):
@@ -565,7 +573,10 @@ class LocalLayers:
             start = date(year, IMD_MONSOON_MONTHS[0], 1).timetuple().tm_yday - 1
             end = date(year, IMD_MONSOON_MONTHS[1], 30).timetuple().tm_yday
             total = np.nansum(series)
+            # dry season as in the CHIRPS columns: January-April and November-December of the same calendar year
+            may_1, nov_1 = ((date(year, m, 1) - date(year, 1, 1)).days for m in (5, 11))
             years[year] = {"total": total, "monsoon": np.nansum(series[start:end]),
+                           "dry": np.nansum(series[:may_1]) + np.nansum(series[nov_1:]),
                            "rainy_days": int(np.sum(series >= 2.5)), "max_1day": np.nanmax(series)}
             result[f"rain_imd_{year}_mm"] = total
         if years:
@@ -578,7 +589,17 @@ class LocalLayers:
             result["rain_imd_monsoon_share_pct"] = 100 * sum(v["monsoon"] for v in years.values()) / sum(totals) if sum(totals) else None
             result["rain_imd_rainy_days"] = statistics.fmean(v["rainy_days"] for v in years.values())
             result["rain_imd_max_1day_mm"] = max(v["max_1day"] for v in years.values())
-            result["rain_imd_years_used"] = f"{min(years)}-{max(years)}" if len(years) == max(years) - min(years) + 1 else ", ".join(map(str, years))
+            missing = [y for y in range(min(years), max(years) + 1) if y not in years]
+            result["rain_imd_years_used"] = f"{min(years)}-{max(years)}" + (f" ({len(years)} years; missing {', '.join(map(str, missing))})" if missing else "")
+            if len(years) >= IMD_TREND_MIN_YEARS:
+                xs = sorted(years)
+                annual_slope = sen_slope(xs, [years[y]["total"] for y in xs])
+                dry_totals = [years[y]["dry"] for y in xs]
+                result["rain_imd_trend_mm_per_year"] = annual_slope
+                result["rain_imd_trend_pct_per_decade"] = 1000 * annual_slope / mean if mean else None
+                result["rain_imd_trend_kendall_p"] = kendalltau(xs, [years[y]["total"] for y in xs]).pvalue
+                dry_mean = statistics.fmean(dry_totals)
+                result["rain_imd_dry_season_trend_pct_per_decade"] = 1000 * sen_slope(xs, dry_totals) / dry_mean if dry_mean else None
         for column, (grid, transform) in self.soil.items():
             cell = self._cell(transform, grid.shape, lon, lat)
             if cell and grid[cell] > 0:
@@ -744,14 +765,18 @@ COLUMNS = [
     ("et0_wapor_mean_annual_mm_2018_2025", "mm/year", "FAO WaPOR v3 L1-RET-A", "Mean annual reference evapotranspiration at the ~30 km cell."),
     ("aridity_index_p_over_et0", "", "Derived", "Mean annual CHIRPS rain divided by mean annual ET0."),
     ("rain_source_minus_chirps_mm", "mm/year", "Derived", "Source rainfall minus CHIRPS mean, where the source gives rainfall."),
-    ("rain_imd_mean_annual_mm", "mm/year", "IMD 0.25 degree gridded daily rainfall", "Mean of the yearly totals 2021-2025 at the ~25 km cell."),
-    ("rain_imd_min_annual_mm", "mm/year", "IMD 0.25 degree gridded daily rainfall", "Driest year 2021-2025."),
-    ("rain_imd_max_annual_mm", "mm/year", "IMD 0.25 degree gridded daily rainfall", "Wettest year 2021-2025."),
-    ("rain_imd_cv_annual_pct", "%", "IMD 0.25 degree gridded daily rainfall", "Year-to-year coefficient of variation, 2021-2025."),
-    ("rain_imd_monsoon_share_pct", "%", "IMD 0.25 degree gridded daily rainfall", "Share of 2021-2025 rain falling 1 June-30 September."),
+    ("rain_imd_mean_annual_mm", "mm/year", "IMD 0.25 degree gridded daily rainfall", "Mean of the yearly totals over the IMD years used (rain_imd_years_used) at the ~25 km cell."),
+    ("rain_imd_min_annual_mm", "mm/year", "IMD 0.25 degree gridded daily rainfall", "Driest year."),
+    ("rain_imd_max_annual_mm", "mm/year", "IMD 0.25 degree gridded daily rainfall", "Wettest year."),
+    ("rain_imd_cv_annual_pct", "%", "IMD 0.25 degree gridded daily rainfall", "Year-to-year coefficient of variation."),
+    ("rain_imd_monsoon_share_pct", "%", "IMD 0.25 degree gridded daily rainfall", "Share of rain falling 1 June-30 September."),
     ("rain_imd_rainy_days", "days/year", "IMD 0.25 degree gridded daily rainfall", "Mean days per year with at least 2.5 mm (IMD rainy-day definition)."),
-    ("rain_imd_max_1day_mm", "mm", "IMD 0.25 degree gridded daily rainfall", "Wettest single day, 2021-2025."),
+    ("rain_imd_max_1day_mm", "mm", "IMD 0.25 degree gridded daily rainfall", "Wettest single day."),
     ("rain_imd_years_used", "", "IMD 0.25 degree gridded daily rainfall", "IMD years found and used."),
+    ("rain_imd_trend_mm_per_year", "mm/year per year", "Derived from IMD", f"Theil-Sen trend of yearly rainfall (median of all year-pair slopes); negative = getting drier. Needs at least {IMD_TREND_MIN_YEARS} years."),
+    ("rain_imd_trend_pct_per_decade", "% per decade", "Derived from IMD", "The same trend as a share of mean yearly rain, per 10 years."),
+    ("rain_imd_trend_kendall_p", "", "Derived from IMD", "Mann-Kendall test p-value for the yearly totals (below 0.05 = a trend unlikely to be chance)."),
+    ("rain_imd_dry_season_trend_pct_per_decade", "% per decade", "Derived from IMD", "Theil-Sen trend of January-April plus November-December rain, as a share of its mean, per 10 years."),
 ] + [
     (f"rain_imd_{year}_mm", "mm", "IMD 0.25 degree gridded daily rainfall", f"Total rain in {year}.") for year in range(2021, 2026)
 ] + [
@@ -993,7 +1018,7 @@ def main():
             for name in COLUMN_NAMES:
                 value = row.get(name, "")
                 if isinstance(value, (float, np.floating)):
-                    digits = (6 if name in ("latitude_dd", "longitude_dd") else 3 if name == "aridity_index_p_over_et0"
+                    digits = (6 if name in ("latitude_dd", "longitude_dd") else 3 if name in ("aridity_index_p_over_et0", "rain_imd_trend_kendall_p")
                               else 2 if name == "dem_twi" or "drainage_area" in name or "bulk_density" in name else 1)
                     value = fmt(value, digits)
                 elif value is None:
@@ -1034,7 +1059,7 @@ def main():
             "HWSD v2.0": {"urls": HWSD_URLS, "resolution": "30 arc-second (~1 km)", "licence": "FAO/IIASA, CC BY-NC-SA 3.0 IGO (non-commercial)"},
             "NRSC CartoDEM v3 30 m": {"source": "Bhoonidhi (bhoonidhi.nrsc.gov.in), downloaded by hand 2026-10-10; 1-degree tiles P5_PAN_CD_N*_E*_30m",
                                       "licence": "NRSC data policy; raw tiles not committed"},
-            "IMD 0.25 degree daily gridded rainfall": {"source": "IMD Pune, files RF25_ind2021_rfp25.nc to RF25_ind2025_rfp25.nc (calendar years 2021-2025), downloaded by hand 2026-10-10 (2025) and 2026-10-12 (2021-2024)",
+            "IMD 0.25 degree daily gridded rainfall": {"source": "IMD Pune, files RF25_ind2001_rfp25.nc to RF25_ind2025_rfp25.nc (calendar years 2001-2025; 2012 not downloaded), downloaded by hand 2026-10-10 (2025), 2026-10-12 (2021-2024) and 2026-10-14 (2001-2020)",
                                                        "licence": "IMD data policy; raw file not committed"},
             "ISRIC SoilGrids 2.0": {"source": "soilgrids.org map export, mean, bbox lon 76-81 lat 28.7-32.4; 0-5 cm downloaded by hand 2026-10-10, "
                                               "5-15 and 15-30 cm (files named by property) on 2026-10-12",

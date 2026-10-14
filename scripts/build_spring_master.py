@@ -131,10 +131,13 @@ COLUMNS = [
     ("rainfall_dry_season_mm", "mm", "CHIRPS v2 2018-2025", "November-April rain."),
     ("et0_mean_annual_mm", "mm/year", "FAO WaPOR v3", "Reference evapotranspiration."),
     ("aridity_index", "", "Derived", "Rainfall / ET0."),
-    ("rainfall_imd_mean_annual_mm", "mm/year", "IMD 0.25 degree grid, 2021-2025", "Mean annual rainfall, ~25 km. Cross-check on CHIRPS; IMD reads lower in the hills."),
-    ("rainfall_imd_min_annual_mm", "mm/year", "IMD 0.25 degree grid, 2021-2025", "Driest of the five years."),
-    ("rainfall_imd_cv_pct", "%", "IMD 0.25 degree grid, 2021-2025", "Year-to-year variation."),
-    ("rainfall_imd_max_1day_mm", "mm", "IMD 0.25 degree grid, 2021-2025", "Wettest single day in the five years."),
+    ("rainfall_imd_mean_annual_mm", "mm/year", "IMD 0.25 degree grid, 2001-2025 (2012 missing)", "Mean annual rainfall, ~25 km. Cross-check on CHIRPS; IMD reads lower in the hills."),
+    ("rainfall_imd_min_annual_mm", "mm/year", "IMD 0.25 degree grid, 2001-2025", "Driest year."),
+    ("rainfall_imd_cv_pct", "%", "IMD 0.25 degree grid, 2001-2025", "Year-to-year variation."),
+    ("rainfall_imd_max_1day_mm", "mm", "IMD 0.25 degree grid, 2001-2025", "Wettest single day."),
+    ("rainfall_imd_trend_pct_per_decade", "% per decade", "IMD 0.25 degree grid, 2001-2025", "Theil-Sen trend of yearly rain as a share of the mean, per 10 years; negative = getting drier."),
+    ("rainfall_imd_trend_p", "", "IMD 0.25 degree grid, 2001-2025", "Mann-Kendall p-value; below 0.05 = a trend unlikely to be chance."),
+    ("rainfall_imd_dry_season_trend_pct_per_decade", "% per decade", "IMD 0.25 degree grid, 2001-2025", "Same for January-April plus November-December rain."),
     ("rainfall_source_mm", "mm/year", "Common file", "Rainfall the source gave, for comparison."),
     # soil
     ("soil_clay_pct", "%", "SoilGrids 2.0, 0-30 cm (HWSD v2 0-20 cm where missing)", "Depth-weighted mean of the 0-5, 5-15 and 15-30 cm layers."),
@@ -397,6 +400,8 @@ def main():
             "et0_mean_annual_mm": f["et0_wapor_mean_annual_mm_2018_2025"], "aridity_index": f["aridity_index_p_over_et0"],
             "rainfall_imd_mean_annual_mm": f["rain_imd_mean_annual_mm"], "rainfall_imd_min_annual_mm": f["rain_imd_min_annual_mm"],
             "rainfall_imd_cv_pct": f["rain_imd_cv_annual_pct"], "rainfall_imd_max_1day_mm": f["rain_imd_max_1day_mm"],
+            "rainfall_imd_trend_pct_per_decade": f["rain_imd_trend_pct_per_decade"], "rainfall_imd_trend_p": f["rain_imd_trend_kendall_p"],
+            "rainfall_imd_dry_season_trend_pct_per_decade": f["rain_imd_dry_season_trend_pct_per_decade"],
             "rainfall_source_mm": f["source_rainfall_mm"],
             "soil_coarse_fragments_pct": f["sg_coarse_fragments_0_30cm_pct"],
             "soil_bulk_density_g_cm3": f["sg_bulk_density_0_30cm_g_cm3"], "soil_org_carbon_density_kg_m3": f["sg_org_carbon_density_0_30cm_kg_m3"],
@@ -554,7 +559,7 @@ GUIDE = [
                      "record from another source within 30 m filled it; the *_from column names that record."),
     ("Not filled", "Nothing is estimated, averaged from neighbours or invented. Blank means no source has it; gaps_remaining lists what is missing."),
     ("Caveats", "Layer values describe the spring point or a circle around it, not the real recharge area. CHIRPS rainfall is ~5 km, "
-                "HWSD soil ~1 km, SoilGrids 250 m, IMD ~25 km (2021-2025). DEM lineaments are unvalidated candidates. "
+                "HWSD soil ~1 km, SoilGrids 250 m, IMD ~25 km (2001-2025, 2012 missing). DEM lineaments are unvalidated candidates. "
                 "Drainage area, wetness index and distance to stream come from a 30 m DEM: small hollows are invisible and a 30 m GPS "
                 "error can move a spring into the next cell, so compare drainage_area_ha with drainage_area_max30m_ha. "
                 "GSI geology is a state-scale map: a spring's polygon is a map overlay, not a field check, and it covers Uttarakhand only."),

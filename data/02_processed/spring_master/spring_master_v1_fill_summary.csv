@@ -15,6 +15,8 @@ colocated_group_id,449,24,,,1393
 colocated_group_size,449,24,,,1393
 is_primary_record,1842,100,,,0
 spring_id,1842,100,,,0
+dataset_split,1842,100,,,0
+split_reason,235,13,,,1607
 duplicate_status,449,24,,,1393
 duplicate_group,449,24,,,1393
 elevation_m,1805,98,,,37

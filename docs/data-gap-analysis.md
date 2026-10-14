@@ -155,3 +155,15 @@ Result: 151 groups are one spring, 48 are different springs, 4 are partly the sa
 
 The 36 records with no coordinates stay unmapped. Placing them from a village name would add a precision the data does not have.
 
+## 8. Input and test data (2026-10-14)
+
+The master is split so the tool can be checked honestly. `dataset_split` is `input` (build and tune the tool) or `test` (keep aside; score the finished tool on it once). The test set is:
+- every record in **Tehri Garhwal**, a whole held-out district where the field visit also takes place;
+- the **10 Spring Atlas profile springs**, the only springs with both a delineated recharge area and a coordinate;
+- every record in the same 30 m group as one of these;
+- every spring **within 2 km** of one of these. Nearby springs share rainfall, rocks and sometimes a coordinate, so leaving a neighbour in the input data would make the test too easy.
+
+That gives 216 distinct springs for testing and 1,463 for input. The test set holds 11 highly seasonal and 5 perennial springs, plus 130 with a discharge figure. The workbook has separate Input data and Test data sheets, and the same split is in `spring_master_v1_input.csv` and `spring_master_v1_test.csv`. Field-visit springs will be added to the test data.
+
+Vulnerability is judged by decline over time (less flow than before, drying earlier, perennial turned seasonal), not by seasonality alone. A spring that has always been seasonal is not vulnerable for that reason. Seasonality, especially "highly seasonal", is one sign among several. The best test labels will be field answers to "has this spring declined?".
+

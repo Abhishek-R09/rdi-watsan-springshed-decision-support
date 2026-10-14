@@ -3,7 +3,8 @@
 Inputs:  data/01_staged/common/csv/spring_records_common_v1.csv
          data/02_processed/spring_features/spring_features_v1.csv
 Output:  data/02_processed/spring_master/spring_master_v1.csv (+ data dictionary,
-         fill summary) and spring_master_v1.xlsx
+         fill summary, duplicate pairs, and the input / test split as
+         spring_master_v1_input.csv and spring_master_v1_test.csv) and spring_master_v1.xlsx
 
 How gaps are filled (nothing is invented or interpolated; every filled value says
 where it came from in a *_from column):
@@ -21,15 +22,16 @@ Usage: python scripts/build_spring_master.py
 """
 
 import csv
+import math
 import re
 from collections import Counter
 from pathlib import Path
 
 from openpyxl import Workbook
-
-from spring_duplicates import load_decisions, resolve_group
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
+
+from spring_duplicates import load_decisions, resolve_group
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,6 +44,13 @@ DISTRICTS = ["Almora", "Bageshwar", "Chamoli", "Champawat", "Dehradun", "Haridwa
              "Rudraprayag", "Tehri Garhwal", "Udham Singh Nagar", "Uttarkashi"]
 OUT_DIR = ROOT / "data" / "02_processed" / "spring_master"
 DECISIONS_CSV = ROOT / "data" / "01_staged" / "common" / "duplicate_review_decisions_v1.csv"
+# Test set, kept out of model building and tuning (agreed with Rajat 2026-10-14): one whole district, the
+# Spring Atlas profile springs (the only real recharge-area delineations with coordinates), every record in
+# the same 30 m group as a test record, and every spring within TEST_BUFFER_M of one, so no test spring
+# has a near-identical neighbour in the input data.
+TEST_DISTRICTS = {"Tehri Garhwal"}
+TEST_SOURCE_PREFIXES = ("ATP",)
+TEST_BUFFER_M = 2000
 DECISION_COLUMNS = ["record_id_a", "record_id_b", "decision", "decided_by", "decided_on", "note"]
 
 # Preferred record when several sources list the same spring: richest field data first.
@@ -84,6 +93,8 @@ COLUMNS = [
     ("colocated_group_size", "", "Processed features", ""),
     ("is_primary_record", "", "Derived", "Y for one record per spring: the only record, or the richest record among those confirmed as the same spring. Use Y rows to count distinct springs."),
     ("spring_id", "", "Derived", "Record id of the primary record of this spring. Records with the same spring_id are one spring listed more than once."),
+    ("dataset_split", "", "Derived", "input = use to build and tune the tool; test = keep aside until the tool is finished, then score once. Test: Tehri Garhwal, the 10 Spring Atlas profile springs, their 30 m groups, and springs within 2 km of these."),
+    ("split_reason", "", "Derived", "Why a record is in the test set."),
     ("duplicate_status", "", "Derived", "Blank for records with no other record within 30 m. Otherwise: same spring, different springs, partly the same spring, or needs review (for the whole 30 m group)."),
     ("duplicate_group", "", "Derived", "For records within 30 m of another: the group, which records are the same spring, which are separate springs and why, and which still need a person's decision. Coloured in the workbook; every pair is on the Duplicate pairs sheet."),
     # terrain
@@ -243,6 +254,34 @@ def district_from_area(text):
 
 def richness(record_id, values):
     return (sum(1 for k in FIELD_ONLY if values[k]), -SOURCE_PRIORITY.get(record_id[:3], 9))
+
+
+def assign_split(rows, groups):
+    by_id = {r["record_id"]: r for r in rows}
+    reason = {}
+    for r in rows:
+        if r["district"] in TEST_DISTRICTS:
+            reason[r["record_id"]] = f"{r['district']} (held-out district)"
+        elif r["record_id"].startswith(TEST_SOURCE_PREFIXES):
+            reason[r["record_id"]] = "Spring Atlas profile spring (delineated recharge area)"
+    for members in groups.values():
+        held = [m for m in members if m in reason]
+        for m in members:
+            if held and m not in reason:
+                reason[m] = f"same 30 m group as {held[0]}"
+    anchors = [(by_id[rid]["latitude"], by_id[rid]["longitude"], rid) for rid in reason if by_id[rid]["latitude"]]
+    for r in rows:
+        if r["record_id"] in reason or not r["latitude"]:
+            continue
+        lat, lon = float(r["latitude"]), float(r["longitude"])
+        for a_lat, a_lon, rid in anchors:
+            d = math.hypot((lat - float(a_lat)) * 111_000, (lon - float(a_lon)) * 111_000 * math.cos(math.radians(lat)))
+            if d <= TEST_BUFFER_M:
+                reason[r["record_id"]] = f"within {d / 1000:.1f} km of test spring {rid}"
+                break
+    for r in rows:
+        r["dataset_split"] = "test" if r["record_id"] in reason else "input"
+        r["split_reason"] = reason.get(r["record_id"], "")
 
 
 def duplicate_label(rid, group, size, spring_of, pairs):
@@ -429,7 +468,13 @@ def main():
         row["gaps_remaining"] = "; ".join(missing)
         rows.append(row)
 
+    assign_split(rows, groups)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    for split in ("input", "test"):
+        with (OUT_DIR / f"spring_master_v1_{split}.csv").open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=NAMES, lineterminator="\n")
+            writer.writeheader()
+            writer.writerows(r for r in rows if r["dataset_split"] == split)
     with (OUT_DIR / "spring_master_v1.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=NAMES, lineterminator="\n")
         writer.writeheader()
@@ -482,6 +527,10 @@ def main():
 GUIDE = [
     ("What this is", "One row per spring record from the common file (WATSAN, Spring Atlas annexure, Himmotthan, Atlas profiles, "
                      "Chamba report, Rathi 2021, Daniel 2021), with every gap filled that public data or a matching record can fill."),
+    ("Input and test data", "The records are split in two. Input data is for building and tuning the tool. Test data (Tehri Garhwal, "
+                            "the 10 Spring Atlas profile springs, and everything within 2 km of them) is kept aside: do not look at it or "
+                            "tune rules on it, and score the finished tool on it once. Field-visit springs will be added to the test data. "
+                            "spring_master_v1_input.csv and spring_master_v1_test.csv hold the same split; spring_master_v1.csv has all records."),
     ("Counting springs", "Some springs are listed by two sources. Filter is_primary_record = Y to keep one row per spring; "
                          "spring_id links the records of one spring."),
     ("Duplicates", "Records within 30 m of each other were compared by name, position word (Talla / Malla, I / II), village and "
@@ -543,15 +592,18 @@ def write_workbook(rows, summary, pair_header, pair_rows):
                             "geological_structure_text", "intervention_text", "land_use_source_text")}
     wide.update({n: 30 for n in ("lithology_from", "spring_type_from", "discharge_from", "water_quality_from", "recharge_area_from", "source_dataset")})
     wide.update({"duplicate_group": 60, "elevation_check": 45, "coordinate_correction": 40, "duplicate_status": 20})
-    springs = wb.create_sheet("Springs")
-    table(springs, NAMES, [[r[n] for n in NAMES] for r in rows], wide)
+    wide["split_reason"] = 35
     fills = {"same spring": "FCE4D6", "partly the same spring": "FCE4D6", "different springs": "E2EFDA", "needs review": "FFF2CC"}
     status_col, label_col = NAMES.index("duplicate_status") + 1, NAMES.index("duplicate_group") + 1
-    for i, r in enumerate(rows, start=2):
-        if r["duplicate_status"]:
-            fill = PatternFill("solid", fgColor=fills[r["duplicate_status"]])
-            springs.cell(row=i, column=status_col).fill = fill
-            springs.cell(row=i, column=label_col).fill = fill
+    for title, split in (("Input data", "input"), ("Test data", "test")):
+        part = [r for r in rows if r["dataset_split"] == split]
+        sheet = wb.create_sheet(title)
+        table(sheet, NAMES, [[r[n] for n in NAMES] for r in part], wide)
+        for i, r in enumerate(part, start=2):
+            if r["duplicate_status"]:
+                fill = PatternFill("solid", fgColor=fills[r["duplicate_status"]])
+                sheet.cell(row=i, column=status_col).fill = fill
+                sheet.cell(row=i, column=label_col).fill = fill
     review = [p for p in pair_rows if p[1] == "review"]
     table(wb.create_sheet("Duplicate review"), pair_header + ["your_decision (same / different)", "note"],
           [p + ["", ""] for p in review],

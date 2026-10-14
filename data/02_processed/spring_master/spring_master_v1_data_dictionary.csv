@@ -15,6 +15,8 @@ colocated_group_id,,Processed features,Records within 30 m of each other; probab
 colocated_group_size,,Processed features,
 is_primary_record,,Derived,"Y for one record per spring: the only record, or the richest record among those confirmed as the same spring. Use Y rows to count distinct springs."
 spring_id,,Derived,Record id of the primary record of this spring. Records with the same spring_id are one spring listed more than once.
+dataset_split,,Derived,"input = use to build and tune the tool; test = keep aside until the tool is finished, then score once. Test: Tehri Garhwal, the 10 Spring Atlas profile springs, their 30 m groups, and springs within 2 km of these."
+split_reason,,Derived,Why a record is in the test set.
 duplicate_status,,Derived,"Blank for records with no other record within 30 m. Otherwise: same spring, different springs, partly the same spring, or needs review (for the whole 30 m group)."
 duplicate_group,,Derived,"For records within 30 m of another: the group, which records are the same spring, which are separate springs and why, and which still need a person's decision. Coloured in the workbook; every pair is on the Duplicate pairs sheet."
 elevation_m,m,Copernicus DEM GLO-30,DEM elevation at the spring (same layer for all springs).

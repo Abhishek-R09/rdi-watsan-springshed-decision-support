@@ -2,7 +2,7 @@
 
 29.91903, 78.55647 · 1481 m · scored 2026-10-14 · Module A draft weights v1
 
-## Score: 51 / 100, Medium (confidence: High)
+## Score: 49 / 100, Medium (confidence: High)
 
 Indicators with data carry 100% of the full weight.
 
@@ -31,17 +31,18 @@ Holding the score down:
 | Stressor (field) | Users now vs 10-20 years ago | more | 50 | 4% | 2.0 |
 | Stressor (field) | Disturbance uphill (roads, fire, grazing, landslides) | major | 100 | 4% | 4.0 |
 | Stressor (field) | Pollution sources within 30 m | none | 0 | 3% | 0.0 |
-| Stressor (location) | Dry-season rain (Nov-Apr) | 211 mm | 37 | 9% | 3.3 |
-| Stressor (location) | Rain / evaporation demand (aridity index) | 1.36 | 66 | 6% | 4.0 |
+| Stressor (location) | Dry-season rain (Nov-Apr) | 211 mm | 37 | 7% | 2.6 |
+| Stressor (location) | Rainfall trend 2001-2025 | -0.5% per decade | 23 | 5% | 1.2 |
 | Stressor (location) | Building growth within 1 km, 2016-2023 | -5% | 5 | 5% | 0.2 |
-| Stressor (location) | Year-to-year rain variability | 13% | 56 | 4% | 2.2 |
+| Stressor (location) | Rain / evaporation demand (aridity index) | 1.36 | 66 | 4% | 2.6 |
+| Stressor (location) | Year-to-year rain variability | 18% | 11 | 3% | 0.3 |
 | Stressor (location) | Built-up, cropland and bare land within 500 m | 2% | 38 | 3% | 1.1 |
 | Stressor (location) | Buildings within 1 km (2023) | 352 | 47 | 3% | 1.4 |
 | Stressor (location) | Mean slope within 500 m | 19 degrees | 16 | 2% | 0.3 |
 | Stressor (location) | Land rising above the spring within 1 km | 274 m | 63 | 2% | 1.3 |
 | Response | Outlet protection and user committee | both | 0 | 3% | 0.0 |
 | Response | Recharge works uphill | none | 100 | 3% | 3.0 |
-| | **Total** | | | 100% | **51** |
+| | **Total** | | | 100% | **49** |
 
 Location scores are percentiles among the input springs at 700 m or higher (higher = more exposed). Field scores use the field form bands: low 0, moderate 50, high 100.
 
@@ -52,7 +53,7 @@ Location scores are percentiles among the input springs at 700 m or higher (high
 - Nearest mapped fault: 2.7 km (Fault Observed)
 - Spring type (field): Fracture
 - Soil 0-30 cm (SoilGrids): clay 27%, sand 33%
-- Yearly rain (CHIRPS 2018-2025): 1775 mm (IMD 2021-2025: 1103 mm)
+- Yearly rain (CHIRPS 2018-2025): 1775 mm (IMD 2001-2025: 1102 mm)
 - Tree cover within 500 m: 69%
 - Surface catchment above the spring (DEM): 8.3 ha. This is not the recharge area; Module B will estimate that.
 - Nearest spring in the dataset: Nauli Dhara (ATL-SPR-0663, 0 m away, input data)

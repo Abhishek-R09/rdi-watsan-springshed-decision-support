@@ -66,14 +66,18 @@ rain_chirps_dry_season_mm,mm,CHIRPS v2 via FAO WaPOR v3 L1-PCP-M,Mean November-A
 et0_wapor_mean_annual_mm_2018_2025,mm/year,FAO WaPOR v3 L1-RET-A,Mean annual reference evapotranspiration at the ~30 km cell.
 aridity_index_p_over_et0,,Derived,Mean annual CHIRPS rain divided by mean annual ET0.
 rain_source_minus_chirps_mm,mm/year,Derived,"Source rainfall minus CHIRPS mean, where the source gives rainfall."
-rain_imd_mean_annual_mm,mm/year,IMD 0.25 degree gridded daily rainfall,Mean of the yearly totals 2021-2025 at the ~25 km cell.
-rain_imd_min_annual_mm,mm/year,IMD 0.25 degree gridded daily rainfall,Driest year 2021-2025.
-rain_imd_max_annual_mm,mm/year,IMD 0.25 degree gridded daily rainfall,Wettest year 2021-2025.
-rain_imd_cv_annual_pct,%,IMD 0.25 degree gridded daily rainfall,"Year-to-year coefficient of variation, 2021-2025."
-rain_imd_monsoon_share_pct,%,IMD 0.25 degree gridded daily rainfall,Share of 2021-2025 rain falling 1 June-30 September.
+rain_imd_mean_annual_mm,mm/year,IMD 0.25 degree gridded daily rainfall,Mean of the yearly totals over the IMD years used (rain_imd_years_used) at the ~25 km cell.
+rain_imd_min_annual_mm,mm/year,IMD 0.25 degree gridded daily rainfall,Driest year.
+rain_imd_max_annual_mm,mm/year,IMD 0.25 degree gridded daily rainfall,Wettest year.
+rain_imd_cv_annual_pct,%,IMD 0.25 degree gridded daily rainfall,Year-to-year coefficient of variation.
+rain_imd_monsoon_share_pct,%,IMD 0.25 degree gridded daily rainfall,Share of rain falling 1 June-30 September.
 rain_imd_rainy_days,days/year,IMD 0.25 degree gridded daily rainfall,Mean days per year with at least 2.5 mm (IMD rainy-day definition).
-rain_imd_max_1day_mm,mm,IMD 0.25 degree gridded daily rainfall,"Wettest single day, 2021-2025."
+rain_imd_max_1day_mm,mm,IMD 0.25 degree gridded daily rainfall,Wettest single day.
 rain_imd_years_used,,IMD 0.25 degree gridded daily rainfall,IMD years found and used.
+rain_imd_trend_mm_per_year,mm/year per year,Derived from IMD,Theil-Sen trend of yearly rainfall (median of all year-pair slopes); negative = getting drier. Needs at least 15 years.
+rain_imd_trend_pct_per_decade,% per decade,Derived from IMD,"The same trend as a share of mean yearly rain, per 10 years."
+rain_imd_trend_kendall_p,,Derived from IMD,Mann-Kendall test p-value for the yearly totals (below 0.05 = a trend unlikely to be chance).
+rain_imd_dry_season_trend_pct_per_decade,% per decade,Derived from IMD,"Theil-Sen trend of January-April plus November-December rain, as a share of its mean, per 10 years."
 rain_imd_2021_mm,mm,IMD 0.25 degree gridded daily rainfall,Total rain in 2021.
 rain_imd_2022_mm,mm,IMD 0.25 degree gridded daily rainfall,Total rain in 2022.
 rain_imd_2023_mm,mm,IMD 0.25 degree gridded daily rainfall,Total rain in 2023.

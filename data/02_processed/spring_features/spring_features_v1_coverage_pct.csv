@@ -74,6 +74,10 @@ rain_imd_monsoon_share_pct,100,100,0,100,0,100,100,98
 rain_imd_rainy_days,100,100,0,100,0,100,100,98
 rain_imd_max_1day_mm,100,100,0,100,0,100,100,98
 rain_imd_years_used,100,100,0,100,0,100,100,98
+rain_imd_trend_mm_per_year,100,100,0,100,0,100,100,98
+rain_imd_trend_pct_per_decade,100,100,0,100,0,100,100,98
+rain_imd_trend_kendall_p,100,100,0,100,0,100,100,98
+rain_imd_dry_season_trend_pct_per_decade,100,100,0,100,0,100,100,98
 rain_imd_2021_mm,100,100,0,100,0,100,100,98
 rain_imd_2022_mm,100,100,0,100,0,100,100,98
 rain_imd_2023_mm,100,100,0,100,0,100,100,98

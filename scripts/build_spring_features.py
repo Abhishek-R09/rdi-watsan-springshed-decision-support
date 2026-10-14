@@ -10,6 +10,7 @@ Public layers (downloaded once into a local cache, never committed):
 - CHIRPS precipitation, annual and monthly 2018-2025, as republished by FAO WaPOR v3 (L1-PCP-A/M, ~5 km)
 - FAO WaPOR v3 reference evapotranspiration, annual 2018-2025 (L1-RET-A, ~30 km)
 - FAO/IIASA Harmonized World Soil Database v2.0 (30 arc-second raster + database tables exported to CSV)
+- Google Open Buildings 2.5D Temporal v1 (building counts within 1 km, 2016 and 2023; Google Cloud Storage)
 
 Layers downloaded by hand (logins or manual export), read from --local-layers DIR:
 - Bhoonidhi/*.zip      NRSC CartoDEM v3 30 m tiles, as downloaded from Bhoonidhi
@@ -35,7 +36,9 @@ import os
 import re
 import statistics
 import subprocess
+import threading
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 from pathlib import Path
 
@@ -63,6 +66,10 @@ HWSD_URLS = [
     "https://s3.eu-west-1.amazonaws.com/data.gaezdev.aws.fao.org/HWSD/HWSD2_DB.zip",
 ]
 YEARS = list(range(2018, 2026))
+OBT_URL = "https://storage.googleapis.com/open-buildings-temporal-data/v1/manifests/39_EPSG_{epsg}_{year}_06_30.json"
+OBT_YEARS = (2016, 2023)
+OBT_RADIUS_M = 1000
+OBT_MIN_BASE = 25  # growth % is taken against at least this many buildings, so a few new houses in an empty area do not read as +300 %
 NGDR_DIR = ROOT / "data" / "00_raw" / "ngdr_geology"
 NGDR_LITHOLOGY = NGDR_DIR / "lithology" / "LITHOLOGY_STATE_UTTARAKHAND.geojson"
 NGDR_FAULTS = NGDR_DIR / "faults" / "FAULT_STATE_UTTARAKHAND.geojson"
@@ -387,6 +394,101 @@ class Hwsd:
         }
 
 
+class OpenBuildingsTemporal:
+    """Google Open Buildings 2.5D Temporal v1: estimated building count within OBT_RADIUS_M in 2016 and 2023.
+
+    Tiles are 12.5 km squares in UTM 43N/44N; the building_fractional_count band summed over an area gives
+    the number of buildings. Read at the 8 m overview (enough for a 1 km circle). Only tiles in the same UTM
+    zone as the spring are read, so a circle crossing the 78 E zone edge loses the part in the other zone.
+    """
+
+    def __init__(self, cache):
+        self.tiles = {}
+        for year in OBT_YEARS:
+            self.tiles[year] = []
+            for epsg in (32643, 32644):
+                path = cache / "open_buildings" / f"39_EPSG_{epsg}_{year}_06_30.json"
+                download(OBT_URL.format(epsg=epsg, year=year), path)
+                manifest = json.loads(path.read_text(encoding="utf-8"))
+                prefix = manifest["uriPrefix"].replace("gs://", "/vsicurl/https://storage.googleapis.com/")
+                for source in manifest["tilesets"][0]["sources"]:
+                    a, size = source["affineTransform"], source["dimensions"]
+                    self.tiles[year].append((epsg, a["translateX"], a["translateY"] + a["scaleY"] * size["height"],
+                                             a["translateX"] + a["scaleX"] * size["width"], a["translateY"], prefix + source["uris"][0]))
+        self.local = threading.local()  # open tiles and transformers per thread (neither is thread-safe)
+        self.done = {}
+
+    def _open(self, url):
+        handles = self.local.__dict__.setdefault("handles", {})
+        if url not in handles:
+            if len(handles) > 64:
+                for handle in handles.values():
+                    handle.close()
+                handles.clear()
+            handles[url] = rasterio.open(url)
+        return handles[url]
+
+    def _to_utm(self, epsg):
+        transformers = self.local.__dict__.setdefault("to_utm", {})
+        if epsg not in transformers:
+            transformers[epsg] = Transformer.from_crs("EPSG:4326", f"EPSG:{epsg}", always_xy=True)
+        return transformers[epsg]
+
+    def prefetch(self, points, workers=8):
+        """Fetch many springs in parallel (remote reads dominate); features() then returns the stored values."""
+        with ThreadPoolExecutor(workers) as pool:
+            for (lat, lon), result in zip(points, pool.map(lambda p: self._features(p[1], p[0]), points)):
+                self.done[(lon, lat)] = result
+
+    def count(self, year, lon, lat):
+        tiles = self.tiles[year]
+        home = None
+        for epsg, left, bottom, right, top, _ in tiles:
+            x, y = self._to_utm(epsg).transform(lon, lat)
+            if left <= x < right and bottom < y <= top:
+                home = epsg
+                break
+        if home is None:
+            return None
+        r = OBT_RADIUS_M
+        box = (x - r, y - r, x + r, y + r)
+        cells = int(2 * r / 8)
+        stack = []
+        for epsg, left, bottom, right, top, url in tiles:
+            if epsg != home or right <= box[0] or left >= box[2] or top <= box[1] or bottom >= box[3]:
+                continue
+            ds = self._open(url)
+            window = from_bounds(*box, transform=ds.transform)
+            data = ds.read(1, window=window, out_shape=(cells, cells), boundless=True, fill_value=-99.0)
+            stack.append(np.where(data < -90, np.nan, data))
+        if not stack:
+            return None
+        grid = np.nanmax(np.stack(stack), axis=0) if len(stack) > 1 else stack[0]
+        yy, xx = (np.indices(grid.shape) + 0.5) * (2 * r / cells) - r
+        inside = (np.hypot(xx, yy) <= r) & ~np.isnan(grid)
+        if inside.sum() < 0.5 * (np.hypot(xx, yy) <= r).sum():
+            return None
+        # mean count per 0.5 m pixel x number of 0.5 m pixels in the circle
+        return float(np.mean(grid[inside]) * math.pi * r * r / 0.25)
+
+    def features(self, lon, lat):
+        if (lon, lat) in self.done:
+            return self.done[(lon, lat)]
+        return self._features(lon, lat)
+
+    def _features(self, lon, lat):
+        counts = {year: self.count(year, lon, lat) for year in OBT_YEARS}
+        if any(v is None for v in counts.values()):
+            return {}
+        first, last = counts[OBT_YEARS[0]], counts[OBT_YEARS[-1]]
+        return {
+            f"obt_buildings_1km_{OBT_YEARS[0]}": first,
+            f"obt_buildings_1km_{OBT_YEARS[-1]}": last,
+            "obt_buildings_added_1km": last - first,
+            "obt_building_growth_pct": 100 * (last - first) / max(first, OBT_MIN_BASE),
+        }
+
+
 class LocalLayers:
     """Layers Rajat downloaded by hand (CartoDEM, IMD, SoilGrids) plus DEM lineament candidates."""
 
@@ -691,6 +793,11 @@ COLUMNS = [
     ("distance_to_gsi_anticline_m", "m", "GSI NGDR Uttarakhand folds", "Distance to the nearest anticline or antiform axis (rocks dip away; fractured crest)."),
     ("distance_to_gsi_syncline_m", "m", "GSI NGDR Uttarakhand folds", "Distance to the nearest syncline or synform axis (rocks dip inward; can trap groundwater)."),
     ("gsi_fold_axes_within_2km", "count", "GSI NGDR Uttarakhand folds", "Number of fold axes within 2 km."),
+    # Settlement growth
+    (f"obt_buildings_1km_{OBT_YEARS[0]}", "count", "Google Open Buildings 2.5D Temporal v1", f"Estimated number of buildings within {OBT_RADIUS_M} m in {OBT_YEARS[0]} (building_fractional_count summed over the circle, 8 m overview)."),
+    (f"obt_buildings_1km_{OBT_YEARS[-1]}", "count", "Google Open Buildings 2.5D Temporal v1", f"Same for {OBT_YEARS[-1]}."),
+    ("obt_buildings_added_1km", "count", "Derived", f"Buildings in {OBT_YEARS[-1]} minus buildings in {OBT_YEARS[0]}; a stand-in for population growth near the spring. Model estimates from yearly imagery, so small changes are noise."),
+    ("obt_building_growth_pct", "%", "Derived", f"Buildings added as a share of the {OBT_YEARS[0]} count (at least {OBT_MIN_BASE} buildings used as the base)."),
     ("lineament_dem_distance_m", "m", "Derived from Copernicus DEM GLO-30", "Distance to the nearest DEM lineament candidate (scripts/extract_dem_lineaments.py). Unvalidated."),
     ("lineament_dem_density_1km_km_per_km2", "km/km2", "Derived from Copernicus DEM GLO-30", "Length of DEM lineament candidates within 1 km, per km2."),
     ("processing_notes", "", "Derived", "Row-level notes on missing or questionable inputs."),
@@ -801,6 +908,7 @@ def open_layers(points, cache, local_layers, lineaments=LINEAMENTS_FILE):
         hwsd=Hwsd(cache),
         local=LocalLayers(local_layers, lineaments),
         ngdr=NgdrGeology(),
+        buildings=OpenBuildingsTemporal(cache),
     )
     ngdr = layers.ngdr
     print("GSI NGDR geology: " + (f"{len(ngdr.units)} lithology polygons, {len(ngdr.faults)} faults, {len(ngdr.folds)} fold axes" if ngdr.ok else "not found"))
@@ -843,6 +951,7 @@ def point_features(layers, lon, lat, source_elevation=None, notes=None):
     row.update(layers.hwsd.features(lon, lat))
     row.update(layers.local.features(lon, lat))
     row.update(layers.ngdr.features(lon, lat))  # blank outside Uttarakhand
+    row.update(layers.buildings.features(lon, lat))
     if row.get("cartodem_elevation_m") is not None and row.get("dem_elevation_m") is not None:
         row["cartodem_minus_copernicus_m"] = row["cartodem_elevation_m"] - row["dem_elevation_m"]
     return row
@@ -863,6 +972,8 @@ def main():
     points = [(r["latitude_dd"], r["longitude_dd"]) for r in rows if r["coordinate_status"] == "ok"]
 
     layers = open_layers(points, cache, args.local_layers, args.lineaments)
+    print("Reading building counts")
+    layers.buildings.prefetch(points)
     for index, row in enumerate(rows):
         if row["coordinate_status"] != "ok":
             continue
@@ -938,6 +1049,8 @@ def main():
             "GSI NGDR Uttarakhand lithology, faults and folds": {"files": [str(p.relative_to(ROOT)) for p in (NGDR_LITHOLOGY, NGDR_FAULTS, NGDR_FOLDS)],
                                                          "source": "GSI Bhukosh / NGDR state layers (SRC-013, SRC-014, SRC-015), added to the repo 2026-10-10 and 2026-10-12",
                                                          "note": "State-scale map; a spring's polygon is a map overlay, not a field observation."},
+            "Google Open Buildings 2.5D Temporal v1": {"url_pattern": OBT_URL, "years": list(OBT_YEARS), "radius_m": OBT_RADIUS_M,
+                                                       "licence": "CC BY 4.0 (Google Open Buildings)", "resolution": "0.5 m grid of 4 m effective resolution, read at the 8 m overview"},
             "DEM lineament candidates": {"file": str(LINEAMENTS_FILE.relative_to(ROOT)), "method": "scripts/extract_dem_lineaments.py"},
             "DEM hydrology": {"method": "scripts/spring_hydrology.py: depression filling and D8 routing with pyflwdir, Freeman (1991) MFD area, "
                                         "TWI = ln(a / tan slope)", "stream_threshold_km2": STREAM_THRESHOLD_KM2,

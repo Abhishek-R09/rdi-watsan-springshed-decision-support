@@ -16,9 +16,10 @@ The tool is decision support, not a substitute for hydrogeological verification.
 
 - **Module A vulnerability:** [`scripts/module_a_vulnerability.py`](scripts/module_a_vulnerability.py), with its own inputs, reports and checks. See [`docs/run-module-a-locally.md`](docs/run-module-a-locally.md).
 - **Catchment/springshed agents:** [`agents/`](agents/README.md) defines the exact IDs and rules; [`spring_agents/`](spring_agents/README.md) runs the resolved checks and records unavailable results where delineation inputs or approved rules are missing.
-- **Field interface:** [`interface/`](interface/README.md) is a mobile-friendly Preact map and form with an illustrative agent-progress preview. It is not yet connected to either Python backend. The older [`app.py`](app.py) Streamlit prototype calls only the catchment/springshed runtime.
+- **Vulnerability agent:** [`agents/vulnerability.md`](agents/vulnerability.md) (`AG-VUL`) runs Module A inside the agent runtime when a request sets `include_vulnerability: true`.
+- **Field interface:** [`interface/`](interface/README.md) is a mobile-friendly Preact map and form. With the local server [`scripts/serve_tool.py`](scripts/serve_tool.py) running, it sends the spring to the agent runtime and shows the vulnerability score and the recharge-zone status; without it, it falls back to an illustrative preview. The older [`app.py`](app.py) Streamlit prototype calls only the catchment/springshed runtime.
 
-Module A and the catchment/springshed runtime are present in the same checkout but still have different input envelopes. The shared contract in [`docs/module-contract.md`](docs/module-contract.md) is a proposal for later integration, not an implemented adapter. Module A's current first-run/new-area map downloads also differ from the agent workflow's approved-local-snapshot policy; resolve that data-access difference before connecting a single field request to both modules.
+One field request now runs both: the agent runtime's request carries Module A's elevation and answers, and `AG-VUL` calls Module A unchanged. Still open: Module A's first-run/new-area map downloads differ from the agent workflow's approved-local-snapshot policy. Until that is agreed, every vulnerability result records the difference as an issue (rule `R-VUL-03`).
 
 ## Data flow
 

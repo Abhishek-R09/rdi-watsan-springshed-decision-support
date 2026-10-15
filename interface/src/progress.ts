@@ -5,6 +5,7 @@ export const PROGRESS_EVENT = 'spring-agent-progress';
 export const agents: { id: AgentId; title: string; description: string; stage: string }[] = [
   { id: 'AG-ORC', title: 'Coordinate the run', description: 'Pins the request and data versions', stage: 'Prepare' },
   { id: 'AG-SPR', title: 'Check the spring', description: 'Preserves the point and field notes', stage: 'Prepare' },
+  { id: 'AG-VUL', title: 'Score vulnerability', description: 'Module A score with a reason for every point', stage: 'Assess' },
   { id: 'AG-TER', title: 'Read the terrain', description: 'Checks the local elevation data', stage: 'Map' },
   { id: 'AG-CAT', title: 'Map surface drainage', description: 'Produces a candidate surface catchment', stage: 'Map' },
   { id: 'AG-GEO', title: 'Review geology', description: 'Examines rock and structural evidence', stage: 'Springshed' },
@@ -19,8 +20,8 @@ export const agents: { id: AgentId; title: string; description: string; stage: s
 
 export function scheduledAgents(mode: 'catchment' | 'springshed'): AgentId[] {
   return mode === 'catchment'
-    ? ['AG-ORC', 'AG-SPR', 'AG-TER', 'AG-CAT', 'AG-LIN', 'AG-VER', 'AG-COM']
-    : ['AG-ORC', 'AG-SPR', 'AG-TER', 'AG-CAT', 'AG-GEO', 'AG-RAI', 'AG-LAS', 'AG-SHD', 'AG-LIN', 'AG-VER', 'AG-COM'];
+    ? ['AG-ORC', 'AG-SPR', 'AG-VUL', 'AG-TER', 'AG-CAT', 'AG-LIN', 'AG-VER', 'AG-COM']
+    : ['AG-ORC', 'AG-SPR', 'AG-VUL', 'AG-TER', 'AG-CAT', 'AG-GEO', 'AG-RAI', 'AG-LAS', 'AG-SHD', 'AG-LIN', 'AG-VER', 'AG-COM'];
 }
 
 export function initialProgress(mode: 'catchment' | 'springshed'): Record<AgentId, AgentProgress> {

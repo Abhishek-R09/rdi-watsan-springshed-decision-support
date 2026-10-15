@@ -87,6 +87,36 @@ The score prints on screen. The one-page report, plus a JSON file for the future
 
 3. Read the result in `data\03_outputs\module_a\`. Run it once: every run is logged, and a second look at the same springs shows up.
 
+## 5. Use the tool in your browser
+
+The web page runs the joined tool on this computer: Module A's score, plus Module B's recharge-zone step (which says "not available yet" until Module B can draw a zone).
+
+1. **One time only: build the page.**
+   - Install Node.js (the LTS version) from nodejs.org.
+   - In Command Prompt, from the repository folder, run:
+
+     ```
+     cd interface
+     npm ci
+     npm run build
+     cd ..
+     ```
+
+   - Repeat this only when the page's code changes.
+2. **Each time:** open Command Prompt, run the usual `activate` and two `set` lines, then:
+
+   ```
+   python scripts\serve_tool.py
+   ```
+
+3. Open http://127.0.0.1:8765 in your browser.
+   - Place the spring on the map or type its coordinates.
+   - Fill in what you know under **Vulnerability questions**.
+   - Click **Run assessment**.
+4. Every run is saved under `data\03_outputs\assessments\`. Stop the tool with Ctrl+C.
+
+The first run after starting takes 10-20 seconds while the maps open; later runs take a few seconds.
+
 ## If something goes wrong
 
 - **`python` is not recognised:** reinstall Python and tick "Add python.exe to PATH".

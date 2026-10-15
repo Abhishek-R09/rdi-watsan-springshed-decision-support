@@ -6,7 +6,7 @@ The tool has three modules, built separately and joined later:
 - **Module B:** recharge zone (Rajat's colleague).
 - **Module C:** DI impact.
 
-The intended whole tool runs locally and calls no paid AI service. A small rule-based orchestrator is proposed to check inputs and coordinate the modules. A Preact field interface now exists in [`interface/`](../interface/README.md), but it is a standalone preview and is not yet connected to Module A or the catchment/springshed runtime. The latter currently has its own input envelope and does not run Module A. An adapter and shared data-access policy still need to be specified before one field request can run both.
+The intended whole tool runs locally and calls no paid AI service. A small rule-based orchestrator is proposed to check inputs and coordinate the modules. The agent runtime in [`spring_agents/`](../spring_agents/README.md) is that orchestrator. Module A joins it as the Vulnerability Agent ([`agents/vulnerability.md`](../agents/vulnerability.md)), and the Preact page in [`interface/`](../interface/README.md) reaches it through the local server `scripts/serve_tool.py`. The shared data-access policy is still open (see rule `R-VUL-03`).
 
 The fuller design is in [`Project1_Agent_System_Implementation_Plan.md`](Project1_Agent_System_Implementation_Plan.md). That plan covers the agent specifications, lineage, memory and testing. This note covers only what each module takes in and gives back, so that the modules join without rework.
 
@@ -79,3 +79,17 @@ If one module is unavailable, the other modules' results still stand.
 2. Add it to the orchestrator's run order.
 
 The web page only reads these outputs. Each module can be built and tested on its own.
+
+## 5. How Module A is called today (15 October 2026)
+
+The page sends the agent runtime's request. Module A's parts of it are:
+
+```json
+{
+  "include_vulnerability": true,
+  "location": { "latitude": 29.91903, "longitude": 78.55647, "crs": "EPSG:4326", "elevation_m": 1481 },
+  "field_form": { "vulnerability_answers": { "flow_vs_past": "a_bit_less", "lean_flow_lpm": 2.5, "households": 35 } }
+}
+```
+
+`spring_agents/vulnerability.py` turns this into section 1's input and calls `assess()` in `scripts/module_a_vulnerability.py`. Module A's full result (section 2) is stored unchanged as `AG-VUL.vulnerability_assessment`, and `AG-COM.assessment_summary` carries a copy under `vulnerability`. `elevation_m` may be left out: the map elevation is then used, with a warning.

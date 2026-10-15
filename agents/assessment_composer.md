@@ -9,8 +9,8 @@ Agent ID: `AG-COM`. Read [shared contracts and ID registry](README.md). `DOC-BAS
 
 | Element | Definition |
 |---|---|
-| Supplier | AG-ORC.assessment_manifest; AG-LIN.contract_map; AG-LIN.run_trace; AG-LIN.lineage_issues; AG-SPR.spring_profile; AG-CAT.catchment_geometry; AG-CAT.outlet_decision; AG-SHD.candidate_recharge_geometries (springshed mode); AG-SHD.boundary_evidence (springshed mode); AG-RAI.rainfall_coverage (optional); AG-LAS.spatial_summaries (optional); AG-VER.verification_report; AG-VER.release_status |
-| Input | AG-ORC.assessment_manifest; AG-LIN.contract_map; AG-LIN.run_trace; AG-LIN.lineage_issues; AG-SPR.spring_profile; AG-CAT.catchment_geometry; AG-CAT.outlet_decision; AG-VER.verification_report; AG-VER.release_status; springshed mode AG-SHD.candidate_recharge_geometries and AG-SHD.boundary_evidence; optional AG-RAI.rainfall_coverage and AG-LAS.spatial_summaries |
+| Supplier | AG-ORC.assessment_manifest; AG-LIN.contract_map; AG-LIN.run_trace; AG-LIN.lineage_issues; AG-SPR.spring_profile; AG-CAT.catchment_geometry; AG-CAT.outlet_decision; AG-SHD.candidate_recharge_geometries (springshed mode); AG-SHD.boundary_evidence (springshed mode); AG-RAI.rainfall_coverage (optional); AG-LAS.spatial_summaries (optional); AG-VUL.vulnerability_assessment and AG-VUL.input_gaps (when scheduled); AG-VER.verification_report; AG-VER.release_status |
+| Input | AG-ORC.assessment_manifest; AG-LIN.contract_map; AG-LIN.run_trace; AG-LIN.lineage_issues; AG-SPR.spring_profile; AG-CAT.catchment_geometry; AG-CAT.outlet_decision; AG-VER.verification_report; AG-VER.release_status; springshed mode AG-SHD.candidate_recharge_geometries and AG-SHD.boundary_evidence; optional AG-RAI.rainfall_coverage and AG-LAS.spatial_summaries; AG-VUL.vulnerability_assessment and AG-VUL.input_gaps when scheduled |
 | Process | Assemble maps/summaries/exports; distinguish catchment/investigation/recharge layers; retain limitations and provenance |
 | Output | AG-COM.assessment_summary; AG-COM.map_layer_manifest; AG-COM.export_manifest |
 | Customer | EXT-USER/EXT-WATSAN/STORE-HISTORY <- AG-COM.assessment_summary + AG-COM.map_layer_manifest + AG-COM.export_manifest |
@@ -43,10 +43,11 @@ These are **this agent's draft rules**, version 0.1, for catchment-mode presenta
 |---|---|---|---|
 | `R-COM-01` | `AG-VER.release_status` + `AG-CAT.catchment_geometry` + `AG-CAT.outlet_decision` → display the original spring point, selected raster outlet and generated polygon as separate map features in `AG-COM.map_layer_manifest`. Label the polygon “DEM-derived surface catchment; groundwater recharge area unverified.” Google Maps is only the display basemap. | A blocked or clipped polygon is shown, if at all, as a labelled diagnostic; no full-basin area claim. A local terrain view may replace an unavailable map service. | `DOC-BASE` §§Agreed project goal, Evidence and claims; `DOC-IMPL` §6. |
 | `R-COM-02` | `AG-ORC.assessment_manifest` + `AG-LIN.run_trace` + `AG-LIN.lineage_issues` + `AG-VER.verification_report` → report the recorded source-to-result path and any broken links, area in m² and ha, snapshot ID, `SRC-018` release/tile IDs, applied rule IDs, edge/void status, uncertainties and next field check in `AG-COM.assessment_summary` and `AG-COM.export_manifest`. | Missing required provenance blocks a final result; retain any usable partial output with its status. Never call the surface polygon a verified springshed. | `DOC-BASE` §§Evidence and claims, Implementation and quality rules; `DOC-IMPL` §6. |
+| `R-COM-03` | `AG-VUL.vulnerability_assessment` + `AG-VUL.input_gaps` → copy Module A's score, class, kind, confidence, coverage, rationale, indicators, missing inputs, warnings and report into the `vulnerability` part of `AG-COM.assessment_summary`, unchanged. | Not scheduled, unavailable or failed is shown as that status with its reason. An exposure score is never presented as a decline finding. | [Vulnerability Agent](vulnerability.md) §4. |
 
 ## 5. WHAT YOU MUST NOT DO
 
-Do not invent explanations, change calculations, hide unavailable modules, call scenarios forecasts or include parked Vulnerability/DI results.
+Do not invent explanations, change calculations, hide unavailable modules, call scenarios forecasts or include parked DI results. Vulnerability results appear only as recorded by `AG-VUL`.
 
 Never overwrite raw data, silently replace source values, invent measurements/references/accuracy, or develop rules from held-out outcomes while claiming independent validation.
 

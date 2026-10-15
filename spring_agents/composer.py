@@ -15,6 +15,7 @@ def run(store: RunStore) -> None:
     snapshot = store.get("AG-ORC.source_selection")["payload"]
     mode = store.get("AG-ORC.run_context")["payload"]["mode"]
     released = release.get("AG-CAT.catchment_geometry") == "released"
+    vulnerability = store.get("AG-VUL.vulnerability_assessment")
     common = ["AG-ORC.assessment_manifest", "AG-LIN.contract_map", "AG-LIN.run_trace",
               "AG-LIN.lineage_issues", "AG-VER.verification_report", "AG-VER.release_status",
               "AG-CAT.catchment_geometry", "AG-CAT.outlet_decision", "AG-SPR.spring_profile"]
@@ -31,8 +32,10 @@ def run(store: RunStore) -> None:
                         "snapshot_id": snapshot.get("snapshot_id"),
                         "lineage_trace_id": trace["output_id"], "lineage_issues": issues,
                         "hydrogeological_validation": "not assessed",
-                        "next_field_check": "Confirm the spring point and potential outlet with WATSAN; review terrain and geology before treating any surface boundary as recharge."},
-               upstream=common, rule_ids=["R-COM-01", "R-COM-02"], issues=issues,
+                        "next_field_check": "Confirm the spring point and potential outlet with WATSAN; review terrain and geology before treating any surface boundary as recharge.",
+                        "vulnerability": _vulnerability_summary(vulnerability)},
+               upstream=common + (["AG-VUL.vulnerability_assessment", "AG-VUL.input_gaps"] if vulnerability else []),
+               rule_ids=["R-COM-01", "R-COM-02", "R-COM-03"], issues=issues,
                snapshot_id=snapshot.get("snapshot_id"))
     features = [{"feature_id": "submitted_spring", "type": "Point", "coordinates": point,
                  "status": "supplied" if point else "unavailable"}]
@@ -52,3 +55,17 @@ def run(store: RunStore) -> None:
                         "lineage_trace_id": trace["output_id"], "verification_report_id": "AG-VER.verification_report"},
                upstream=["AG-COM.assessment_summary", "AG-COM.map_layer_manifest", "AG-LIN.run_trace", "AG-VER.verification_report"],
                rule_ids=["R-COM-02"])
+
+
+def _vulnerability_summary(record: dict | None) -> dict:
+    """R-COM-03: present Module A's result as it was recorded; no new claims."""
+    if record is None:
+        return {"status": "not scheduled"}
+    output = record["payload"].get("module_a")
+    if not output:
+        return {"status": record["status"], "reason": record["reason"]}
+    result = output["result"]
+    return {"status": record["status"], "score": result["score"], "class": result["class"], "kind": result["kind"],
+            "confidence": output["confidence"], "coverage_pct": result["coverage_pct"], "elevation_m": output["spring"]["elevation_m"],
+            "rationale": output["rationale"], "missing_inputs": output["missing_inputs"], "warnings": output["warnings"],
+            "indicators": result["indicators"], "context": result["context"], "report_markdown": output["report_markdown"]}

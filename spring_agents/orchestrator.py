@@ -7,17 +7,20 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from . import catchment, composer, lineage, specialists, spring, terrain, verifier
+from . import catchment, composer, lineage, specialists, spring, terrain, verifier, vulnerability
 from .specs import ROOT, contracts
 from .storage import RunStore, checksum
 
 
-def assess(submission: dict, output_root: Path | None = None) -> tuple[RunStore, dict]:
+def assess(submission: dict, output_root: Path | None = None, vulnerability_session=None) -> tuple[RunStore, dict]:
     if not isinstance(submission, dict):
         raise ValueError("Assessment input must be a JSON object")
     mode = submission.get("mode", "catchment")
     if mode not in {"catchment", "springshed"}:
         raise ValueError("mode must be catchment or springshed")
+    include_vulnerability = submission.get("include_vulnerability", False)
+    if not isinstance(include_vulnerability, bool):
+        raise ValueError("include_vulnerability must be true or false")
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ") + "-" + uuid.uuid4().hex[:8]
     store = RunStore(run_id, contracts(), output_root)
     input_file = store.directory / "submission.json"
@@ -32,6 +35,8 @@ def assess(submission: dict, output_root: Path | None = None) -> tuple[RunStore,
                         "input_sha256": checksum(input_file), "contract_versions": {key: value["version"] for key, value in store.contracts.items()}},
                upstream=["EXT-USER"], rule_ids=["R-ORC-01"])
     spring.run(store, submission)
+    if include_vulnerability:
+        vulnerability.run(store, submission, vulnerability_session)
     point = store.get("AG-SPR.location_evidence")["payload"].get("processing_point")
     snapshot, gaps = terrain.select_snapshot(point)
     store.emit("AG-ORC.source_selection", "complete" if snapshot else "unavailable",
@@ -51,12 +56,12 @@ def assess(submission: dict, output_root: Path | None = None) -> tuple[RunStore,
         for agent_id in ["AG-GEO", "AG-RAI", "AG-LAS", "AG-SHD"]:
             specialists.run(store, agent_id)
     specialist_ids = [key for key in store.records if key.split(".", 1)[0] in
-                      {"AG-SPR", "AG-TER", "AG-CAT", "AG-GEO", "AG-RAI", "AG-TMP", "AG-LAS", "AG-SHD"}]
+                      {"AG-SPR", "AG-VUL", "AG-TER", "AG-CAT", "AG-GEO", "AG-RAI", "AG-TMP", "AG-LAS", "AG-SHD"}]
     store.emit("AG-ORC.assessment_manifest", "complete", "Scheduled specialist results frozen before lineage and verification",
                payload={"specialist_output_ids": specialist_ids,
                         "output_statuses": {key: store.get(key)["status"] for key in specialist_ids},
                         "mode": mode,
-                        "not_scheduled_agent_ids": [item for item in ["AG-GEO", "AG-RAI", "AG-TMP", "AG-LAS", "AG-SHD"]
+                        "not_scheduled_agent_ids": [item for item in ["AG-VUL", "AG-GEO", "AG-RAI", "AG-TMP", "AG-LAS", "AG-SHD"]
                                                     if not any(key.startswith(item + ".") for key in specialist_ids)]},
                upstream=specialist_ids, rule_ids=["R-ORC-03"],
                snapshot_id=snapshot.get("snapshot_id") if snapshot else None)
@@ -66,6 +71,7 @@ def assess(submission: dict, output_root: Path | None = None) -> tuple[RunStore,
     status = store.get("AG-VER.release_status")["payload"]["AG-CAT.catchment_geometry"]
     store.emit("AG-ORC.dependency_status", "complete", "Required and optional handoffs recorded",
                payload={"catchment": status, "springshed": "unavailable" if mode == "springshed" else "not scheduled",
+                        "vulnerability": store.get("AG-VUL.vulnerability_assessment")["status"] if include_vulnerability else "not scheduled",
                         "gaps": gaps}, upstream=["AG-LIN.lineage_issues", "AG-VER.release_status"],
                rule_ids=["R-ORC-03"])
     store.emit("AG-ORC.execution_record", "complete", "Versioned agent results saved in execution order",

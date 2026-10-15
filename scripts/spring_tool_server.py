@@ -1,0 +1,336 @@
+"""The spring tool on this computer: the map page in app/ plus the three modules behind it.
+
+    python scripts/spring_tool_server.py            then open http://127.0.0.1:8765
+    (or double-click start_tool.bat on Windows)
+
+One spring goes in (location, field answers, planned DI sites); three results come back:
+    A  vulnerability score          scripts/module_a_vulnerability.py
+    B  springshed / recharge zone   scripts/module_b_springshed.py
+    C  potential impact of DI       scripts/module_c_di_impact.py
+Runs on 127.0.0.1 only; no account, key or paid service. When an approved map set exists
+(scripts/module_a_snapshot.py), only its files are read and nothing is downloaded.
+
+Endpoints:
+    GET  /api/health    server, version and map set
+    GET  /api/springs   the dataset springs for the search box and the map
+    POST /api/assess    body and reply: see app/src/api.ts
+Each assessment is saved in data/03_outputs/tool_runs/<run_id>/ (result.json and report.md).
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import math
+import mimetypes
+import os
+import re
+import sys
+import threading
+import traceback
+import webbrowser
+from collections import OrderedDict
+from datetime import datetime
+from http import HTTPStatus
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+import module_a_snapshot as map_set  # noqa: E402
+import module_a_vulnerability as module_a  # noqa: E402
+import module_b_springshed as module_b  # noqa: E402
+import module_c_di_impact as module_c  # noqa: E402
+
+VERSION = "v1 draft (2026-10-15)"
+DIST = ROOT / "app" / "dist"
+RUNS = ROOT / "data" / "03_outputs" / "tool_runs"
+SPRINGS_CSV = ROOT / "data" / "02_processed" / "spring_master" / "spring_master_v1_clean.csv"
+MAX_BODY = 1 << 20
+MAX_SITES = 50
+TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
+         ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon",
+         ".woff2": "font/woff2"}
+STUDY_AREA = {"lat": (28.5, 33.5), "lon": (75.5, 81.5)}
+
+
+class CachedSession:
+    """Module A's LayerSession with the layer values at each spring kept, so A and C read them once."""
+
+    def __init__(self, session):
+        self.session = session
+        self.cache = OrderedDict()
+
+    def __getattr__(self, name):
+        return getattr(self.session, name)
+
+    def features(self, lat, lon, elevation):
+        key = (round(lat, 6), round(lon, 6), elevation)
+        if key not in self.cache:
+            self.cache[key] = self.session.features(lat, lon, elevation)
+            while len(self.cache) > 32:
+                self.cache.popitem(last=False)
+        return self.cache[key]
+
+
+class Tool:
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.manifest = map_set.active()
+        self.file_problems = map_set.check_files(self.manifest, fingerprints=False) if self.manifest else []
+        places = map_set.roots()
+        self.session = CachedSession(module_a.LayerSession(places["layer_cache"], places["local_layers"],
+                                                           offline=self.manifest is not None))
+        self.zones = OrderedDict()
+        self._springs = None
+
+    # ------------------------------------------------------------------ data
+    def health(self):
+        m = self.manifest
+        return {"ok": True, "version": VERSION, "offline": m is not None,
+                "map_set": None if m is None else {"snapshot_id": m["snapshot_id"], "approved_by": m.get("approved_by") or "",
+                                                   "approved_at": m.get("approved_utc") or ""},
+                "map_set_problems": len(self.file_problems)}
+
+    def springs(self):
+        if self._springs is None:
+            rows = []
+            with SPRINGS_CSV.open(encoding="utf-8", newline="") as handle:
+                for r in csv.DictReader(handle):
+                    if r.get("is_primary_record") != "Y" or not r.get("latitude") or not r.get("longitude"):
+                        continue
+                    try:
+                        lat, lon = float(r["latitude"]), float(r["longitude"])
+                    except ValueError:
+                        continue
+                    place = r["village"] or r["block"] or (r.get("area_name") or "").split(",")[0].strip()
+                    label = r["spring_name"] or (f"Spring at {place}" if place else "Unnamed spring")
+                    rows.append({"id": r["record_id"], "name": f"{label} ({r['record_id']})", "village": place,
+                                 "district": r["district"], "latitude": lat, "longitude": lon,
+                                 "elevation_m": float(r["elevation_m"]) if r.get("elevation_m") else None,
+                                 "source": r["source_dataset"]})
+            self._springs = rows
+        return self._springs
+
+    # ------------------------------------------------------------------ assessment
+    def assess(self, request):
+        spring, field, di = clean_request(request)
+        lat, lon = spring["latitude"], spring["longitude"]
+        name = spring.get("name") or f"{lat:.5f}, {lon:.5f}"
+        problem = None
+        if self.manifest and self.file_problems:
+            problem = (f"The approved map set {self.manifest['snapshot_id']} is incomplete on this computer ({len(self.file_problems)} files "
+                       "missing or changed). Run: python scripts/module_a_snapshot.py verify")
+        elif self.manifest and not map_set.covers(self.manifest, lat, lon):
+            problem = (f"This spring is outside the approved map set {self.manifest['snapshot_id']}. Add its area with "
+                       "python scripts/module_a_snapshot.py prepare --bbox WEST SOUTH EAST NORTH, then approve the new set.")
+        with self.lock:
+            if problem:
+                outputs = {m: failed(m, spring, problem, "unavailable") for m in "ABC"}
+            else:
+                outputs = self._run(spring, field, di)
+        elevation = outputs["A"]["spring"].get("elevation_m") if outputs["A"].get("spring") else None
+        if elevation is None and outputs["B"].get("result"):
+            elevation = outputs["B"]["result"]["spring_cell"]["elevation_m"]
+        run_id = f"{datetime.now():%Y%m%d-%H%M%S}-{slug(name)}"
+        response = {"run_id": run_id, "created_at": datetime.now().isoformat(timespec="seconds"),
+                    "map_set": self.manifest["snapshot_id"] if self.manifest else "none approved",
+                    "spring": {"name": name, "latitude": lat, "longitude": lon, "elevation_m": elevation},
+                    **{m: module_b.public(outputs[m]) for m in "ABC"}}
+        response = finite(response)
+        save_run(response, request)
+        return response
+
+    def _run(self, spring, field, di):
+        out = {}
+        inputs = {"spring": spring, "field": field}
+        try:
+            out["A"] = module_a.assess(inputs, self.session)
+        except Exception as error:
+            traceback.print_exc()
+            out["A"] = failed("A", spring, f"The vulnerability score could not be computed: {error}")
+        # B works from the map cell's elevation; C compares DI sites with that same elevation
+        key = (round(spring["latitude"], 6), round(spring["longitude"], 6), spring.get("elevation_m"),
+               *(field.get(k) for k in ("monsoon_flow_lpm", "lean_flow_lpm", "dip_direction_deg", "dip_angle_deg")))
+        try:
+            if key not in self.zones:
+                self.zones[key] = module_b.delineate(inputs, self.session)
+                while len(self.zones) > 8:
+                    self.zones.popitem(last=False)
+            out["B"] = self.zones[key]
+        except Exception as error:
+            traceback.print_exc()
+            out["B"] = failed("B", spring, f"The springshed could not be drawn: {error}")
+        try:
+            features = self.session.features(spring["latitude"], spring["longitude"], spring.get("elevation_m"))
+        except Exception:
+            features = {}
+        try:
+            out["C"] = module_c.estimate({**inputs, "di": di}, self.session, features, out["B"])
+        except Exception as error:
+            traceback.print_exc()
+            out["C"] = failed("C", spring, f"The DI impact could not be estimated: {error}")
+        return out
+
+
+TITLES = {"A": "Spring vulnerability", "B": "Springshed (recharge area)", "C": "Potential impact of DI recharge"}
+
+
+def failed(module, spring, reason, status="failed"):
+    return {"module": module, "title": TITLES[module], "version": "v1 draft", "status": status, "spring": spring,
+            "result": None, "confidence": "Low", "rationale": [reason], "missing_inputs": [], "warnings": [],
+            "report_markdown": f"# {TITLES[module]}\n\n{reason}\n"}
+
+
+def number(value, label, low=None, high=None):
+    if value in (None, ""):
+        return None
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{label} must be a number")
+    if not math.isfinite(v) or (low is not None and v < low) or (high is not None and v > high):
+        raise ValueError(f"{label} must be between {low} and {high}")
+    return v
+
+
+def clean_request(request):
+    if not isinstance(request, dict) or not isinstance(request.get("spring"), dict):
+        raise ValueError("Send {spring: {latitude, longitude}, field: {...}, di: {...}}")
+    s = request["spring"]
+    lat = number(s.get("latitude"), "Latitude", -90, 90)
+    lon = number(s.get("longitude"), "Longitude", -180, 180)
+    if lat is None or lon is None:
+        raise ValueError("Latitude and longitude are needed")
+    if not (STUDY_AREA["lat"][0] <= lat <= STUDY_AREA["lat"][1] and STUDY_AREA["lon"][0] <= lon <= STUDY_AREA["lon"][1]):
+        raise ValueError("This tool covers the Uttarakhand and Himachal hills (latitude 28.5-33.5, longitude 75.5-81.5)")
+    spring = {"name": str(s.get("name") or "").strip()[:120] or None, "latitude": lat, "longitude": lon,
+              "elevation_m": number(s.get("elevation_m"), "Elevation", -100, 8000)}
+    field = request.get("field") or {}
+    if not isinstance(field, dict):
+        raise ValueError("field must be an object")
+    field = {k: v for k, v in field.items() if v not in (None, "")}
+    for key, label, low, high in (("dip_direction_deg", "Dip direction", 0, 360), ("dip_angle_deg", "Dip angle", 0, 90)):
+        if key in field:
+            field[key] = number(field[key], label, low, high)
+    di = request.get("di") or {}
+    if not isinstance(di, dict) or not isinstance(di.get("sites", []), list):
+        raise ValueError("di must be {sites: [...], assumptions: {...}}")
+    if len(di.get("sites", [])) > MAX_SITES:
+        raise ValueError(f"At most {MAX_SITES} DI sites at a time")
+    return spring, field, di
+
+
+def finite(value):
+    """Replace NaN and infinity (which JSON cannot carry) with null."""
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {k: finite(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [finite(v) for v in value]
+    if hasattr(value, "item"):  # numpy scalars
+        return finite(value.item())
+    return value
+
+
+def slug(text):
+    return re.sub(r"[^a-z0-9]+", "-", str(text).lower()).strip("-")[:40] or "spring"
+
+
+def save_run(response, request):
+    folder = RUNS / response["run_id"]
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "request.json").write_text(json.dumps(request, indent=2, ensure_ascii=False), encoding="utf-8")
+        (folder / "result.json").write_text(json.dumps(response, ensure_ascii=False), encoding="utf-8")
+        report = [f"# Spring assessment: {response['spring']['name']}", "",
+                  f"Run {response['run_id']}; map set {response['map_set']}; tool {VERSION}.", ""]
+        for m in "ABC":
+            report += [response[m]["report_markdown"].replace("\n# ", "\n## ").replace("# ", "## ", 1), ""]
+        (folder / "report.md").write_text("\n".join(report), encoding="utf-8")
+    except OSError as error:
+        print(f"Run not saved: {error}", file=sys.stderr)
+
+
+# ---------------------------------------------------------------------- web
+class Handler(BaseHTTPRequestHandler):
+    server_version = "SpringTool/1.0"
+    tool: Tool = None
+
+    def _send(self, status, body: bytes, content_type: str):
+        self.send_response(status)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _json(self, status, value):
+        self._send(status, json.dumps(value, ensure_ascii=False, allow_nan=False).encode("utf-8"), "application/json")
+
+    def do_GET(self):
+        path = self.path.split("?", 1)[0]
+        if path == "/api/health":
+            return self._json(HTTPStatus.OK, self.tool.health())
+        if path == "/api/springs":
+            return self._json(HTTPStatus.OK, self.tool.springs())
+        if not (DIST / "index.html").is_file():
+            return self._send(HTTPStatus.OK, b"The page is not built. In app/, run: npm ci, then npm run build.", "text/plain; charset=utf-8")
+        file = (DIST / path.lstrip("/")).resolve()
+        if path == "/" or DIST.resolve() not in file.parents or not file.is_file():
+            file = DIST / "index.html"
+        content_type = TYPES.get(file.suffix.lower()) or mimetypes.guess_type(file.name)[0] or "application/octet-stream"
+        self._send(HTTPStatus.OK, file.read_bytes(), content_type)
+
+    def do_POST(self):
+        if self.path.split("?", 1)[0] != "/api/assess":
+            return self._json(HTTPStatus.NOT_FOUND, {"error": "Unknown address"})
+        length = int(self.headers.get("Content-Length") or 0)
+        if not 0 < length <= MAX_BODY:
+            return self._json(HTTPStatus.BAD_REQUEST, {"error": "Send the request as JSON (up to 1 MB)"})
+        try:
+            request = json.loads(self.rfile.read(length))
+            response = self.tool.assess(request)
+        except ValueError as error:
+            return self._json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
+        except Exception as error:  # report, keep the server running
+            traceback.print_exc()
+            return self._json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": f"Assessment failed: {error}"})
+        self._json(HTTPStatus.OK, response)
+
+    def log_message(self, fmt, *args):
+        if args and "/api/" in str(args[0]):
+            sys.stderr.write(f"{self.log_date_time_string()} {fmt % args}\n")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--open", action="store_true", help="open the page in the browser")
+    args = parser.parse_args()
+    print("Starting the spring tool...")
+    Handler.tool = Tool()
+    health = Handler.tool.health()
+    if health["map_set"]:
+        print(f"Map set {health['map_set']['snapshot_id']} (approved by {health['map_set']['approved_by']}): reading only its files.")
+        if Handler.tool.file_problems:
+            print(f"WARNING: {len(Handler.tool.file_problems)} map-set files are missing or changed; run module_a_snapshot.py verify")
+    else:
+        print("No approved map set: missing map tiles are downloaded as needed. See docs/spring-tool-guide.md.")
+    server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    url = f"http://127.0.0.1:{args.port}"
+    print(f"Spring tool running at {url}  (keep this window open; Ctrl+C to stop)")
+    if not (DIST / "index.html").is_file():
+        print("The page is not built yet: run `npm ci` and `npm run build` in app/.")
+    if args.open:
+        threading.Timer(1.0, lambda: webbrowser.open(url)).start()
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+
+
+if __name__ == "__main__":
+    main()

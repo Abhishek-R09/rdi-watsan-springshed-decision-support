@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import MapPanel from './MapPanel';
+import ResultPanel from './ResultPanel';
 import { agents, initialProgress, isProgressEvent, PROGRESS_EVENT, scheduledAgents } from './progress';
-import type { AgentId, AgentProgress, AssessmentRequest, Point } from './types';
+import type { AgentId, AgentProgress, AssessmentRequest, AssessmentResponse, Point, VulnerabilityAnswers } from './types';
+import { vulnerabilityQuestions } from './vulnerabilityQuestions';
 
 const PREVIEW_DELAY_MS = 480;
 
@@ -43,6 +45,13 @@ export default function App() {
   const [previewing, setPreviewing] = useState(false);
   const [previewComplete, setPreviewComplete] = useState(false);
   const [preparedRequest, setPreparedRequest] = useState<AssessmentRequest | null>(null);
+  const [elevationInput, setElevationInput] = useState('');
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  // The local Python server (scripts/serve_tool.py); without it the page falls back to the illustrative preview.
+  const [backend, setBackend] = useState<'checking' | 'connected' | 'offline'>('checking');
+  const [running, setRunning] = useState(false);
+  const [response, setResponse] = useState<AssessmentResponse | null>(null);
+  const [runError, setRunError] = useState('');
   const runId = useRef<string | null>(null);
   const timers = useRef<number[]>([]);
 
@@ -61,7 +70,15 @@ export default function App() {
     setProgress(initialProgress(mode));
     setPreviewComplete(false);
     setPreparedRequest(null);
+    setResponse(null);
+    setRunError('');
   }
+
+  useEffect(() => {
+    fetch('/api/health').then((reply) => reply.ok ? reply.json() : null)
+      .then((body) => setBackend(body && body.ok ? 'connected' : 'offline'))
+      .catch(() => setBackend('offline'));
+  }, []);
 
   useEffect(() => {
     const receive = (raw: Event) => {
@@ -128,6 +145,8 @@ export default function App() {
     setProgress(initialProgress(next));
     setPreviewComplete(false);
     setPreparedRequest(null);
+    setResponse(null);
+    setRunError('');
   }
 
   function createRequest(): AssessmentRequest | null {
@@ -146,6 +165,29 @@ export default function App() {
       }
       bucket_readings.push({ volume_L, time_s });
     }
+    let elevation_m: number | undefined;
+    if (elevationInput.trim()) {
+      elevation_m = Number(elevationInput);
+      if (!Number.isFinite(elevation_m) || elevation_m < -100 || elevation_m > 9000) {
+        setLocationMessage('Enter the elevation in metres, or leave it blank to use the map elevation.');
+        return null;
+      }
+    }
+    const vulnerability_answers: VulnerabilityAnswers = {};
+    for (const question of vulnerabilityQuestions) {
+      const raw = (answers[question.id] || '').trim();
+      if (!raw) continue;
+      if (question.kind === 'choice') {
+        vulnerability_answers[question.id] = raw;
+        continue;
+      }
+      const value = Number(raw);
+      if (!Number.isFinite(value) || value < 0 || (question.integer && !Number.isInteger(value))) {
+        setLocationMessage(`${question.label}: enter ${question.integer ? 'a whole number' : 'a number'} of ${question.unit}, or leave it blank.`);
+        return null;
+      }
+      vulnerability_answers[question.id] = value;
+    }
     setLocationMessage('');
     let measurement_date_time: string | null = null;
     if (measuredAt) {
@@ -159,14 +201,51 @@ export default function App() {
     return {
       mode,
       spring_id: springName.trim() || null,
-      location: { ...point, crs: 'EPSG:4326', ...(pointAccuracy === null ? {} : { accuracy_m: pointAccuracy }) },
+      include_vulnerability: true,
+      location: { ...point, crs: 'EPSG:4326', ...(pointAccuracy === null ? {} : { accuracy_m: pointAccuracy }),
+        ...(elevation_m === undefined ? {} : { elevation_m }) },
       field_form: {
         measurement_date_time,
         measurement_conditions: conditions.trim() || null,
         heavy_rainfall_recent: recentRain === 'unknown' ? null : recentRain === 'yes',
         bucket_readings,
+        vulnerability_answers,
       },
     };
+  }
+
+  async function runAssessment() {
+    const request = createRequest();
+    if (!request) return;
+    stopPreview();
+    setPreparedRequest(request);
+    setResponse(null);
+    setRunError('');
+    setRunning(true);
+    const id = `pending-${Date.now()}`;
+    runId.current = id;
+    setProgress(Object.fromEntries(Object.entries(initialProgress(mode)).map(([key, item]) => [key,
+      item.status === 'waiting' ? { status: 'running', message: 'Running on this computer' } : item])) as Record<AgentId, AgentProgress>);
+    try {
+      const reply = await fetch('/api/assess', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) });
+      const body = await reply.json();
+      if (runId.current !== id) return;
+      if (!reply.ok) throw new Error(body.error || `The server answered ${reply.status}`);
+      const result = body as AssessmentResponse;
+      runId.current = result.run_id;
+      setProgress(initialProgress(mode));
+      for (const [agentId, item] of Object.entries(result.agents)) {
+        if (!item) continue;
+        window.dispatchEvent(new CustomEvent(PROGRESS_EVENT, { detail: { runId: result.run_id, agentId, ...item } }));
+      }
+      setResponse(result);
+    } catch (error) {
+      if (runId.current !== id) return;
+      setProgress(initialProgress(mode));
+      setRunError(error instanceof Error ? error.message : 'The assessment could not run.');
+    } finally {
+      setRunning(false);
+    }
   }
 
   function previewWorkflow() {
@@ -221,7 +300,9 @@ export default function App() {
           <div className="brand-mark" aria-hidden="true"><span /><span /><span /></div>
           <div className="brand-words"><strong>Spring field desk</strong><small>RDI · WATSAN</small></div>
         </div>
-        <div className="connection-pill"><span className="connection-dot" /> Interface preview <span className="connection-detail">· backend not connected</span></div>
+        <div className={`connection-pill ${backend === 'connected' ? 'connected' : ''}`}><span className="connection-dot" />
+          {backend === 'connected' ? <>Local tool connected <span className="connection-detail">· runs on this computer</span></>
+            : <>Interface preview <span className="connection-detail">· {backend === 'checking' ? 'looking for the local tool' : 'local tool not running'}</span></>}</div>
       </header>
 
       <main>
@@ -266,6 +347,8 @@ export default function App() {
               <button type="button" className="small-action" onClick={applyCoordinates}>Place point</button>
               <button type="button" className="small-action quiet" onClick={useMyLocation}>Use my location</button>
             </div>
+            <label className="input-label elevation-label" for="elevation">Elevation (m) <span>optional · blank uses the map</span></label>
+            <input id="elevation" className="text-input mono" inputMode="decimal" value={elevationInput} onInput={(event) => { invalidatePrepared(); setElevationInput(event.currentTarget.value); }} placeholder="e.g. 1481" />
             {locationMessage && <p className="form-message" role="status">{locationMessage}</p>}
             {point && <p className="point-confirmation"><span className="point-confirmation-dot" /> Point selected · {formatCoordinate(point.latitude)}, {formatCoordinate(point.longitude)}</p>}
 
@@ -291,11 +374,32 @@ export default function App() {
               </div>
             </details>
 
+            <details className="field-details">
+              <summary><span>Vulnerability questions</span><small>Module A · all optional</small></summary>
+              <div className="details-body">
+                <p className="field-hint">Ask the users. The first question matters most: without it the result is only an exposure score.</p>
+                {vulnerabilityQuestions.map((question) => <div key={question.id}>
+                  <label className="input-label" for={`q-${question.id}`}>{question.label}{question.kind === 'number' && <span>{question.unit}</span>}</label>
+                  {question.kind === 'choice'
+                    ? <select id={`q-${question.id}`} className="text-input" value={answers[question.id] || ''} onChange={(event) => { const value = event.currentTarget.value; invalidatePrepared(); setAnswers((current) => ({ ...current, [question.id]: value })); }}>
+                        <option value="">Not asked</option>
+                        {question.options.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      </select>
+                    : <input id={`q-${question.id}`} className="text-input" inputMode="decimal" value={answers[question.id] || ''} onInput={(event) => { const value = event.currentTarget.value; invalidatePrepared(); setAnswers((current) => ({ ...current, [question.id]: value })); }} placeholder={question.unit} />}
+                </div>)}
+              </div>
+            </details>
+
             <div className="field-footer">
-              <button type="button" className="primary-action" onClick={previewWorkflow} disabled={!point || previewing}>
-                {previewing ? 'Preview in progress…' : 'Preview agent progress'} <span aria-hidden="true">↗</span>
-              </button>
-              <p>The preview does not submit this form. Map tiles load from OpenStreetMap.</p>
+              {backend === 'connected'
+                ? <button type="button" className="primary-action" onClick={runAssessment} disabled={!point || running}>
+                    {running ? 'Running… the first run opens the maps' : 'Run assessment'} <span aria-hidden="true">↗</span>
+                  </button>
+                : <button type="button" className="primary-action" onClick={previewWorkflow} disabled={!point || previewing}>
+                    {previewing ? 'Preview in progress…' : 'Preview agent progress'} <span aria-hidden="true">↗</span>
+                  </button>}
+              <p>{backend === 'connected' ? 'Runs on this computer; results are saved under data/03_outputs/assessments.'
+                : 'The preview does not submit this form. Start scripts/serve_tool.py to run real assessments.'} Map tiles load from OpenStreetMap.</p>
             </div>
           </aside>
 
@@ -316,7 +420,7 @@ export default function App() {
               <div><p className="panel-overline">Workflow</p><h2 id="progress-heading">Agent progress</h2></div>
               <span className="step-chip">2 of 2</span>
             </div>
-            <div className="preview-alert"><span aria-hidden="true">◌</span><div><strong>Preview mode</strong><small>These states demonstrate the interface. No agent has run.</small></div></div>
+            {backend !== 'connected' && <div className="preview-alert"><span aria-hidden="true">◌</span><div><strong>Preview mode</strong><small>These states demonstrate the interface. No agent has run.</small></div></div>}
             <div className="progress-tally">
               <div><strong>{progressCount}<span> / {scheduled.length}</span></strong><small>steps shown</small></div>
               <div className="progress-bar" role="progressbar" aria-valuenow={progressCount} aria-valuemin={0} aria-valuemax={scheduled.length} aria-label="Workflow preview steps shown"><span style={{ width: `${scheduled.length ? progressCount / scheduled.length * 100 : 0}%` }} /></div>
@@ -332,10 +436,13 @@ export default function App() {
                 </div>;
               })}
             </div>
-            <div className="result-empty">
+            {runError && <p className="form-message" role="alert">{runError}</p>}
+            {response ? <ResultPanel response={response} /> : <div className="result-empty">
               <div className="result-symbol" aria-hidden="true">⌁</div>
-              <div><strong>No boundary or area yet</strong><p>The interface will display generated geometry, its source trail and verification status when the backend is connected.</p></div>
-            </div>
+              <div><strong>No result yet</strong><p>{backend === 'connected'
+                ? 'Run an assessment to see the vulnerability score and the recharge-zone status here.'
+                : 'The interface will display results, their source trail and verification status when the local tool is running.'}</p></div>
+            </div>}
             {previewComplete && <p className="preview-finished" role="status">Progress preview finished. No assessment result was calculated.</p>}
             {preparedRequest && <button type="button" className="export-action" onClick={downloadRequest}>Download prepared request JSON <span aria-hidden="true">↓</span></button>}
           </aside>

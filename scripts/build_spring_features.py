@@ -138,9 +138,23 @@ def fmt(value, digits=2):
     return f"{float(value):.{digits}f}"
 
 
+class NotInMapSet(FileNotFoundError):
+    """Offline mode: a file the run needs is not in the local map set, and nothing may be downloaded."""
+
+
+OFFLINE = False  # set_offline(True): read only files already on disk (an approved map set); never download
+
+
+def set_offline(flag=True):
+    global OFFLINE
+    OFFLINE = bool(flag)
+
+
 def download(url, path):
     if path.exists() and path.stat().st_size > 0:
         return
+    if OFFLINE:
+        raise NotInMapSet(f"{path.name} is not in the local map set")
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".part")
     with urllib.request.urlopen(url) as response, tmp.open("wb") as handle:
@@ -247,7 +261,11 @@ def worldcover_tiles_for(points, cache):
     paths = []
     for tile in sorted(tiles):
         path = cache / "worldcover" / f"ESA_WorldCover_10m_2021_v200_{tile}_Map.tif"
-        download(WC_URL.format(tile=tile), path)
+        try:
+            download(WC_URL.format(tile=tile), path)
+        except NotInMapSet as error:
+            print(f"WorldCover tile {tile} unavailable: {error}")
+            continue
         paths.append(path)
     return paths
 
@@ -332,6 +350,9 @@ class WaporStack:
                 with np.load(saved) as stored:
                     self.grids[period] = (stored["data"], rasterio.Affine(*stored["transform"]))
                 continue
+            if OFFLINE:
+                print(f"WaPOR {code}.{period} is not in the local map set; left out")
+                continue
             url = "/vsicurl/" + WAPOR_URL.format(code=code, period=period)
             with rasterio.open(url) as ds:
                 window = from_bounds(REGION["lon_min"], REGION["lat_min"], REGION["lon_max"], REGION["lat_max"], ds.transform)
@@ -344,6 +365,8 @@ class WaporStack:
                 np.savez_compressed(saved, data=self.grids[period][0], transform=np.array(self.grids[period][1])[:6])
 
     def sample(self, period, lon, lat):
+        if period not in self.grids:
+            return float("nan")
         data, transform = self.grids[period]
         row, col = centre_index(transform, lon, lat)
         if 0 <= row < data.shape[0] and 0 <= col < data.shape[1]:
@@ -356,6 +379,14 @@ class NoLayer:
 
     def features(self, lon, lat):
         return {}
+
+    def prefetch(self, points, workers=8):
+        pass
+
+
+HWSD_COLUMNS = ("soil_hwsd2_smu_id", "soil_dominant_wrb", "soil_dominant_share_pct", "soil_drainage", "soil_awc_mm_per_m",
+                "soil_topsoil_sand_pct", "soil_topsoil_silt_pct", "soil_topsoil_clay_pct", "soil_topsoil_texture_usda",
+                "soil_topsoil_coarse_fragments_pct", "soil_topsoil_org_carbon_pct")
 
 
 class Hwsd:
@@ -948,9 +979,10 @@ def clean_row(src):
     return row
 
 
-def open_layers(points, cache, local_layers, lineaments=LINEAMENTS_FILE, soil_hwsd=True):
+def open_layers(points, cache, local_layers, lineaments=LINEAMENTS_FILE, soil_hwsd=True, buildings=True):
     """Open every layer once; DEM and WorldCover tiles covering the points are downloaded into the cache.
-    soil_hwsd=False skips the 2 GB HWSD soil map (Module A does not use it; its tables need a Linux export step)."""
+    soil_hwsd=False skips the 2 GB HWSD soil map (Module A does not use it; its tables need a Linux export step).
+    buildings=False skips Google Open Buildings, which is read over the internet for every spring."""
     cache = Path(cache)
     os.environ.setdefault("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
     if Path("/root/.ccr/ca-bundle.crt").exists():
@@ -965,7 +997,7 @@ def open_layers(points, cache, local_layers, lineaments=LINEAMENTS_FILE, soil_hw
         hwsd=Hwsd(cache) if soil_hwsd else NoLayer(),
         local=LocalLayers(local_layers, lineaments),
         ngdr=NgdrGeology(),
-        buildings=OpenBuildingsTemporal(cache),
+        buildings=OpenBuildingsTemporal(cache) if buildings else NoLayer(),
     )
     ngdr = layers.ngdr
     print("GSI NGDR geology: " + (f"{len(ngdr.units)} lithology polygons, {len(ngdr.faults)} faults, {len(ngdr.folds)} fold axes" if ngdr.ok else "not found"))
@@ -1019,8 +1051,15 @@ def main():
     parser.add_argument("--cache", default=os.environ.get("SPRING_LAYER_CACHE", str(ROOT / ".layer_cache")))
     parser.add_argument("--local-layers", default=os.environ.get("SPRING_LOCAL_LAYERS", str(ROOT / ".local_layers")))
     parser.add_argument("--lineaments", default=str(LINEAMENTS_FILE))
+    parser.add_argument("--keep-hwsd", action="store_true",
+                        help="Do not open the HWSD soil map (it needs a Linux export step); copy its columns from the "
+                             "current table instead. HWSD is a fixed map, so the values do not change.")
     args = parser.parse_args()
     cache = Path(args.cache)
+    kept_soil = {}
+    if args.keep_hwsd and (OUT_DIR / "spring_features_v1.csv").exists():
+        with (OUT_DIR / "spring_features_v1.csv").open(encoding="utf-8", newline="") as handle:
+            kept_soil = {r["record_id"]: {k: v for k, v in r.items() if k in HWSD_COLUMNS} for r in csv.DictReader(handle)}
 
     with COMMON_CSV.open(encoding="utf-8", newline="") as handle:
         source_rows = list(csv.DictReader(handle))
@@ -1028,13 +1067,14 @@ def main():
     colocated_groups(rows)
     points = [(r["latitude_dd"], r["longitude_dd"]) for r in rows if r["coordinate_status"] == "ok"]
 
-    layers = open_layers(points, cache, args.local_layers, args.lineaments)
+    layers = open_layers(points, cache, args.local_layers, args.lineaments, soil_hwsd=not args.keep_hwsd)
     print("Reading building counts")
     layers.buildings.prefetch(points)
     for index, row in enumerate(rows):
         if row["coordinate_status"] != "ok":
             continue
         row.update(point_features(layers, row["longitude_dd"], row["latitude_dd"], row["source_elevation_m"], row["_notes"]))
+        row.update(kept_soil.get(row["record_id"], {}))
         if row["source_rainfall_mm"] is not None and row.get("rain_chirps_mean_annual_mm_2018_2025", "") != "":
             row["rain_source_minus_chirps_mm"] = row["source_rainfall_mm"] - row["rain_chirps_mean_annual_mm_2018_2025"]
         if (index + 1) % 200 == 0:

@@ -7,11 +7,11 @@ Each agent owns its decision rules in **§4 of its own specification**. The catc
 
 ## Scope and authority
 
-The agreed specialist decomposition expands the earlier Geospatial Evidence and Recharge Delineation roles. Catchment delineation is the first capability; springshed delineation follows it. **Vulnerability and Direct Injection are parked in this agent scaffold**: neither has an active specification, dependency or result here. Module A vulnerability exists separately in [`scripts/module_a_vulnerability.py`](../scripts/module_a_vulnerability.py); its integration with these agents is pending. Their broader project goals remain in the baseline.
+The agreed specialist decomposition expands the earlier Geospatial Evidence and Recharge Delineation roles. Catchment delineation is the first capability; springshed delineation follows it. **Direct Injection is parked in this agent scaffold**: it has no active specification, dependency or result here. Vulnerability joins as the [Vulnerability Agent](vulnerability.md) (`AG-VUL`), which runs Module A ([`scripts/module_a_vulnerability.py`](../scripts/module_a_vulnerability.py)) unchanged when a request asks for it. Their broader project goals remain in the baseline.
 
 The [workspace AGENTS.md](../../AGENTS.md) and current user instructions govern these specifications. The [14 October application plan](../docs/Project1_Agent_System_Implementation_Plan.md) supplies evidence and architecture safeguards; its earlier grouping is context for this more detailed decomposition. The plan records the separate periodic data-refresh and local assessment workflows; the workspace AGENTS.md baseline has not been edited.
 
-The existing plan specifies local Python rule-based agents without runtime LLM API calls. These files define the responsibilities and evidence limits of the twelve named roles below; the accompanying Python package implements only the resolved portions of those contracts. At runtime, the user's coordinates select covering data from the approved local snapshot. TBD refresh adapters, schemas, methods and thresholds remain unresolved.
+The existing plan specifies local Python rule-based agents without runtime LLM API calls. These files define the responsibilities and evidence limits of the thirteen named roles below; the accompanying Python package implements only the resolved portions of those contracts. At runtime, the user's coordinates select covering data from the approved local snapshot. TBD refresh adapters, schemas, methods and thresholds remain unresolved.
 
 ## Agent specifications
 
@@ -26,6 +26,7 @@ The existing plan specifies local Python rule-based agents without runtime LLM A
 | AG-TMP | [temperature.md](temperature.md) | Relevant temperature context | Optional; not a catchment prerequisite |
 | AG-LAS | [land_soil.md](land_soil.md) | Land/soil conditions and infiltration context | Later where applicable |
 | AG-SHD | [springshed.md](springshed.md) | Integrate evidence into provisional recharge candidates | Later springshed stage |
+| AG-VUL | [vulnerability.md](vulnerability.md) | Module A spring vulnerability score with its reasons | When the request sets `include_vulnerability` |
 | AG-LIN | [data_lineage.md](data_lineage.md) | Map agent handoffs and trace each assessment to recorded inputs | Required |
 | AG-VER | [verifier.md](verifier.md) | Independent checks and findings | Required |
 | AG-COM | [assessment_composer.md](assessment_composer.md) | Explain, map and export released results | Required |
@@ -41,6 +42,10 @@ Each role is responsible for evidence selection, method applicability, interpret
 Catchment mode:
 
 `AG-ORC.run_context -> AG-SPR.location_evidence -> AG-TER.terrain_package -> AG-CAT.catchment_geometry -> AG-ORC.assessment_manifest -> AG-LIN.run_trace -> AG-VER.verification_report -> AG-COM.assessment_summary`
+
+With `include_vulnerability: true`, either mode also runs:
+
+`AG-SPR.location_evidence -> AG-VUL.vulnerability_assessment + AG-VUL.input_gaps -> AG-ORC.assessment_manifest -> ... -> AG-COM.assessment_summary`
 
 The data path and the agent handoffs are related but distinct:
 

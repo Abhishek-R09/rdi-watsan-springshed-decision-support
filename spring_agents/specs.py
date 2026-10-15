@@ -18,6 +18,7 @@ AGENT_FILES = {
     "AG-TMP": "temperature.md",
     "AG-LAS": "land_soil.md",
     "AG-SHD": "springshed.md",
+    "AG-VUL": "vulnerability.md",
     "AG-LIN": "data_lineage.md",
     "AG-VER": "verifier.md",
     "AG-COM": "assessment_composer.md",

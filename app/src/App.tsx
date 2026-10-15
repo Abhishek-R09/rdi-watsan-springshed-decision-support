@@ -10,6 +10,15 @@ import PrintReport from './components/PrintReport';
 
 type Mode = 'checking' | 'live' | 'demo';
 
+// DI sites further than this from the spring are treated as left over from another spring.
+const MAX_SITE_DISTANCE_M = 3000;
+function distanceM(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const k = Math.PI / 180;
+  const dy = (lat2 - lat1) * 111_132;
+  const dx = (lon2 - lon1) * 111_320 * Math.cos(((lat1 + lat2) / 2) * k);
+  return Math.hypot(dx, dy);
+}
+
 const STEPS = ['Scoring vulnerability', 'Mapping the springshed', 'Estimating DI impact'];
 
 export default function App() {
@@ -72,6 +81,19 @@ export default function App() {
     setPlacing('none');
     flyTo(s.latitude, s.longitude, 15);
   }, [flyTo, setForm]);
+
+  // DI sites belong to one spring: when the spring moves far away (another spring picked, or a new point),
+  // sites left from the earlier spring are dropped so they are not assessed against the wrong spring.
+  const [siteNotice, setSiteNotice] = useState('');
+  useEffect(() => {
+    if (!point) return;
+    const far = form.sites.filter((s) => distanceM(point.lat, point.lon, s.latitude, s.longitude) > MAX_SITE_DISTANCE_M);
+    if (!far.length) return;
+    setForm((f) => ({ ...f, sites: f.sites.filter((s) => !far.some((x) => x.id === s.id)) }));
+    setSiteNotice(`${far.length} DI ${far.length === 1 ? 'site' : 'sites'} from the earlier spring ${far.length === 1 ? 'was' : 'were'} removed: `
+      + `${far.length === 1 ? 'it was' : 'they were'} more than ${MAX_SITE_DISTANCE_M / 1000} km from this spring. Add this spring's own handpumps on the map.`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [point?.lat, point?.lon]);
 
   const effectivePlacing: Placing = placing !== 'none' ? placing : point ? 'none' : 'spring';
 
@@ -168,6 +190,7 @@ export default function App() {
         <aside className="panel" aria-label="Inputs">
           <div className="panel-scroll">
             {springsError && <p className="msg msg-warn">{springsError}</p>}
+            {siteNotice && <p className="msg msg-info" role="status">{siteNotice} <button type="button" className="link-btn" onClick={() => setSiteNotice('')}>OK</button></p>}
             <Form form={form} setForm={setForm} springs={springs} placing={placing} setPlacing={(p) => { setPlacing(p); if (p === 'site' && result) setTab('C'); }}
               onPickSpring={pickSpring} onFocusPoint={() => { const p = springPoint(form); if (p) flyTo(p.lat, p.lon, 15); }} />
             <button type="button" className="btn btn-ghost btn-small reset" onClick={() => { setForm(() => emptyForm()); setResult(null); }}>

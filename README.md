@@ -19,7 +19,7 @@ The tool is decision support, not a substitute for hydrogeological verification.
 - **Vulnerability agent:** [`agents/vulnerability.md`](agents/vulnerability.md) (`AG-VUL`) runs Module A inside the agent runtime when a request sets `include_vulnerability: true`.
 - **Field interface:** [`interface/`](interface/README.md) is a mobile-friendly Preact map and form. With the local server [`scripts/serve_tool.py`](scripts/serve_tool.py) running, it sends the spring to the agent runtime and shows the vulnerability score and the recharge-zone status; without it, it falls back to an illustrative preview. The older [`app.py`](app.py) Streamlit prototype calls only the catchment/springshed runtime.
 
-One field request now runs both: the agent runtime's request carries Module A's elevation and answers, and `AG-VUL` calls Module A unchanged. Still open: Module A's first-run/new-area map downloads differ from the agent workflow's approved-local-snapshot policy. Until that is agreed, every vulnerability result records the difference as an issue (rule `R-VUL-03`).
+One field request now runs both: the agent runtime's request carries Module A's elevation and answers, and `AG-VUL` calls Module A unchanged. Module A's map layers follow the approved-local-snapshot policy: [`scripts/module_a_snapshot.py`](scripts/module_a_snapshot.py) prepares, verifies and approves a versioned map set, and assessments then read only those files (rule `R-VUL-03`).
 
 ## Data flow
 

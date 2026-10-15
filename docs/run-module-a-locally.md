@@ -87,9 +87,42 @@ The score prints on screen. The one-page report, plus a JSON file for the future
 
 3. Read the result in `data\03_outputs\module_a\`. Run it once: every run is logged, and a second look at the same springs shows up.
 
-## 5. Use the tool in your browser
+## 5. Approve the map set (once, and after adding data)
 
-The web page runs the joined tool on this computer: Module A's score, plus Module B's recharge-zone step (which says "not available yet" until Module B can draw a zone).
+The joined tool (section 6) uses one approved, versioned set of map files, so every result can be traced to the exact files it used and no assessment downloads anything.
+
+1. **Prepare the set.** This downloads every map tile Module A needs for all dataset springs, about 1.3 GB (tiles already in `MapCache` are reused). It then lists each file with a fingerprint:
+
+   ```
+   python scripts\module_a_snapshot.py prepare --by "Rajat"
+   ```
+
+   It ends by printing the set's name, for example `MA-20261015-1a2b3c4d`.
+2. **Approve it**, using that name:
+
+   ```
+   python scripts\module_a_snapshot.py approve MA-20261015-1a2b3c4d --by "Rajat"
+   ```
+
+   This checks every file again first. From now on, assessments read only these files.
+3. **Check it at any time:** `python scripts\module_a_snapshot.py status` (which set is in use) or `... verify` (are all files still unchanged).
+
+**Things to know**
+- **Building growth is left out.** It is read over the internet, so it isn't in the set, and its 3 points are shared among the other indicators. Scores can move by a point or two compared with section 2.
+- **A spring outside the set** comes back as "outside the approved map set". To add an area, run prepare with a box (west, south, east, north), then approve the new set:
+
+  ```
+  python scripts\module_a_snapshot.py prepare --bbox 79.5 29.5 80.5 30.5 --by "Rajat"
+  ```
+
+**Adding new data later** (for example the 2026 IMD file):
+1. Put the file in its folder under `DOCC\Data`, named like the others.
+2. Run `python scripts\module_a_snapshot.py prepare --rebuild-reference --by "Rajat"`. This rebuilds the comparison table for all springs, so it takes a while and needs the data-build packages: `pip install -r requirements.txt` installs them.
+3. Approve the new set. Older results keep the name of the set they used.
+
+## 6. Use the tool in your browser
+
+Approve a map set first (section 5). The web page runs the joined tool on this computer: Module A's score, plus Module B's recharge-zone step (which says "not available yet" until Module B can draw a zone).
 
 1. **One time only: build the page.**
    - Install Node.js (the LTS version) from nodejs.org.

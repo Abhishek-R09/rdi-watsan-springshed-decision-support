@@ -6,7 +6,7 @@ The tool has three modules, built separately and joined later:
 - **Module B:** recharge zone (Rajat's colleague).
 - **Module C:** DI impact.
 
-The intended whole tool runs locally and calls no paid AI service. A small rule-based orchestrator is proposed to check inputs and coordinate the modules. The agent runtime in [`spring_agents/`](../spring_agents/README.md) is that orchestrator. Module A joins it as the Vulnerability Agent ([`agents/vulnerability.md`](../agents/vulnerability.md)), and the Preact page in [`interface/`](../interface/README.md) reaches it through the local server `scripts/serve_tool.py`. The shared data-access policy is still open (see rule `R-VUL-03`).
+The intended whole tool runs locally and calls no paid AI service. A small rule-based orchestrator is proposed to check inputs and coordinate the modules. The agent runtime in [`spring_agents/`](../spring_agents/README.md) is that orchestrator. Module A joins it as the Vulnerability Agent ([`agents/vulnerability.md`](../agents/vulnerability.md)), and the Preact page in [`interface/`](../interface/README.md) reaches it through the local server `scripts/serve_tool.py`. Module A's map layers come from an approved, versioned map set made with `scripts/module_a_snapshot.py` (rule `R-VUL-03`).
 
 The fuller design is in [`Project1_Agent_System_Implementation_Plan.md`](Project1_Agent_System_Implementation_Plan.md). That plan covers the agent specifications, lineage, memory and testing. This note covers only what each module takes in and gives back, so that the modules join without rework.
 

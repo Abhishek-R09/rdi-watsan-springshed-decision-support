@@ -159,6 +159,7 @@ input:disabled { background: var(--surface-2); color: var(--ink-3); }
 .msg-amber { background: var(--amber-bg); color: var(--amber-ink); }
 .msg-error { background: var(--red-bg); color: #8c2a20; }
 .msg-info { background: var(--water-soft); color: var(--water-dark); }
+.link-btn { background: none; border: 0; padding: 0 2px; color: inherit; font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
 .msg-caution { background: #fff7e6; color: #6d4b0a; border-left: 4px solid var(--risk-med); font-weight: 600; }
 
 /* ------------------------------------------------------------------ steps */

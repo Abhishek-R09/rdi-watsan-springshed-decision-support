@@ -168,7 +168,7 @@ export default function App() {
         <aside className="panel" aria-label="Inputs">
           <div className="panel-scroll">
             {springsError && <p className="msg msg-warn">{springsError}</p>}
-            <Form form={form} setForm={setForm} springs={springs} placing={placing} setPlacing={setPlacing}
+            <Form form={form} setForm={setForm} springs={springs} placing={placing} setPlacing={(p) => { setPlacing(p); if (p === 'site' && result) setTab('C'); }}
               onPickSpring={pickSpring} onFocusPoint={() => { const p = springPoint(form); if (p) flyTo(p.lat, p.lon, 15); }} />
             <button type="button" className="btn btn-ghost btn-small reset" onClick={() => { setForm(() => emptyForm()); setResult(null); }}>
               Clear the form

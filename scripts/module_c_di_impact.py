@@ -43,10 +43,10 @@ SHARE = {
     "below_spring": (0.0, 0.0, 0.0),
 }
 LOCATION_NOTE = {
-    "inside_likely": "Inside the likely recharge zone: most of the injected water can reach this spring.",
-    "inside_large": "Inside the large zone only: some of the water may reach this spring.",
-    "in_catchment": "In the surface catchment but outside the recharge zones: little of the water is likely to reach this spring.",
-    "outside": "Outside the spring's catchment and recharge zones: the water will mostly feed other springs or streams.",
+    "inside_likely": "Inside the likely springshed: most of the injected water can reach this spring.",
+    "inside_large": "Inside the large springshed only: some of the water may reach this spring.",
+    "in_catchment": "In the surface catchment but outside the springshed: little of the water is likely to reach this spring.",
+    "outside": "Outside the spring's catchment and springshed: the water will mostly feed other springs or streams.",
     "below_spring": "Lower than the spring outlet: water injected here cannot feed this spring.",
 }
 # Specific yield (also used as effective porosity) and hydraulic conductivity (m/day) ranges by rock.
@@ -178,7 +178,7 @@ def estimate(inputs, session=None, features=None, b_output=None):
     aquifer = aquifer_for(rock_text)
     sy, k = AQUIFER[aquifer]["sy"], AQUIFER[aquifer]["k"]
     if not zones:
-        warnings.append("No recharge zone was available from the springshed section, so every site is treated as outside it.")
+        warnings.append("No springshed was available from the springshed section, so every site is treated as outside it.")
     m_per_deg_lat = 111132.92 - 559.82 * math.cos(2 * math.radians(lat))
     m_per_deg_lon = 111412.84 * math.cos(math.radians(lat))
     rain_m = rain["annual_mm"] / 1000
@@ -233,7 +233,7 @@ def estimate(inputs, session=None, features=None, b_output=None):
         if roof > 300:
             flags.append("Large roof: check the handpump can take the peak monsoon inflow without overflowing.")
         if where in ("outside", "below_spring"):
-            flags.append("Consider moving this site uphill into the likely recharge zone.")
+            flags.append("Consider moving this site uphill into the likely springshed.")
         if distance > 2000:
             flags.append("More than 2 km from the spring.")
         if rain["monthly_mm"]:
@@ -264,7 +264,7 @@ def estimate(inputs, session=None, features=None, b_output=None):
         inside = sum(1 for r in results if r["location_class"] == "inside_likely")
         rationale.append(f"{len(results)} DI {'site' if len(results) == 1 else 'sites'} with {sum(r['roof_area_m2'] for r in results):,.0f} m2 of roof can inject about "
                          f"{total_volume:,.0f} m3 ({total_volume * 1000:,.0f} litres) a year at {rain['annual_mm']:,} mm of rain.")
-        rationale.append(f"{inside} of {len(results)} {'lies' if inside == 1 else 'lie'} inside the likely recharge zone. Counting only the share that can reach the spring, "
+        rationale.append(f"{inside} of {len(results)} {'lies' if inside == 1 else 'lie'} inside the likely springshed. Counting only the share that can reach the spring, "
                          f"the spring could gain {tot_lean['mid']:.2f} L/min in the lean season (range {tot_lean['low']:.2f}-{tot_lean['high']:.2f}), "
                          f"if all of it comes out then; spread over the year it is {tot_annual['mid']:.2f} L/min.")
         if pct:
@@ -280,7 +280,7 @@ def estimate(inputs, session=None, features=None, b_output=None):
         missing.append({"id": "lean_flow_lpm", "indicator": "Lean-season flow",
                         "needs": "A May-June bucket reading turns the added flow into a % of what the spring gives now."})
     if not zones:
-        missing.append({"id": "springshed", "indicator": "Recharge zone", "needs": "The springshed section must run to place the sites."})
+        missing.append({"id": "springshed", "indicator": "Springshed", "needs": "The springshed section must run to place the sites."})
 
     benchmarks = [f"One 100 m2 roof inside the likely zone adds about {one_roof:.2f} L/min to the lean-season flow (mid case)."] + BENCHMARKS
     assumption_rows = [

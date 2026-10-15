@@ -160,7 +160,7 @@ function FieldStep({ form, setForm }: { form: FormState; setForm: SetForm }) {
         <summary>
           <span className="group-title">Geology</span>
           <span className="group-count">{answered(geoIds)} of {geoIds.length}</span>
-          <span className="group-hint">Rock at the spring; helps draw the recharge zone</span>
+          <span className="group-hint">Rock at the spring; helps draw the springshed</span>
         </summary>
         <div className="group-body">
           {textQuestions.map((q) => (

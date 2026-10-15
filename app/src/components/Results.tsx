@@ -201,9 +201,9 @@ function SpringshedTab({ m, r, onFocus }: { m: ModuleOutput<BResult>; r: BResult
   const zs = r.zone_summary;
   return (
     <>
-      <p className="msg msg-caution">A first estimate from maps. Walk the zone with a geologist before spending money.</p>
+      <p className="msg msg-caution">A first estimate from maps. Walk the springshed with a geologist before spending money.</p>
       <div className="stats">
-        <Stat label="Likely recharge area" accent="var(--green)"
+        <Stat label="Likely springshed area" accent="var(--green)"
           value={<>{num(likely?.area_ha ?? r.target_area_ha.mid, 1)} <small>ha</small></>}
           sub={`Could be ${num(small?.area_ha ?? r.target_area_ha.low, 1)} – ${num(large?.area_ha ?? r.target_area_ha.high, 1)} ha`} />
         <Stat label="Surface catchment" accent="var(--water)"
@@ -211,20 +211,21 @@ function SpringshedTab({ m, r, onFocus }: { m: ModuleOutput<BResult>; r: BResult
           sub="Where rain runs off towards the spring" />
         <Stat label="Height band" accent="var(--earth)"
           value={<>{num(r.height_band_m.min)}–{num(r.height_band_m.max)} <small>m</small></>}
-          sub="Heights the recharge zone may use" />
+          sub="Heights the springshed may use" />
       </div>
       <p className="small"><b>How big it should be:</b> {r.target_area_ha.basis}</p>
       {r.spring_cell.moved_m > 0 && <p className="hint">{r.spring_cell.note}</p>}
 
       {zs && (
         <section className="block">
-          <h4>Inside the likely zone</h4>
+          <h4>Inside the likely springshed</h4>
           <StackedBar shares={zs.land_cover_pct} />
           <dl className="facts">
             <div><dt>Mean slope</dt><dd>{num(zs.mean_slope_deg)}°</dd></div>
             <div><dt>Recharge potential</dt><dd>{Math.round(zs.mean_potential * 100)}%</dd></div>
             <div><dt>Heights</dt><dd>{num(zs.elevation_range_m[0])}–{num(zs.elevation_range_m[1])} m</dd></div>
             <div><dt>Crosses a fault</dt><dd>{zs.crosses_fault ? 'Yes' : 'No'}</dd></div>
+            {zs.outside_catchment_pct != null && <div><dt>Outside the surface catchment</dt><dd>{zs.outside_catchment_pct}%</dd></div>}
             <div className="wide"><dt>Rock</dt><dd>{zs.rock_units.join(', ') || '–'}</dd></div>
           </dl>
         </section>
@@ -270,7 +271,7 @@ function SpringshedTab({ m, r, onFocus }: { m: ModuleOutput<BResult>; r: BResult
           </ul>
         </section>
       )}
-      <Bullets title="How the zone was drawn" items={m.rationale} />
+      <Bullets title="How the springshed was drawn" items={m.rationale} />
       <MissingList m={m} />
       <Warnings items={m.warnings} />
     </>
@@ -306,7 +307,7 @@ function DiTab({ m, r, onAddSite }: { m: ModuleOutput<CResult>; r: CResult; onAd
             <h4>What one roof could do</h4>
             <ul className="bullets">
               {roof != null && <li>One 100 m² roof in {num(r.rain.annual_mm)} mm of rain could put about <b>{num(roof)} m³</b> ({litres(roof)}) a year into the ground.</li>}
-              {r.roofs_for_10pct != null && <li>About <b>{num(r.roofs_for_10pct)}</b> roofs of 100 m² inside the likely recharge zone would add 10% to the dry-season flow.</li>}
+              {r.roofs_for_10pct != null && <li>About <b>{num(r.roofs_for_10pct)}</b> roofs of 100 m² inside the likely springshed would add 10% to the dry-season flow.</li>}
             </ul>
           </section>
         )}
@@ -330,7 +331,7 @@ function DiTab({ m, r, onAddSite }: { m: ModuleOutput<CResult>; r: CResult; onAd
             sub={`${range(t.pct_of_lean_flow)}% of ${flow(t.lean_flow_lpm)} L/min`} />
         )}
         {r.roofs_for_10pct != null && (
-          <Stat label="Roofs for +10% flow" accent="var(--earth)" value={num(r.roofs_for_10pct)} sub="100 m² roofs inside the likely zone" />
+          <Stat label="Roofs for +10% flow" accent="var(--earth)" value={num(r.roofs_for_10pct)} sub="100 m² roofs inside the likely springshed" />
         )}
       </div>
       {!t.pct_of_lean_flow && <p className="hint">Add the lean-season flow in step 2 to see this as a share of today's flow.</p>}

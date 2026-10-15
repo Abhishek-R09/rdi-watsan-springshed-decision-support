@@ -63,6 +63,7 @@ RIDGE_MARGIN_M = 60  # small and likely zones may cross the catchment divide by 
 WIDE_MARGIN_M = 150  # the large zone may reach this far beyond the divide
 DIP_SECTOR_DEG = 40  # half-width of the up-dip search sector when the rock tilt is known
 MIN_DIP_DEG = 5
+DIP_OTHER_FACTOR = 0.5  # with a measured tilt, cells outside the up-dip sector rank at half their potential
 DISTANCE_SCALE_M = 600  # closeness to the spring breaks ties between equally good cells
 DEFAULT_AREA_HA = (1.5, 3.0, 8.0)  # small / likely / large without a flow reading
 SPOT_SEPARATION_M = 150
@@ -271,7 +272,7 @@ def delineate(inputs, session):
     warnings, rationale, missing = [], [], []
 
     def unavailable(reason):
-        return {"module": "B", "title": "Springshed and recharge zone", "version": "v1 draft", "status": "unavailable",
+        return {"module": "B", "title": "Springshed (recharge area)", "version": "v1 draft", "status": "unavailable",
                 "spring": {"name": name, "latitude": lat, "longitude": lon, "elevation_m": given_elevation},
                 "result": None, "confidence": "Low", "rationale": [reason], "missing_inputs": [], "warnings": warnings,
                 "report_markdown": f"# Springshed: {name}\n\n{reason}\n", "_zones": None}
@@ -426,7 +427,12 @@ def delineate(inputs, session):
     # 4. size
     target = target_area(field)
     priority = potential * (0.5 + 0.5 * np.exp(-dist / DISTANCE_SCALE_M))
-    priority = np.where(core, priority, priority * 0.9)
+    if dip_sector.any():
+        # Measured rock tilt outranks surface shape: up-dip cells come first, and the rest of the catchment is
+        # taken only after them, so the springshed can lie mostly or wholly outside the surface catchment.
+        priority = np.where(dip_sector, priority, priority * DIP_OTHER_FACTOR)
+    else:
+        priority = np.where(core, priority, priority * 0.9)
     near_spring = dist <= NEAR_SPRING_M
     stream_block = stream & ~near_spring
     fault_block = fault_cells & ~near_spring
@@ -518,7 +524,7 @@ def delineate(inputs, session):
         f"The land that drains to the spring on the surface (its surface catchment) is {core_ha:.1f} ha"
         + (" or more" if touches_edge else "") + f", allowing 30 m for GPS and map error ({own_ha:.1f} ha drains to the exact map cell). "
         "Rain soaking in here can feed the spring, but the rocks decide the real recharge area.",
-        f"The likely recharge zone is {likely_ha:.1f} ha (small {zones[0]['area_ha']:.1f} ha, large {zones[-1]['area_ha']:.1f} ha). "
+        f"The likely springshed (recharge area) is {likely_ha:.1f} ha (small {zones[0]['area_ha']:.1f} ha, large {zones[-1]['area_ha']:.1f} ha). "
         + target["basis"],
         f"It was grown uphill from the spring, between its level ({z_s:.0f} m) and {HEIGHT_ABOVE_M} m above it, taking first the "
         "cells most likely to soak up rain (" + ", ".join(factors[f]["name"].lower() for f in used) + ") and those closest to the spring. "
@@ -529,6 +535,13 @@ def delineate(inputs, session):
     rationale.append(f"In the likely zone: {forest:.0f}% forest, shrub or grass and {disturbed:.0f}% built-up, farmed or bare land; "
                      f"mean slope {zone_summary['mean_slope_deg']:.0f} degrees; land from {zone_summary['elevation_range_m'][0]} to "
                      f"{zone_summary['elevation_range_m'][1]} m.")
+    outside_pct = 100 * float((likely & ~core).sum()) / max(int(likely.sum()), 1)
+    zone_summary["outside_catchment_pct"] = round(outside_pct)
+    if outside_pct >= 50:
+        rationale.append(f"{outside_pct:.0f}% of the likely springshed lies outside the surface catchment: the rock tilt carries water to "
+                         "the spring from beyond the ridge, so the two areas differ.")
+    elif outside_pct >= 10:
+        rationale.append(f"{outside_pct:.0f}% of the likely springshed lies outside the surface catchment.")
     if crosses_fault:
         rationale.append("A mapped GSI fault crosses the large zone. Faults can carry water to the spring or cut it off; a geologist "
                          "should check which side feeds it.")
@@ -562,7 +575,7 @@ def delineate(inputs, session):
         "recharge_spots": spots,
     }
     output = {
-        "module": "B", "title": "Springshed and recharge zone", "version": "v1 draft",
+        "module": "B", "title": "Springshed (recharge area)", "version": "v1 draft",
         "spring": {"name": name, "latitude": lat, "longitude": lon, "elevation_m": given_elevation if given_elevation is not None else round(z_s)},
         "status": "provisional", "result": result, "confidence": confidence,
         "rationale": rationale, "missing_inputs": missing, "warnings": warnings,
@@ -574,11 +587,11 @@ def delineate(inputs, session):
 
 def report_markdown(name, lat, lon, result, rationale, warnings):
     zones = {z["scenario"]: z["area_ha"] for z in result["zones"]}
-    lines = [f"# Springshed and recharge zone: {name}", "",
+    lines = [f"# Springshed (recharge area): {name}", "",
              f"Location {lat:.5f}, {lon:.5f}; map elevation {result['spring_cell']['elevation_m']} m.", "",
              "| | Area (ha) |", "|---|---|",
              f"| Surface catchment (allowing 30 m GPS error) | {result['surface_catchment']['area_ha']:.1f} |",
-             *(f"| {s.capitalize()} recharge zone | {zones[s]:.1f} |" for s in ("small", "likely", "large") if s in zones), "",
+             *(f"| {s.capitalize()} springshed (recharge area) | {zones[s]:.1f} |" for s in ("small", "likely", "large") if s in zones), "",
              "## Why", *(f"- {r}" for r in rationale), ""]
     if result["recharge_spots"]:
         lines += ["## Best places for recharge works", *(f"- {s['latitude']:.5f}, {s['longitude']:.5f} ({s['elevation_m']} m): {s['reason']}"

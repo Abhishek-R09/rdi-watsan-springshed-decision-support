@@ -228,7 +228,7 @@ function moduleB(lat: number, lon: number, elev: number): AssessResponse['B'] {
     ],
   };
   return {
-    module: 'B', title: 'Springshed and recharge zone', version: '0.3-demo', status: 'provisional', confidence: 'Low',
+    module: 'B', title: 'Springshed (recharge area)', version: '0.3-demo', status: 'provisional', confidence: 'Low',
     rationale: [
       'The zone is drawn upslope (north-west) of the spring, where the rock layers and the slope lead water towards it.',
       'Its size comes from how much water the spring gives in the dry months and how much rain soaks in each year.',

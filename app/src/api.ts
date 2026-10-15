@@ -117,6 +117,7 @@ export type BResult = {
     land_cover_pct: Record<string, number>;
     rock_units: string[];
     crosses_fault: boolean;
+    outside_catchment_pct?: number; // share of the likely springshed outside the surface catchment
   } | null;
   geology: { rock_class: string; unit: string; nearest_fault_m: number | null; nearest_fault_name: string } | null;
   faults: FeatureCollection; // GSI faults and thrusts in the window (properties.name, properties.type)

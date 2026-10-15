@@ -89,6 +89,10 @@ The method is unchanged from [module-a-vulnerability.md](module-a-vulnerability.
 4. **Size.** The target size comes from the monsoon flow, using the area-flow relation of 35 delineated springsheds (Rathi 2021): area ≈ 0.20 × flow^0.68 ha. With no flow reading, the typical 1.5 / 3 / 8 ha of hill springsheds is used.
 5. **Zone.** The zone is grown uphill from the spring, best cells first. It never crosses a stream channel. The small and likely zones also never cross a mapped fault.
 
+   When the rock tilt is entered, cells up-dip of the spring come first. The springshed can then lie mostly or wholly outside the surface catchment. The tab shows what share of the springshed lies outside the catchment.
+
+The map shows the **surface catchment** (dashed blue: where rain runs off towards the spring) and the **springshed** (green: where rain soaks in and feeds it) as separate layers, because the two are not the same area.
+
 **Confidence** is Low by default. It is Medium when both the monsoon flow and the rock tilt are given and the GSI geology covers the spring.
 
 **Limits:**

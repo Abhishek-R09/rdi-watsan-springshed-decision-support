@@ -174,7 +174,7 @@ class Tool:
         return out
 
 
-TITLES = {"A": "Spring vulnerability", "B": "Springshed and recharge zone", "C": "Potential impact of DI recharge"}
+TITLES = {"A": "Spring vulnerability", "B": "Springshed (recharge area)", "C": "Potential impact of DI recharge"}
 
 
 def failed(module, spring, reason, status="failed"):

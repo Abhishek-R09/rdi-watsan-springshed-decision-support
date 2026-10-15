@@ -188,6 +188,8 @@ export default function MapView(props: Props) {
     return () => window.removeEventListener('keydown', onKey);
   }, [props]);
 
+  // DI sites belong to the DI impact tab; before any result, or while placing one, they show everywhere.
+  const showSites = !result || tab === 'C' || placing === 'site';
   const legend: { key: string; label: string; swatch: JSX.Element }[] = [];
   const zonesSwatch = (
     <span className="lg-zones">
@@ -199,7 +201,7 @@ export default function MapView(props: Props) {
   if (B) {
     if (tab === 'A') legend.push({ key: 'r', label: '500 m around the spring', swatch: <i className="lg-ring" /> });
     if (B.surface_catchment.geojson && tab !== 'A') legend.push({ key: 'c', label: 'Surface catchment', swatch: <i className="lg-dash" /> });
-    legend.push({ key: 'z', label: 'Recharge zone: small, likely, large', swatch: zonesSwatch });
+    legend.push({ key: 'z', label: 'Springshed (recharge area): small, likely, large', swatch: zonesSwatch });
     if (tab === 'B') {
       if (B.faults.features.length) legend.push({ key: 'f', label: 'Fault or thrust', swatch: <i className="lg-line" style={{ background: '#d1352b' }} /> });
       if (B.lineaments.features.length) legend.push({ key: 'l', label: 'Lineament (possible crack line)', swatch: <i className="lg-line lg-dashed" /> });
@@ -207,7 +209,7 @@ export default function MapView(props: Props) {
     }
     if (tab !== 'A' && B.recharge_spots.length) legend.push({ key: 'rs', label: 'Suggested recharge spot', swatch: <i className="lg-star">★</i> });
   }
-  if (sites.length) {
+  if (showSites && sites.length) {
     const classes = new Set<DiSiteResult['location_class'] | null>();
     for (const s of sites) {
       const r = siteClass.get(s.id);
@@ -304,7 +306,7 @@ export default function MapView(props: Props) {
           const z = B.zones.find((x) => x.scenario === sc);
           return z ? (
             <GeoJSON key={`z-${sc}-${runKey}-${tab}`} data={z.geojson as any} pane="zones" style={() => zoneStyle(sc, tab)}
-              onEachFeature={(_f, layer) => layer.bindTooltip(`Recharge zone (${sc}): ${num(z.area_ha, 1)} ha`, { sticky: true })} />
+              onEachFeature={(_f, layer) => layer.bindTooltip(`Springshed, ${sc}: ${num(z.area_ha, 1)} ha`, { sticky: true })} />
           ) : null;
         })}
         {B?.surface_catchment.geojson && (
@@ -329,7 +331,7 @@ export default function MapView(props: Props) {
           </Marker>
         ))}
 
-        {sites.map((s, i) => {
+        {showSites && sites.map((s, i) => {
           const r = siteClass.get(s.id);
           const moved = r && (Math.abs(r.latitude - s.latitude) > 1e-6 || Math.abs(r.longitude - s.longitude) > 1e-6);
           const cls = r && !moved ? r.location_class : null;

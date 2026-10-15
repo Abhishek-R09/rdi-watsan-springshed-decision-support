@@ -12,7 +12,15 @@ This repository holds the reproducible project record: raw inputs, field records
 
 The tool is decision support, not a substitute for hydrogeological verification. DI estimates are upper-bound planning calculations until monitoring permits calibration.
 
-## Current components
+## The spring tool (start here)
+
+**Spring Health & Recharge Planner** is one local, map-based tool. A spring's location, field answers and planned DI sites go in. Three results come out: vulnerability (Module A), springshed and recharge zone (Module B), and the potential impact of DI recharging (Module C). On Windows, double-click [`start_tool.bat`](start_tool.bat). Elsewhere, run `python scripts/spring_tool_server.py --open`. How to use it, and how each section works: [`docs/spring-tool-guide.md`](docs/spring-tool-guide.md).
+
+- **Page:** [`app/`](app/) (React + Leaflet; built copy in `app/dist/`, so no Node.js is needed to run it)
+- **Server:** [`scripts/spring_tool_server.py`](scripts/spring_tool_server.py)
+- **Modules:** [`module_a_vulnerability.py`](scripts/module_a_vulnerability.py), [`module_b_springshed.py`](scripts/module_b_springshed.py) and [`module_c_di_impact.py`](scripts/module_c_di_impact.py)
+
+## Other components
 
 - **Module A vulnerability:** [`scripts/module_a_vulnerability.py`](scripts/module_a_vulnerability.py), with its own inputs, reports and checks. See [`docs/run-module-a-locally.md`](docs/run-module-a-locally.md).
 - **Catchment/springshed agents:** [`agents/`](agents/README.md) defines the exact IDs and rules; [`spring_agents/`](spring_agents/README.md) runs the resolved checks and records unavailable results where delineation inputs or approved rules are missing.

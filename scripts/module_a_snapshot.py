@@ -1,4 +1,7 @@
-"""Module A's map set: prepare it once, check it, approve it. Assessments then read only these files, never the internet.
+"""The tool's map set: prepare it once, check it, approve it. Assessments then read only these files, never the internet.
+
+It began as Module A's set and now also holds what Modules B (springshed) and C (DI impact) read: the GSI geology,
+the DEM lineaments, the recharge-factor table and the Rathi (2021) springsheds used to size the zone.
 
     python scripts/module_a_snapshot.py prepare [--bbox W S E N] [--rebuild-reference] [--by NAME]
     python scripts/module_a_snapshot.py verify [SNAPSHOT_ID]
@@ -36,10 +39,18 @@ ROOT = Path(__file__).resolve().parents[1]
 SNAPSHOTS = ROOT / "data" / "02_processed" / "snapshots" / "module_a"
 ACTIVE = SNAPSHOTS / "active.json"
 FEATURES_CSV = ROOT / "data" / "02_processed" / "spring_features" / "spring_features_v1.csv"
-REPO_FILES = [  # what Module A scores against: the comparison table, the weights and the input/test split
+REPO_FILES = [  # Module A: the comparison table, the weights and the input/test split
     ("derived", "data/02_processed/spring_features/spring_features_v1.csv"),
     ("derived", "data/02_processed/spring_master/spring_master_v1_input.csv"),
     ("derived", "config/module_a_indicators_v1.csv"),
+    # Module B: geology, fractures, factor weights, the springsheds that size the zone; the tool's spring list
+    ("SRC-014", "data/00_raw/ngdr_geology/lithology/LITHOLOGY_STATE_UTTARAKHAND.geojson"),
+    ("SRC-013", "data/00_raw/ngdr_geology/faults/FAULT_STATE_UTTARAKHAND.geojson"),
+    ("SRC-015", "data/00_raw/ngdr_geology/folds/FOLD_STATE_UTTARAKHAND.geojson"),
+    ("derived", "data/02_processed/lineaments/dem_lineament_candidates_v1.geojson"),
+    ("derived", "config/module_b_recharge_factors_v1.csv"),
+    ("SRC-011", "data/01_staged/literature/csv/literature_spring_records_common_v1.csv"),
+    ("derived", "data/02_processed/spring_master/spring_master_v1_clean.csv"),
 ]
 LOCAL_FILES = [("SRC-023", "IMD", "*.nc"), ("SRC-024", "SoilGrids", "*.tif"), ("SRC-022", "Bhoonidhi", "*.zip")]
 NOT_INCLUDED = [{"source_id": "SRC-025", "indicator": "building_growth",
@@ -173,7 +184,7 @@ def prepare(bbox=None, rebuild_reference=False, by=None) -> dict:
     present_dem = {p.name.split("_")[4] + p.name.split("_")[6] for p in dem}  # N30 + E078 from the Copernicus name
     manifest = {
         "snapshot_id": f"MA-{datetime.now(timezone.utc):%Y%m%d}-{fingerprint}",
-        "kind": "Module A map set",
+        "kind": "Spring tool map set (Modules A, B and C)",
         "approval_status": "pending_review",
         "prepared_utc": now(), "prepared_by": by, "code_version": code_version(),
         "approved_utc": None, "approved_by": None,

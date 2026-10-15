@@ -27,3 +27,6 @@ __pycache__/
 .layer_cache/
 # Layers downloaded by hand (CartoDEM, IMD, SoilGrids); licences do not allow redistribution in all cases
 .local_layers/
+
+# Node packages for the web page (app/dist/ is committed so the laptop needs no Node.js)
+app/node_modules/

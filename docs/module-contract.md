@@ -1,10 +1,12 @@
-# How the modules fit together (draft v2, 2026-10-14)
+# How the modules fit together (draft v3, 2026-10-15)
 
-The tool has three modules, built separately and joined later:
+The tool has three modules:
 
-- **Module A:** vulnerability score (Rajat).
-- **Module B:** recharge zone (Rajat's colleague).
-- **Module C:** DI impact.
+- **Module A:** vulnerability score. `assess()` in `scripts/module_a_vulnerability.py`.
+- **Module B:** springshed and recharge zone. `delineate()` in `scripts/module_b_springshed.py`.
+- **Module C:** DI impact. `estimate()` in `scripts/module_c_di_impact.py`.
+
+Since 15 October 2026, the three run together in the spring tool. `scripts/spring_tool_server.py` runs A, then B, then C, and serves the map page in `app/`. The page and the server share the request and reply shapes in `app/src/api.ts`. How to use the tool and how each module works: [spring-tool-guide.md](spring-tool-guide.md). The agent runtime and the page in `interface/` described below are a separate, earlier route.
 
 The intended whole tool runs locally and calls no paid AI service. A small rule-based orchestrator is proposed to check inputs and coordinate the modules. The agent runtime in [`spring_agents/`](../spring_agents/README.md) is that orchestrator. Module A joins it as the Vulnerability Agent ([`agents/vulnerability.md`](../agents/vulnerability.md)), and the Preact page in [`interface/`](../interface/README.md) reaches it through the local server `scripts/serve_tool.py`. Module A's map layers come from an approved, versioned map set made with `scripts/module_a_snapshot.py` (rule `R-VUL-03`).
 

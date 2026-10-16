@@ -14,6 +14,8 @@ Endpoints:
     GET  /api/health    server, version and map set
     GET  /api/springs   the dataset springs for the search box and the map
     POST /api/assess    body and reply: see app/src/api.ts
+    GET  /api/terrain/{z}/{x}/{y}.png   elevation tiles for the 3D map (Terrarium encoding), cut from the same
+                        Copernicus DEM files the modules use, so the 3D view works without internet
 Each assessment is saved in data/03_outputs/tool_runs/<run_id>/ (result.json and report.md).
 """
 
@@ -27,8 +29,10 @@ import mimetypes
 import os
 import re
 import sys
+import struct
 import threading
 import traceback
+import zlib
 import webbrowser
 from collections import OrderedDict
 from datetime import datetime
@@ -43,7 +47,7 @@ import module_a_vulnerability as module_a  # noqa: E402
 import module_b_springshed as module_b  # noqa: E402
 import module_c_di_impact as module_c  # noqa: E402
 
-VERSION = "v1 draft (2026-10-15)"
+VERSION = "v1.1 draft (2026-10-16)"
 DIST = ROOT / "app" / "dist"
 RUNS = ROOT / "data" / "03_outputs" / "tool_runs"
 SPRINGS_CSV = ROOT / "data" / "02_processed" / "spring_master" / "spring_master_v1_clean.csv"
@@ -53,6 +57,7 @@ TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=u
          ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon",
          ".woff2": "font/woff2"}
 STUDY_AREA = {"lat": (28.5, 33.5), "lon": (75.5, 81.5)}
+TERRAIN_PATH = re.compile(r"/api/terrain/(\d+)/(\d+)/(\d+)\.png")
 
 
 class CachedSession:
@@ -74,6 +79,99 @@ class CachedSession:
         return self.cache[key]
 
 
+class Terrain:
+    """Map tiles of ground height for the 3D view, cut from the Copernicus DEM tiles on this computer.
+    Terrarium encoding: height = R * 256 + G + B / 256 - 32768 (metres). No DEM there -> height 0."""
+
+    SIZE = 256
+
+    def __init__(self, folder):
+        import rasterio
+        self.lock = threading.Lock()
+        self.files = sorted((Path(folder) / "dem").glob("*.tif"))
+        self.datasets = [rasterio.open(f) for f in self.files]
+        self.cache = OrderedDict()
+
+    def refresh(self):
+        """Pick up DEM tiles downloaded for a newly assessed place."""
+        import rasterio
+        new = [f for f in sorted(self.files[0].parent.glob("*.tif"))] if self.files else []
+        for f in new:
+            if f not in self.files:
+                self.files.append(f)
+                self.datasets.append(rasterio.open(f))
+                self.cache.clear()
+
+    def tile(self, z, x, y):
+        key = (z, x, y)
+        with self.lock:
+            if key in self.cache:
+                self.cache.move_to_end(key)
+                return self.cache[key]
+            png = self._png(self._heights(z, x, y))
+            self.cache[key] = png
+            while len(self.cache) > 600:
+                self.cache.popitem(last=False)
+            return png
+
+    def _heights(self, z, x, y):
+        import numpy as np
+        from rasterio.enums import Resampling
+        from rasterio.windows import from_bounds
+        n, size = 2 ** z, self.SIZE
+        frac = (np.arange(size) + 0.5) / size
+        lons = (x + frac) / n * 360 - 180
+        lats = np.degrees(np.arctan(np.sinh(np.pi * (1 - 2 * (y + frac) / n))))
+        heights = np.zeros((size, size), np.float32)
+        if z < 7:
+            return heights
+        west, east, south, north = lons[0], lons[-1], lats[-1], lats[0]
+        for ds in self.datasets:
+            b = ds.bounds
+            if b.right < west or b.left > east or b.top < south or b.bottom > north:
+                continue
+            pad = 2 * abs(ds.transform.a)
+            window = from_bounds(max(west - pad, b.left), max(south - pad, b.bottom), min(east + pad, b.right),
+                                 min(north + pad, b.top), ds.transform).round_offsets().round_lengths()
+            if window.width < 2 or window.height < 2:
+                continue
+            shape = (min(window.height, 2 * size), min(window.width, 2 * size))  # reads an overview when zoomed out
+            data = ds.read(1, window=window, out_shape=shape, resampling=Resampling.bilinear).astype(np.float32)
+            wt = ds.window_transform(window)
+            sx, sy = window.width / shape[1], window.height / shape[0]
+            # bilinear sampling at the tile's pixel centres
+            fc = (lons - wt.c) / (wt.a * sx) - 0.5
+            fr = (lats - wt.f) / (wt.e * sy) - 0.5
+            inside_c = (lons >= b.left) & (lons < b.right)
+            inside_r = (lats > b.bottom) & (lats <= b.top)
+            c0 = np.clip(np.floor(fc).astype(int), 0, shape[1] - 2)
+            r0 = np.clip(np.floor(fr).astype(int), 0, shape[0] - 2)
+            dc = np.clip(fc - c0, 0, 1)[None, :]
+            dr = np.clip(fr - r0, 0, 1)[:, None]
+            R0, C0 = np.meshgrid(r0, c0, indexing="ij")
+            v = (data[R0, C0] * (1 - dr) * (1 - dc) + data[R0, C0 + 1] * (1 - dr) * dc
+                 + data[R0 + 1, C0] * dr * (1 - dc) + data[R0 + 1, C0 + 1] * dr * dc)
+            use = inside_r[:, None] & inside_c[None, :] & (v > -500)
+            heights[use] = v[use]
+        return heights
+
+    @staticmethod
+    def _png(heights):
+        import numpy as np
+        v = np.clip(heights + 32768.0, 0, 65535.99)
+        r = np.floor(v / 256)
+        g = np.floor(v - r * 256)
+        b = np.floor((v - np.floor(v)) * 256)
+        rgb = np.dstack([r, g, b]).astype(np.uint8)
+        h, w = heights.shape
+        raw = b"".join(b"\x00" + rgb[i].tobytes() for i in range(h))
+
+        def chunk(kind, data):
+            return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+        return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+                + chunk(b"IDAT", zlib.compress(raw, 6)) + chunk(b"IEND", b""))
+
+
 class Tool:
     def __init__(self):
         self.lock = threading.Lock()
@@ -84,6 +182,7 @@ class Tool:
                                                            offline=self.manifest is not None))
         self.zones = OrderedDict()
         self._springs = None
+        self.terrain = Terrain(places["layer_cache"])
 
     # ------------------------------------------------------------------ data
     def health(self):
@@ -140,6 +239,8 @@ class Tool:
                     **{m: module_b.public(outputs[m]) for m in "ABC"}}
         response = finite(response)
         save_run(response, request)
+        if not self.manifest:
+            self.terrain.refresh()
         return response
 
     def _run(self, spring, field, di):
@@ -276,6 +377,19 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(HTTPStatus.OK, self.tool.health())
         if path == "/api/springs":
             return self._json(HTTPStatus.OK, self.tool.springs())
+        tile = TERRAIN_PATH.fullmatch(path)
+        if tile:
+            z, x, y = (int(v) for v in tile.groups())
+            if not (0 <= z <= 16 and 0 <= x < 2 ** z and 0 <= y < 2 ** z):
+                return self._json(HTTPStatus.NOT_FOUND, {"error": "No such tile"})
+            body = self.tool.terrain.tile(z, x, y)
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "max-age=86400")
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if not (DIST / "index.html").is_file():
             return self._send(HTTPStatus.OK, b"The page is not built. In app/, run: npm ci, then npm run build.", "text/plain; charset=utf-8")
         file = (DIST / path.lstrip("/")).resolve()

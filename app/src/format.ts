@@ -43,6 +43,7 @@ export const statusLabel: Record<Status, string> = {
 export const locationClass: Record<DiSiteResult['location_class'], { label: string; color: string }> = {
   inside_likely: { label: 'Inside likely springshed', color: '#1f7a45' },
   inside_large: { label: 'Inside large springshed', color: '#7aa83b' },
+  inside_detached: { label: 'In a possible area beyond the ridge', color: '#8e5bb5' },
   in_catchment: { label: 'In surface catchment', color: '#2f74b5' },
   outside: { label: 'Outside the springshed', color: '#7b818a' },
   below_spring: { label: 'Below the spring', color: '#c0392b' },

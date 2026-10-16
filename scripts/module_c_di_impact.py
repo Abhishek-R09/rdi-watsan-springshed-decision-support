@@ -38,6 +38,7 @@ LIMITS = {"collection_coefficient": (0.3, 1.0), "injection_efficiency": (0.3, 1.
 SHARE = {
     "inside_likely": (0.3, 0.6, 1.0),
     "inside_large": (0.1, 0.3, 0.6),
+    "inside_detached": (0.05, 0.2, 0.5),
     "in_catchment": (0.05, 0.15, 0.3),
     "outside": (0.0, 0.02, 0.1),
     "below_spring": (0.0, 0.0, 0.0),
@@ -45,6 +46,8 @@ SHARE = {
 LOCATION_NOTE = {
     "inside_likely": "Inside the likely springshed: most of the injected water can reach this spring.",
     "inside_large": "Inside the large springshed only: some of the water may reach this spring.",
+    "inside_detached": ("Inside a possible recharge area beyond the ridge, linked to the spring by a fault, crack or tilted rock "
+                        "layer: some of the water may reach this spring if that link is real."),
     "in_catchment": "In the surface catchment but outside the springshed: little of the water is likely to reach this spring.",
     "outside": "Outside the spring's catchment and springshed: the water will mostly feed other springs or streams.",
     "below_spring": "Lower than the spring outlet: water injected here cannot feed this spring.",
@@ -211,6 +214,8 @@ def estimate(inputs, session=None, features=None, b_output=None):
             where = "inside_likely"
         elif zones.get("large") is not None and zones["large"].contains(point):
             where = "inside_large"
+        elif any(g.contains(point) for g in zones.get("detached") or []):
+            where = "inside_detached"
         elif zones.get("catchment") is not None and zones["catchment"].contains(point):
             where = "in_catchment"
         else:
@@ -287,7 +292,7 @@ def estimate(inputs, session=None, features=None, b_output=None):
         {"id": "annual_rain_mm", "label": "Yearly rain", "value": rain["annual_mm"], "unit": "mm", "note": rain["source"]},
         {"id": "collection_coefficient", "label": "Roof rain collected", "value": cc, "unit": "share", "note": "RDI design 0.7-0.8 for metal or concrete roofs."},
         {"id": "injection_efficiency", "label": "Kept after first flush and overflow", "value": eff, "unit": "share", "note": "Assumed 0.8-0.9."},
-        {"id": "share", "label": "Share reaching the spring", "value": "0.3-1.0 inside the likely zone; 0.1-0.6 large zone; up to 0.3 elsewhere in the catchment",
+        {"id": "share", "label": "Share reaching the spring", "value": "0.3-1.0 inside the likely zone; 0.1-0.6 large zone; 0.05-0.5 in a possible area beyond the ridge; up to 0.3 elsewhere in the catchment",
          "unit": "share", "note": "Judgement until monitoring data exist."},
         {"id": "lean_season_months", "label": "Lean season", "value": lean_months, "unit": "months", "note": "Best case: all extra water comes out in these months."},
         {"id": "specific_yield", "label": "Specific yield of the rock", "value": f"{sy[0] * 100:g}-{sy[1] * 100:g}", "unit": "%",

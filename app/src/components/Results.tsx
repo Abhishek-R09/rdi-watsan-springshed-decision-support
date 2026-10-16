@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { AResult, AssessResponse, BResult, CResult, Indicator, ModuleOutput } from '../api';
+import type { AResult, AssessResponse, BResult, CResult, Feature, Indicator, ModuleOutput } from '../api';
 import { MONTHS, classColor, flow, litres, locationClass, num, pct, range, scoreColor, statusLabel } from '../format';
 import { Gauge, MonthlyBars, RangeStrip, StackedBar } from './charts';
 import type { Tab } from './MapView';
@@ -226,6 +226,7 @@ function SpringshedTab({ m, r, onFocus }: { m: ModuleOutput<BResult>; r: BResult
             <div><dt>Heights</dt><dd>{num(zs.elevation_range_m[0])}–{num(zs.elevation_range_m[1])} m</dd></div>
             <div><dt>Crosses a fault</dt><dd>{zs.crosses_fault ? 'Yes' : 'No'}</dd></div>
             {zs.outside_catchment_pct != null && <div><dt>Outside the surface catchment</dt><dd>{zs.outside_catchment_pct}%</dd></div>}
+            {zs.soil && <div className="wide"><dt>Soil (top 30 cm)</dt><dd>{zs.soil.class}: clay {num(zs.soil.clay_pct)}%, sand {num(zs.soil.sand_pct)}%</dd></div>}
             <div className="wide"><dt>Rock</dt><dd>{zs.rock_units.join(', ') || '–'}</dd></div>
           </dl>
         </section>
@@ -236,6 +237,8 @@ function SpringshedTab({ m, r, onFocus }: { m: ModuleOutput<BResult>; r: BResult
           {r.geology.nearest_fault_m != null && <>. Nearest mapped fault: {num(r.geology.nearest_fault_m)} m ({r.geology.nearest_fault_name})</>}.
         </p>
       )}
+
+      {r.detached && <BeyondRidge d={r.detached} onFocus={onFocus} />}
 
       {r.recharge_spots.length > 0 && (
         <section className="block">
@@ -275,6 +278,56 @@ function SpringshedTab({ m, r, onFocus }: { m: ModuleOutput<BResult>; r: BResult
       <MissingList m={m} />
       <Warnings items={m.warnings} />
     </>
+  );
+}
+
+/** Middle of a polygon's outline, for flying the map to it. */
+function middleOf(f: Feature | null): [number, number] | null {
+  let w = Infinity, so = Infinity, e = -Infinity, n = -Infinity;
+  const add = (c: any) => {
+    if (typeof c[0] === 'number') { w = Math.min(w, c[0]); e = Math.max(e, c[0]); so = Math.min(so, c[1]); n = Math.max(n, c[1]); }
+    else for (const x of c) add(x);
+  };
+  if (f?.geometry?.coordinates) add(f.geometry.coordinates);
+  return Number.isFinite(w) ? [(so + n) / 2, (w + e) / 2] : null;
+}
+
+function BeyondRidge({ d, onFocus }: { d: NonNullable<BResult['detached']>; onFocus: Props['onFocus'] }) {
+  return (
+    <section className="block beyond">
+      <h4>Recharge areas beyond the ridge</h4>
+      <p className="small">{d.reason}</p>
+      {d.candidates.length > 0 ? (
+        <>
+          <p className="hint">These are possibilities to check, not findings. Click one to see it on the map (purple, dashed).</p>
+          <ol className="spots">
+            {d.candidates.map((c) => {
+              const mid = middleOf(c.geojson);
+              return (
+                <li key={c.id}>
+                  <button type="button" onClick={() => mid && onFocus(mid[0], mid[1], 15)} disabled={!mid}>
+                    <span className="spot-num beyond-num">{c.id}</span>
+                    <span className="spot-body">
+                      <span>{c.why}</span>
+                      {c.rock_unit && <span className="muted small">Rock: {c.rock_unit}</span>}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        </>
+      ) : (
+        <p className="hint">None found. {d.searched}</p>
+      )}
+      {d.candidates.length > 0 && <p className="hint">{d.searched}</p>}
+      {d.candidates.length > 0 && d.checks.length > 0 && (
+        <details className="checks">
+          <summary>How to check one in the field</summary>
+          <ul>{d.checks.map((x) => <li key={x}>{x}</li>)}</ul>
+        </details>
+      )}
+    </section>
   );
 }
 

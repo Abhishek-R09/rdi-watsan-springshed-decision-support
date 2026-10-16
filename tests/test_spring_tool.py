@@ -38,9 +38,89 @@ def test_target_area_from_flow_readings():
 
 def test_factor_weights_sum_to_100():
     factors = module_b.load_factors()
-    assert set(factors) == {"slope", "land_cover", "rock", "structure"}
+    assert set(factors) == {"slope", "land_cover", "rock", "structure", "soil"}
     assert sum(f["weight"] for f in factors.values()) == 100
     assert all(0 <= s <= 1 for f in factors.values() for s in f["classes"].values())
+
+
+def test_soil_classes():
+    assert module_b.soil_class(5, 80).startswith("Sandy (")
+    assert module_b.soil_class(15, 60).startswith("Sandy loam")
+    assert module_b.soil_class(24, 35).startswith("Loam")
+    assert module_b.soil_class(30, 30).startswith("Clay loam")
+    assert module_b.soil_class(45, 20).startswith("Clay (")
+    classes = module_b.load_factors()["soil"]["classes"]
+    assert all(module_b.soil_class(c, s) in classes for c, s in ((5, 80), (15, 60), (24, 35), (30, 30), (45, 20)))
+
+
+def test_soilgrids_folder_layouts(tmp_path):
+    import build_spring_features as layers_mod
+    (tmp_path / "0-5 soilgrids").mkdir()
+    (tmp_path / "0-5 soilgrids" / "Slit.tif").write_bytes(b"")
+    (tmp_path / "clay_5-15cm_mean.tif").write_bytes(b"")
+    assert layers_mod.soilgrids_file(tmp_path, "silt_0-5cm_mean").name == "Slit.tif"
+    assert layers_mod.soilgrids_file(tmp_path, "clay_5-15cm_mean").name == "clay_5-15cm_mean.tif"
+    assert layers_mod.soilgrids_file(tmp_path, "sand_0-5cm_mean") is None
+
+
+def test_terrain_tile_encoding_round_trips():
+    import struct
+    import zlib
+    heights = np.array([[0.0, 1481.25], [-20.5, 4000.0]], np.float32)
+    png = server.Terrain._png(heights)
+    data, i = b"", 8
+    while i < len(png):
+        n = struct.unpack(">I", png[i:i + 4])[0]
+        if png[i + 4:i + 8] == b"IDAT":
+            data += png[i + 8:i + 8 + n]
+        i += 12 + n
+    rgb = np.frombuffer(zlib.decompress(data), np.uint8).reshape(2, 7)[:, 1:].reshape(2, 2, 3).astype(float)
+    decoded = rgb[..., 0] * 256 + rgb[..., 1] + rgb[..., 2] / 256 - 32768
+    assert np.allclose(decoded, heights, atol=0.01)
+
+
+def test_detached_area_found_along_a_fault():
+    """A spring on a slope facing west; a fault runs from the spring east, over the ridge, into higher forest."""
+    from affine import Affine
+    from shapely.geometry import LineString, box
+    from shapely import points
+    n, cell = 80, 30.0
+    t = Affine(cell, 0, 0, 0, -cell, n * cell)
+    rows, cols = np.indices((n, n))
+    xs, ys = t.c + (cols + 0.5) * cell, t.f - (rows + 0.5) * cell
+    row = col = 40
+    sx, sy = xs[row, col], ys[row, col]
+    # ground rises east of the spring to a ridge at col 50, dips to a saddle, then rises again beyond it
+    z = 1000 + np.where(cols <= 50, (cols - 40) * 6.0, 60 - (cols - 50) * 1.0 + np.clip(cols - 56, 0, None) * 5.0)
+    z = z.astype(float)
+    dist = np.hypot(xs - sx, ys - sy)
+    core = (cols >= 38) & (cols <= 50) & (np.abs(rows - row) <= 8)  # the spring's own catchment
+    fault = LineString([(sx, sy), (sx + 2400, sy)])
+    ctx = {"z": z, "t": t, "dist": dist, "bearing": np.zeros_like(z), "valid": np.ones_like(core), "water": np.zeros_like(core),
+           "attached": core, "potential": np.full(z.shape, 0.8), "row": row, "col": col, "z_s": 1000.0,
+           "conduits": [(fault, "GSI fault", "Test thrust (thrust)")], "cell_points": points(xs.ravel(), ys.ravel()),
+           "spring_utm": (sx, sy), "up_dip": None, "unit_names": np.full(z.shape, "", dtype=object), "target_mid": 2.0,
+           "cell_ha": cell * cell / 1e4, "land": np.full(z.shape, 10), "soil": None, "smooth": 10.0,
+           "to_lonlat": lambda x, y: (x, y), "window_utm": box(0, 0, n * cell, n * cell)}
+    found, masks, n_links = module_b._detached(ctx)
+    assert n_links == 1 and found
+    d = found[0]
+    assert d["link"]["kind"] == "GSI fault" and d["height_above_spring_m"]["min"] >= module_b.DETACHED_MIN_HEAD_M
+    assert not (masks[0] & core).any()
+    assert 1.5 <= d["area_ha"] <= 2.5
+    # with no fault near the spring, nothing is found
+    ctx["conduits"] = [(LineString([(sx, sy + 900), (sx + 2400, sy + 900)]), "GSI fault", "Far fault")]
+    assert module_b._detached(ctx)[0] == []
+
+
+def test_di_site_in_a_detached_area():
+    far = Point(78.57, 29.93).buffer(0.002)
+    b = {"result": {"geology": None}, "_zones": {"small": None, "likely": None, "large": None, "catchment": None, "dem": None,
+                                                  "spring_elevation_m": None, "detached": [far]}}
+    sites = [{"id": "d", "latitude": 29.93, "longitude": 78.57, "roof_area_m2": 100, "first_flush": True, "filter": True}]
+    out = module_c.estimate({"spring": NAULI, "field": {}, "di": {"sites": sites, "assumptions": {"annual_rain_mm": 1600}}}, b_output=b)
+    assert out["result"]["sites"][0]["location_class"] == "inside_detached"
+    assert out["result"]["sites"][0]["share_reaching_spring"] == {"low": 0.05, "mid": 0.2, "high": 0.5}
 
 
 def test_png_writer_round_trips():
@@ -133,6 +213,8 @@ def test_full_assessment_of_nauli_dhara():
     assert b["result"]["potential_overlay"]["image"].startswith("data:image/png;base64,")
     assert len(b["result"]["recharge_spots"]) <= 3 and b["result"]["surface_catchment"]["area_ha"] > 0
     assert "_zones" not in b
+    assert {"needed", "reason", "candidates", "checks"} <= set(b["result"]["detached"])
+    assert [r["radius_m"] for r in a["result"]["map"]["rings"]] == [500, 1000]
     assert c["result"]["sites"][0]["location_class"] in module_c.SHARE
     import json
     json.dumps(response, allow_nan=False)

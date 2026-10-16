@@ -41,6 +41,18 @@ function blob(lat: number, lon: number, areaHa: number, aspect: number, bearingD
   return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: {} };
 }
 
+/** A rough oval of areaHa centred east/north metres from the spring. */
+function patch(lat: number, lon: number, east: number, north: number, areaHa: number): Feature {
+  const a = Math.sqrt((areaHa * 10000 * 1.5) / Math.PI), b = a / 1.5;
+  const ring: LonLat[] = [];
+  for (let i = 0; i < 40; i++) {
+    const t = (i / 40) * Math.PI * 2, w = 1 + 0.08 * Math.sin(3 * t);
+    ring.push(offset(lat, lon, east + a * Math.cos(t) * w * 0.8 - b * Math.sin(t) * w * 0.6, north + a * Math.cos(t) * w * 0.6 + b * Math.sin(t) * w * 0.8));
+  }
+  ring.push(ring[0]);
+  return { type: 'Feature', geometry: { type: 'Polygon', coordinates: [ring] }, properties: {} };
+}
+
 function line(lat: number, lon: number, pts: [number, number][], properties: Record<string, any>): Feature {
   return { type: 'Feature', geometry: { type: 'LineString', coordinates: pts.map(([e, n]) => offset(lat, lon, e, n)) }, properties };
 }
@@ -141,6 +153,13 @@ function moduleA(req: AssessRequest, elevation: number): AssessResponse['A'] {
     ],
     nearest_dataset_spring: { record_id: 'SPR-0417', spring_name: 'Nauli Dhara', distance_m: 38 },
     elevation_gap_m: 9,
+    map: {
+      rings: [
+        { radius_m: 500, label: '500 m: disturbed land and slope' },
+        { radius_m: 1000, label: '1 km: buildings and land rising above the spring' },
+      ],
+      land_cover: null,
+    },
   };
   const missing = [
     { id: 'monsoon_flow_lpm', indicator: 'Monsoon flow', weight: 6, needs: 'Time how long a bucket takes to fill in August.' },
@@ -189,12 +208,11 @@ function moduleB(lat: number, lon: number, elev: number): AssessResponse['B'] {
       legend: POTENTIAL_LEGEND,
     } : null,
     factors: [
-      { id: 'rock', name: 'Rock type and cracks', weight_pct: 25, how: 'Fractured quartzite scores higher than shale or phyllite.' },
-      { id: 'slope', name: 'Slope', weight_pct: 20, how: 'Gentle slopes keep water longer so more soaks in.' },
-      { id: 'lineaments', name: 'Nearness to lineaments and faults', weight_pct: 20, how: 'Long straight valleys and ridges often follow cracks that carry water.' },
-      { id: 'landcover', name: 'Land cover', weight_pct: 15, how: 'Forest and grass score higher than bare ground or roofs.' },
-      { id: 'soil', name: 'Soil texture', weight_pct: 10, how: 'Sandy loam lets water in faster than clay.' },
-      { id: 'dip', name: 'Tilt of the rock layers', weight_pct: 10, how: 'Ground uphill along the layers is favoured when the tilt is known.' },
+      { id: 'slope', name: 'Slope', weight_pct: 25, how: 'Gentle slopes keep water longer so more soaks in.' },
+      { id: 'land_cover', name: 'Land cover', weight_pct: 20, how: 'Forest and grass score higher than bare ground or roofs.' },
+      { id: 'rock', name: 'Rock type', weight_pct: 20, how: 'Fractured quartzite scores higher than shale or phyllite.' },
+      { id: 'structure', name: 'Faults, cracks and rock tilt', weight_pct: 20, how: 'Ground near faults and lineaments, and up the tilt of the rock layers, scores higher.' },
+      { id: 'soil', name: 'Soil texture', weight_pct: 15, how: 'Sandy loam lets water in faster than clay; stony soil is scored low.' },
     ],
     zone_summary: {
       mean_potential: 0.62,
@@ -203,6 +221,7 @@ function moduleB(lat: number, lon: number, elev: number): AssessResponse['B'] {
       land_cover_pct: { 'Tree cover': 56, Cropland: 21, Grassland: 14, 'Built-up': 6, 'Bare ground': 3 },
       rock_units: ['Lansdowne granite', 'Quartzite with phyllite bands'],
       crosses_fault: true,
+      soil: { class: 'Loam or silt loam', clay_pct: 21, sand_pct: 44 },
     },
     geology: { rock_class: 'Hard rock, fractured', unit: 'Lansdowne granite / quartzite', nearest_fault_m: 410, nearest_fault_name: 'Main Boundary Thrust' },
     faults: fc([
@@ -226,6 +245,25 @@ function moduleB(lat: number, lon: number, elev: number): AssessResponse['B'] {
       { ...pt(lat, lon, -290, 150), elevation_m: elev + 95, potential: 0.81, reason: 'Grassy saddle with deep sandy-loam soil.' },
       { ...pt(lat, lon, -110, 330), elevation_m: elev + 125, potential: 0.77, reason: 'Old terraces near the fault zone: good for trenches.' },
     ],
+    detached: {
+      needed: true,
+      reason: 'The ground uphill inside the surface catchment is small for this flow, so water may also come from beyond the ridge along a fault.',
+      searched: 'Looked up to 4 km along faults and crack lines that pass within 200 m of the spring, for well-placed ground at least 20 m higher.',
+      candidates: [{
+        id: 'D1', area_ha: 4.2, geojson: patch(lat, lon, -760, 1230, 4.2),
+        link: { kind: 'GSI fault', name: 'Unnamed fault', geojson: line(lat, lon, [[-150, -100], [-500, 700], [-760, 1230]], {}) },
+        distance_m: 1450, height_above_spring_m: { min: 60, mean: 140 }, mean_potential: 0.71,
+        land_cover_pct: { 'Tree cover': 64, Grassland: 30, Cropland: 6 },
+        soil: { class: 'Sandy loam', clay_pct: 16, sand_pct: 58 }, rock_unit: 'Quartzite with phyllite bands',
+        valley_between_m: 45, cooler_by_c: 0.8, rank: 1,
+        why: 'Forest and grass on sandy loam, 140 m above the spring, on the fault that passes 180 m from the spring.',
+      }],
+      checks: [
+        'Walk the fault line between the area and the spring: look for seeps, wet patches or green strips.',
+        'Measure the water temperature and EC every month: water from higher up is a little cooler.',
+        'Note how many days after heavy rain the flow rises: a long delay suggests a far source.',
+      ],
+    },
   };
   return {
     module: 'B', title: 'Springshed (recharge area)', version: '0.3-demo', status: 'provisional', confidence: 'Low',
@@ -260,6 +298,7 @@ function moduleC(req: AssessRequest, lat: number, lon: number, elev: number, b: 
   const shares: Record<DiSiteResult['location_class'], Range> = {
     inside_likely: { low: 0.3, mid: 0.5, high: 0.7 },
     inside_large: { low: 0.15, mid: 0.3, high: 0.45 },
+    inside_detached: { low: 0.05, mid: 0.2, high: 0.5 },
     in_catchment: { low: 0.08, mid: 0.18, high: 0.3 },
     outside: { low: 0, mid: 0.03, high: 0.08 },
     below_spring: { low: 0, mid: 0, high: 0 },
@@ -267,6 +306,7 @@ function moduleC(req: AssessRequest, lat: number, lon: number, elev: number, b: 
   const notes: Record<DiSiteResult['location_class'], string> = {
     inside_likely: 'Inside the likely recharge zone: a good share of the water should reach the spring.',
     inside_large: 'Inside the large zone only: some water may reach the spring.',
+    inside_detached: 'Inside a possible recharge area beyond the ridge: some water may reach the spring if the link is real.',
     in_catchment: 'In the surface catchment but outside the recharge zones.',
     outside: 'Outside the recharge zones: little of this water is expected at the spring.',
     below_spring: 'Lower than the spring: water injected here cannot flow up to it.',

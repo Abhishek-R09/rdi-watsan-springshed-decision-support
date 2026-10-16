@@ -1,9 +1,9 @@
-# Spring Health & Recharge Planner: user guide (v1 draft, 15 October 2026)
+# Spring Health & Recharge Planner: user guide (v1.1 draft, 16 October 2026)
 
 One spring goes in. Three results come out, on a map:
 
 1. **Vulnerability assessment** (Module A). Is the spring at risk of declining? This gives a 0-100 score, a Low, Medium or High class, and the reasons.
-2. **Springshed and recharge zone** (Module B). Where does the spring's water soak in? This gives the surface catchment, three nested recharge zones (small, likely, large), a recharge-potential map, and the best spots for recharge works.
+2. **Springshed and recharge zone** (Module B). Where does the spring's water soak in? This gives the surface catchment, three nested recharge zones (small, likely, large), possible recharge areas beyond the ridge, a recharge-potential map, and the best spots for recharge works.
 3. **Potential impact of DI recharging** (Module C). What could rooftop water injected into defunct handpumps add to the spring? This gives the water injected, the added lean-season flow, the water-level rise, a travel time and a monitoring plan.
 
 Everything runs on your laptop. The tool calls no paid service and uses no AI model. Each method is plain arithmetic on map layers and field answers, and every number comes with its reason.
@@ -21,6 +21,8 @@ The start file looks for its map folders next to the `Tool` folder:
 |---|---|
 | `DOCC\MapCache` | Map tiles |
 | `DOCC\Data` | IMD, SoilGrids and CartoDEM files |
+
+SoilGrids files can sit either as `SoilGrids\clay_0-5cm_mean.tif` or in depth folders such as `SoilGrids\0-5 soilgrids\clay.tif` (the laptop's layout). Both are read.
 
 If your folders are elsewhere, set `SPRING_LAYER_CACHE` and `SPRING_LOCAL_LAYERS` before starting (see [run-module-a-locally.md](run-module-a-locally.md)).
 
@@ -55,7 +57,15 @@ Every run is saved in `data/03_outputs/tool_runs/<date-time>-<spring>/`:
    - the rainfall;
    - the share of roof rain collected;
    - the length of the lean season.
-4. Click **Assess this spring**. The three results appear as tabs. The map shows the layers for the tab you are on.
+4. Click **Assess this spring**. The three results appear as tabs. The map shows only the layers for the tab you are on:
+
+   | Tab | What the map shows |
+   |---|---|
+   | Vulnerability | The 500 m and 1 km circles the map indicators are measured in, land cover inside 1 km (disturbed land drawn strong), and nearby dataset springs |
+   | Springshed | Surface catchment, springshed zones, areas beyond the ridge and their water paths, faults, lineaments, streams, recharge spots, and the heat map switch |
+   | DI impact | DI sites coloured by where they sit, with the springshed and catchment drawn faintly for context |
+
+   The map is 3D by default: right-drag (or Ctrl + drag) to tilt and turn it. Heights are drawn 1.5 times. The **2D** button flattens it, and the background can be satellite, a topo map or streets. The 3D hills come from the tool's own elevation tiles, so they show even when the background cannot download.
 5. **Print report** prints the three sections.
 
 ## 3. What each section does
@@ -81,15 +91,27 @@ The method is unchanged from [module-a-vulnerability.md](module-a-vulnerability.
 
    | Factor | Weight | What scores high |
    |---|---|---|
-   | Slope | 30% | Gentle ground |
-   | Land cover | 25% | Forest; built-up land scores low |
-   | Rock type (GSI map) | 25% | Fractured or porous rock such as carbonate and quartzite; shale and phyllite score low |
+   | Slope | 25% | Gentle ground |
+   | Land cover | 20% | Forest; built-up land scores low |
+   | Rock type (GSI map) | 20% | Fractured or porous rock such as carbonate and quartzite; shale and phyllite score low |
    | Distance to a fault or lineament | 20% | Within 100 m |
+   | Soil, top 30 cm (SoilGrids) | 15% | Sandy and sandy-loam soil; clay scores low; stony soil gets a small bonus |
+
+   Without SoilGrids files the soil factor is left out and the other weights are scaled up.
 
 4. **Size.** The target size comes from the monsoon flow, using the area-flow relation of 35 delineated springsheds (Rathi 2021): area ≈ 0.20 × flow^0.68 ha. With no flow reading, the typical 1.5 / 3 / 8 ha of hill springsheds is used.
 5. **Zone.** The zone is grown uphill from the spring, best cells first. It never crosses a stream channel. The small and likely zones also never cross a mapped fault.
 
    When the rock tilt is entered, cells up-dip of the spring come first. The springshed can then lie mostly or wholly outside the surface catchment. The tab shows what share of the springshed lies outside the catchment.
+
+6. **Beyond the ridge (valley to valley).** Some springs are fed from the next valley, along a fault, a crack or tilted rock layers, so their recharge area does not start at the spring. The tool looks for this when the surface catchment is smaller than the area the flow needs, or when the zone above runs out of good ground:
+
+   - **Water paths:** a mapped GSI fault or a DEM lineament that passes within 200 m of the spring, or, when the rock tilt is entered, the up-dip direction in the same rock unit.
+   - **Candidate ground:** within 250 m of that path, up to 4 km away, at least 20 m above the spring, outside the attached zones, with recharge potential of 0.55 or more (slope, land cover, rock, soil), and at least 1 ha.
+   - **Valley check:** if the ground between the area and the spring dips more than 30 m below the spring, the stream there may catch the water first, so the area is ranked lower; more than 100 m rules it out.
+   - **Ranking:** potential × path strength (fault 1.0, rock tilt 0.9, lineament 0.7) × closeness. The best three are shown as D1-D3.
+
+   These are hypotheses, not findings. The tab lists field checks for each: walk the fault or crack line for seeps, track water temperature and EC monthly, note how slowly the spring rises after rain, and (with budget) an oxygen-18 test of the recharge height.
 
 The map shows the **surface catchment** (dashed blue: where rain runs off towards the spring) and the **springshed** (green: where rain soaks in and feeds it) as separate layers, because the two are not the same area.
 
@@ -119,6 +141,7 @@ The map shows the **surface catchment** (dashed blue: where rain runs off toward
 |---|---|
 | Inside the likely zone | 30%, 60%, 100% |
 | Inside the large zone only | 10%, 30%, 60% |
+| Inside a possible area beyond the ridge | 5%, 20%, 50% |
 | Elsewhere in the catchment | 5%, 15%, 30% |
 | Outside the catchment | 0%, 2%, 10% |
 | Below the spring | None |

@@ -550,6 +550,26 @@ class OpenBuildingsTemporal:
         }
 
 
+# Rajat's SoilGrids exports sit in one folder per depth ("0-5 soilgrids/clay.tif"), with these file names
+SOILGRID_FILE_NAMES = {"clay": ("clay",), "silt": ("silt", "slit"), "sand": ("sand",), "cfvo": ("coarse",),
+                       "bdod": ("bulk",), "ocd": ("organic carbon",)}
+
+
+def soilgrids_file(folder, stem):
+    """The file for one SoilGrids layer, e.g. stem "clay_0-5cm_mean": either SoilGrids/clay_0-5cm_mean.tif or
+    SoilGrids/0-5 soilgrids/clay.tif (names matched without regard to case). None if neither exists."""
+    path = folder / f"{stem}.tif"
+    if path.exists():
+        return path
+    prop, depth = stem.split("_")[:2]
+    sub = folder / f"{depth.removesuffix('cm')} soilgrids"
+    if sub.is_dir():
+        for candidate in sub.glob("*.tif"):
+            if candidate.stem.lower() in SOILGRID_FILE_NAMES.get(prop, ()):
+                return candidate
+    return None
+
+
 class LocalLayers:
     """Layers Rajat downloaded by hand (CartoDEM, IMD, SoilGrids) plus DEM lineament candidates."""
 
@@ -581,8 +601,8 @@ class LocalLayers:
             self.found.append(f"IMD: {len(self.imd)} years ({', '.join(map(str, sorted(self.imd)))})")
         self.soil = {}
         for stem, column, divisor in SOILGRIDS:
-            path = folder / "SoilGrids" / f"{stem}.tif"
-            if path.exists():
+            path = soilgrids_file(folder / "SoilGrids", stem)
+            if path is not None:
                 with rasterio.open(path) as ds:
                     self.soil[column] = (ds.read(1).astype("float64") / divisor, ds.transform)
         if self.soil:

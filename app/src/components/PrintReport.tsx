@@ -99,6 +99,7 @@ export default function PrintReport({ result, form, demo }: { result: AssessResp
               <p>
                 Inside the likely springshed: mean slope {num(B.zone_summary.mean_slope_deg)}°, land cover{' '}
                 {Object.entries(B.zone_summary.land_cover_pct).map(([k, v]) => `${k} ${Math.round(v)}%`).join(', ')};
+                {B.zone_summary.soil && <>soil: {B.zone_summary.soil.class.toLowerCase()}; </>}
                 rock: {B.zone_summary.rock_units.join(', ')}; {B.zone_summary.crosses_fault ? 'crosses a fault' : 'no fault crossing'}.
               </p>
             )}
@@ -107,6 +108,12 @@ export default function PrintReport({ result, form, demo }: { result: AssessResp
               <>
                 <p><b>Suggested recharge spots</b></p>
                 <ol>{B.recharge_spots.map((s, i) => <li key={i}>{s.latitude.toFixed(5)}, {s.longitude.toFixed(5)} ({num(s.elevation_m)} m): {s.reason}</li>)}</ol>
+              </>
+            )}
+            {B.detached && B.detached.candidates.length > 0 && (
+              <>
+                <p><b>Possible recharge areas beyond the ridge</b> (to check in the field)</p>
+                <ol>{B.detached.candidates.map((c) => <li key={c.id}>{c.id}: {num(c.area_ha, 1)} ha, {num(c.distance_m)} m away, {num(c.height_above_spring_m.mean)} m above the spring. {c.why}</li>)}</ol>
               </>
             )}
             <p className="p-caution">A first estimate from maps. Walk the springshed with a geologist before spending money.</p>

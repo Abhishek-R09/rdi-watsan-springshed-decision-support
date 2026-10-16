@@ -90,6 +90,37 @@ export type AResult = {
   context: string[];
   nearest_dataset_spring: { record_id: string; spring_name: string; distance_m: number } | null;
   elevation_gap_m: number | null;
+  // what the vulnerability tab draws: the circles the map indicators use, and land cover within 1 km
+  map?: {
+    rings: { radius_m: number; label: string }[];
+    land_cover: Overlay & { legend: { label: string; color: string; disturbed: boolean }[] } | null;
+  };
+};
+
+export type Overlay = {
+  image: string; // data:image/png;base64,...
+  bounds: [[number, number], [number, number]]; // [[south, west], [north, east]]
+  legend: { label: string; color: string }[];
+};
+
+export type SoilSummary = { class: string; clay_pct: number; sand_pct: number };
+
+// A possible recharge area beyond the ridge (valley to valley), linked to the spring by a fault, crack or tilted rock layer
+export type DetachedArea = {
+  id: string;
+  area_ha: number;
+  geojson: Feature | null;
+  link: { kind: 'GSI fault' | 'DEM lineament' | 'Rock layers (up-dip)'; name: string; geojson: Feature | null };
+  distance_m: number;
+  height_above_spring_m: { min: number; mean: number };
+  mean_potential: number;
+  land_cover_pct: Record<string, number>;
+  soil: SoilSummary | null;
+  rock_unit: string;
+  valley_between_m: number;
+  cooler_by_c: number; // rough: how much cooler water from this height would be (0.6 C per 100 m)
+  rank: number;
+  why: string;
 };
 
 export type Zone = {
@@ -104,11 +135,7 @@ export type BResult = {
   target_area_ha: Range & { basis: string };
   height_band_m: { min: number; max: number }; // elevations above sea level the zone may use
   zones: Zone[]; // nested: small inside likely inside large
-  potential_overlay: {
-    image: string; // data:image/png;base64,...
-    bounds: [[number, number], [number, number]]; // [[south, west], [north, east]]
-    legend: { label: string; color: string }[];
-  } | null;
+  potential_overlay: Overlay | null;
   factors: { id: string; name: string; weight_pct: number; how: string }[];
   zone_summary: {
     mean_potential: number; // 0-1
@@ -118,12 +145,14 @@ export type BResult = {
     rock_units: string[];
     crosses_fault: boolean;
     outside_catchment_pct?: number; // share of the likely springshed outside the surface catchment
+    soil?: SoilSummary;
   } | null;
   geology: { rock_class: string; unit: string; nearest_fault_m: number | null; nearest_fault_name: string } | null;
   faults: FeatureCollection; // GSI faults and thrusts in the window (properties.name, properties.type)
   lineaments: FeatureCollection; // DEM lineament candidates in the window
   streams: FeatureCollection; // DEM streams in the window (properties.order)
   recharge_spots: { latitude: number; longitude: number; elevation_m: number; potential: number; reason: string }[];
+  detached?: { needed: boolean; reason: string; searched: string; candidates: DetachedArea[]; checks: string[] };
 };
 
 export type DiSiteResult = {
@@ -134,7 +163,7 @@ export type DiSiteResult = {
   elevation_m: number | null;
   roof_area_m2: number;
   volume_m3_per_year: number;
-  location_class: 'inside_likely' | 'inside_large' | 'in_catchment' | 'outside' | 'below_spring';
+  location_class: 'inside_likely' | 'inside_large' | 'inside_detached' | 'in_catchment' | 'outside' | 'below_spring';
   location_note: string;
   share_reaching_spring: Range;
   added_flow_lpm_annual: Range;

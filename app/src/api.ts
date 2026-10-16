@@ -90,40 +90,57 @@ export type AResult = {
   context: string[];
   nearest_dataset_spring: { record_id: string; spring_name: string; distance_m: number } | null;
   elevation_gap_m: number | null;
+  // what the vulnerability tab draws: the circles the map indicators use, and land cover within 1 km
+  map?: {
+    rings: { radius_m: number; label: string }[];
+    land_cover: Overlay & { legend: { label: string; color: string; disturbed: boolean }[] } | null;
+  };
 };
 
-export type Zone = {
-  scenario: 'small' | 'likely' | 'large';
+export type Overlay = {
+  image: string; // data:image/png;base64,...
+  bounds: [[number, number], [number, number]]; // [[south, west], [north, east]]
+  legend: { label: string; color: string }[];
+};
+
+export type SoilSummary = { class: string; clay_pct: number; sand_pct: number };
+
+export type LinkKind = 'Surface slope' | 'GSI fault' | 'Rock layers (up-dip)' | 'DEM lineament';
+
+// One of the top recharge zones (R1-R3), ranked by recharge potential x link to the spring x closeness.
+// It may lie on the spring's own slope or beyond the ridge, linked by a fault, a crack (lineament) or tilted rock layers.
+export type RechargeZone = {
+  id: string; // R1, R2, R3
+  rank: number;
   area_ha: number;
-  geojson: Feature; // Polygon or MultiPolygon, WGS84
+  geojson: Feature | null; // Polygon or MultiPolygon, WGS84
+  link: { kind: LinkKind; name: string; geojson: Feature | null }; // geojson: the fault or lineament line, if any
+  in_catchment_pct: number;
+  distance_m: number;
+  height_above_spring_m: { min: number; mean: number; max: number };
+  mean_potential: number; // 0-1
+  mean_slope_deg: number;
+  land_cover_pct: Record<string, number>;
+  soil: SoilSummary | null;
+  rock_unit: string;
+  valley_between_m: number;
+  crosses_fault: boolean;
+  score: number;
+  why: string;
 };
 
 export type BResult = {
   spring_cell: { latitude: number; longitude: number; elevation_m: number; moved_m: number; note: string };
   surface_catchment: { area_ha: number; geojson: Feature | null };
-  target_area_ha: Range & { basis: string };
-  height_band_m: { min: number; max: number }; // elevations above sea level the zone may use
-  zones: Zone[]; // nested: small inside likely inside large
-  potential_overlay: {
-    image: string; // data:image/png;base64,...
-    bounds: [[number, number], [number, number]]; // [[south, west], [north, east]]
-    legend: { label: string; color: string }[];
-  } | null;
+  target_area_ha: Range & { basis: string }; // recharge area the flow needs
+  recharge_zones: RechargeZone[]; // best first
+  search: { searched: string; links: number; checks: string[] };
+  potential_overlay: Overlay | null;
   factors: { id: string; name: string; weight_pct: number; how: string }[];
-  zone_summary: {
-    mean_potential: number; // 0-1
-    mean_slope_deg: number;
-    elevation_range_m: [number, number];
-    land_cover_pct: Record<string, number>;
-    rock_units: string[];
-    crosses_fault: boolean;
-    outside_catchment_pct?: number; // share of the likely springshed outside the surface catchment
-  } | null;
   geology: { rock_class: string; unit: string; nearest_fault_m: number | null; nearest_fault_name: string } | null;
   faults: FeatureCollection; // GSI faults and thrusts in the window (properties.name, properties.type)
   lineaments: FeatureCollection; // DEM lineament candidates in the window
   streams: FeatureCollection; // DEM streams in the window (properties.order)
-  recharge_spots: { latitude: number; longitude: number; elevation_m: number; potential: number; reason: string }[];
 };
 
 export type DiSiteResult = {
@@ -134,7 +151,8 @@ export type DiSiteResult = {
   elevation_m: number | null;
   roof_area_m2: number;
   volume_m3_per_year: number;
-  location_class: 'inside_likely' | 'inside_large' | 'in_catchment' | 'outside' | 'below_spring';
+  location_class: 'in_zone_slope' | 'in_zone_linked' | 'in_zone_crack' | 'in_catchment' | 'outside' | 'below_spring';
+  zone_id?: string | null;
   location_note: string;
   share_reaching_spring: Range;
   added_flow_lpm_annual: Range;
@@ -157,7 +175,7 @@ export type CResult = {
     pct_of_lean_flow: Range | null;
   };
   monthly_injection_m3: number[] | null; // Jan..Dec, all sites
-  roofs_for_10pct: number | null; // 100 m2 roofs inside the likely zone needed for +10% lean flow (mid case)
+  roofs_for_10pct: number | null; // 100 m2 roofs in a slope recharge zone needed for +10% lean flow (mid case)
   assumptions: { id: string; label: string; value: number | string; unit: string; note: string }[];
   benchmarks: string[];
   monitoring_plan: string[];

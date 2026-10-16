@@ -41,10 +41,11 @@ export const statusLabel: Record<Status, string> = {
 };
 
 export const locationClass: Record<DiSiteResult['location_class'], { label: string; color: string }> = {
-  inside_likely: { label: 'Inside likely springshed', color: '#1f7a45' },
-  inside_large: { label: 'Inside large springshed', color: '#7aa83b' },
+  in_zone_slope: { label: 'In a recharge zone on the spring slope', color: '#1f7a45' },
+  in_zone_linked: { label: 'In a recharge zone linked by a fault or rock tilt', color: '#7aa83b' },
+  in_zone_crack: { label: 'In a recharge zone linked by a crack', color: '#8e5bb5' },
   in_catchment: { label: 'In surface catchment', color: '#2f74b5' },
-  outside: { label: 'Outside the springshed', color: '#7b818a' },
+  outside: { label: 'Outside the recharge zones', color: '#7b818a' },
   below_spring: { label: 'Below the spring', color: '#c0392b' },
 };
 
@@ -55,3 +56,12 @@ export function litres(m3: number) {
   if (l >= 1e5) return `${num(l / 1e5, 1)} lakh litres`;
   return `${num(l)} litres`;
 }
+
+// Recharge zone colours by rank (R1 strongest) and what links each zone to the spring
+export const ZONE_RANK_COLORS = ['#1f7a45', '#3f9d55', '#86c06c'] as const;
+export const linkLabel: Record<string, string> = {
+  'Surface slope': 'On the spring slope',
+  'GSI fault': 'Linked by a fault',
+  'Rock layers (up-dip)': 'Linked by rock tilt',
+  'DEM lineament': 'Linked by a crack',
+};

@@ -9,6 +9,9 @@ import Results, { HowItWorks } from './components/Results';
 import PrintReport from './components/PrintReport';
 
 type Mode = 'checking' | 'live' | 'demo';
+// Elevation tiles for the 3D map: the tool serves them from its own map files; the demo uses a public copy.
+const LIVE_TERRAIN = '/api/terrain/{z}/{x}/{y}.png';
+const DEMO_TERRAIN = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
 
 // DI sites further than this from the spring are treated as left over from another spring.
 const MAX_SITE_DISTANCE_M = 3000;
@@ -223,6 +226,7 @@ export default function App() {
           <div className="map-area" ref={mapRef}>
             <MapView springs={springs} point={point} springName={form.spring.name} result={result} tab={tab} sites={form.sites}
               placing={effectivePlacing} canCancel={placing !== 'none'} focus={focus} onPlace={onPlace}
+              terrainUrl={demo ? DEMO_TERRAIN : LIVE_TERRAIN}
               onCancelPlacing={() => setPlacing('none')}
               onSpringDrag={(lat, lon) => setForm((f) => ({ ...f, spring: { ...f.spring, lat: lat.toFixed(6), lon: lon.toFixed(6), datasetId: undefined } }))}
               onSiteMove={(id, lat, lon) => setForm((f) => ({ ...f, sites: f.sites.map((s) => (s.id === id ? { ...s, latitude: +lat.toFixed(6), longitude: +lon.toFixed(6) } : s)) }))}

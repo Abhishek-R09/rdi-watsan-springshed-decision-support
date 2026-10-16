@@ -1,16 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import {
-  Circle, CircleMarker, GeoJSON, ImageOverlay, LayerGroup, LayersControl, MapContainer, Marker, Popup, TileLayer, Tooltip,
-  useMap, useMapEvents,
-} from 'react-leaflet';
-import type { AssessResponse, DatasetSpring, DiSite, DiSiteResult, Feature } from '../api';
-import { locationClass, num } from '../format';
+import maplibregl from 'maplibre-gl';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import type { AssessResponse, DatasetSpring, DiSite, DiSiteResult, Feature, FeatureCollection, Overlay } from '../api';
+import { ZONE_RANK_COLORS, linkLabel, locationClass, num } from '../format';
 
 export type Tab = 'A' | 'B' | 'C';
 export type Placing = 'none' | 'spring' | 'site';
 export type Focus = { lat: number; lon: number; zoom: number; n: number };
+type Base = 'sat' | 'topo' | 'osm';
 
 type Props = {
   springs: DatasetSpring[];
@@ -22,6 +19,7 @@ type Props = {
   placing: Placing;
   canCancel: boolean;
   focus: Focus | null;
+  terrainUrl: string; // Terrarium-encoded elevation tiles for the 3D view
   onPlace: (lat: number, lon: number) => void;
   onCancelPlacing: () => void;
   onSpringDrag: (lat: number, lon: number) => void;
@@ -29,185 +27,383 @@ type Props = {
   onUseSpring: (s: DatasetSpring) => void;
 };
 
-const UTTARAKHAND: L.LatLngBoundsExpression = [[28.7, 77.6], [31.4, 81.1]];
+const UTTARAKHAND: [[number, number], [number, number]] = [[77.6, 28.7], [81.1, 31.4]];
+const BASES: { id: Base; label: string }[] = [
+  { id: 'sat', label: 'Satellite' },
+  { id: 'topo', label: 'Topo map' },
+  { id: 'osm', label: 'Streets' },
+];
+const ZONE_LINE = '#14532d';
+const LINK = '#8e5bb5';
+const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] };
+const EXAGGERATION = 1.5;
+const PITCH_3D = 58;
 
-const springIcon = L.divIcon({
-  className: 'pin-wrap',
-  html: '<div class="pin pin-spring"><span></span></div>',
-  iconSize: [30, 40],
-  iconAnchor: [15, 38],
-  popupAnchor: [0, -34],
-  tooltipAnchor: [12, -24],
-});
-
-const spotIcon = L.divIcon({
-  className: 'pin-wrap',
-  html: '<div class="spot-icon" aria-hidden="true">★</div>',
-  iconSize: [26, 26],
-  iconAnchor: [13, 13],
-  popupAnchor: [0, -12],
-});
-
-function siteIcon(index: number, cls: DiSiteResult['location_class'] | null, big: boolean) {
-  const color = cls ? locationClass[cls].color : '#ffffff';
-  const size = big ? 30 : 24;
-  return L.divIcon({
-    className: 'pin-wrap',
-    html: `<div class="site-icon${cls ? '' : ' site-new'}" style="background:${color};width:${size}px;height:${size}px">${index + 1}</div>`,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2],
-    popupAnchor: [0, -size / 2],
-  });
+function fc(features: (Feature | null | undefined)[]): FeatureCollection {
+  return { type: 'FeatureCollection', features: features.filter((f): f is Feature => !!f) };
 }
 
-const ZONE_STYLE: Record<'small' | 'likely' | 'large', { color: string; fill: string }> = {
-  small: { color: '#14532d', fill: '#1f7a45' },
-  likely: { color: '#1f7a45', fill: '#3f9d55' },
-  large: { color: '#5d9c4c', fill: '#a7d58f' },
-};
+/** A circle of radius_m around a point, as a closed line. */
+function ring(lat: number, lon: number, radiusM: number, props: Record<string, unknown>): Feature {
+  const coords: [number, number][] = [];
+  const dLat = radiusM / 111_132;
+  const dLon = radiusM / (111_320 * Math.cos((lat * Math.PI) / 180));
+  for (let i = 0; i <= 96; i += 1) {
+    const a = (i / 96) * 2 * Math.PI;
+    coords.push([lon + dLon * Math.sin(a), lat + dLat * Math.cos(a)]);
+  }
+  return { type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: props };
+}
 
-function zoneStyle(scenario: 'small' | 'likely' | 'large', tab: Tab): L.PathOptions {
-  const s = ZONE_STYLE[scenario];
-  const fillBase = scenario === 'large' ? 0.28 : scenario === 'likely' ? 0.32 : 0.4;
-  const k = tab === 'B' ? 1 : tab === 'C' ? 0.7 : 0.25;
-  return {
-    color: s.color,
-    weight: tab === 'A' ? 1 : scenario === 'likely' ? 2.5 : 1.5,
-    opacity: tab === 'A' ? 0.5 : 0.9,
-    fillColor: s.fill,
-    fillOpacity: fillBase * k,
+/** [[west, south], [east, north]] of everything given, or null. */
+function bboxOf(features: (Feature | null | undefined)[], points: [number, number][] = []) {
+  let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity;
+  const add = (c: any) => {
+    if (typeof c[0] === 'number') {
+      w = Math.min(w, c[0]); e = Math.max(e, c[0]); s = Math.min(s, c[1]); n = Math.max(n, c[1]);
+    } else for (const x of c) add(x);
   };
+  for (const f of features) if (f?.geometry?.coordinates) add(f.geometry.coordinates);
+  for (const p of points) add(p);
+  return Number.isFinite(w) ? ([[w, s], [e, n]] as [[number, number], [number, number]]) : null;
 }
 
-function boundsOf(features: (Feature | null | undefined)[]): L.LatLngBounds | null {
-  let b: L.LatLngBounds | null = null;
-  for (const f of features) {
-    if (!f) continue;
-    try {
-      const fb = L.geoJSON(f as any).getBounds();
-      if (fb.isValid()) b = b ? b.extend(fb) : fb;
-    } catch {
-      /* ignore bad geometry */
-    }
+function corners(o: Overlay): [[number, number], [number, number], [number, number], [number, number]] {
+  const [[south, west], [north, east]] = o.bounds;
+  return [[west, north], [east, north], [east, south], [west, south]];
+}
+
+function el(className: string, html = '') {
+  const d = document.createElement('div');
+  d.className = className;
+  d.innerHTML = html;
+  return d;
+}
+
+function escapeHtml(s: string) {
+  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string));
+}
+
+function readPref<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
+  try {
+    const v = window.localStorage.getItem(key) as T | null;
+    return v && allowed.includes(v) ? v : fallback;
+  } catch {
+    return fallback;
   }
-  return b;
 }
-
-/** Moves the view when the user picks a spring, gets a result or switches tab. */
-function ViewController({ result, tab, point, sites, focus }: Pick<Props, 'result' | 'tab' | 'point' | 'sites' | 'focus'>) {
-  const map = useMap();
-  const lastFocus = useRef(0);
-  useEffect(() => {
-    if (focus && focus.n !== lastFocus.current) {
-      lastFocus.current = focus.n;
-      map.flyTo([focus.lat, focus.lon], focus.zoom, { duration: 0.8 });
-    }
-  }, [focus, map]);
-  useEffect(() => {
-    if (!result) return;
-    const s = result.spring;
-    const springBounds = L.latLng(s.latitude, s.longitude).toBounds(1300);
-    let b: L.LatLngBounds = springBounds;
-    const B = result.B.result;
-    if (tab !== 'A' && B) {
-      const zb = boundsOf([B.surface_catchment.geojson, ...B.zones.map((z) => z.geojson)]);
-      if (zb) b = zb.extend(L.latLng(s.latitude, s.longitude));
-    }
-    if (tab === 'C') for (const site of sites) b = b.extend(L.latLng(site.latitude, site.longitude));
-    map.flyToBounds(b.pad(0.15), { duration: 0.7, maxZoom: 17 });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [result?.run_id, tab, map]);
-  useEffect(() => {
-    if (!result && point && !focus) map.setView([point.lat, point.lon], 14);
-    // only on first mount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  return null;
-}
-
-/** Keeps Leaflet's size right when the page layout changes. */
-function SizeWatcher() {
-  const map = useMap();
-  useEffect(() => {
-    const el = map.getContainer();
-    const ro = new ResizeObserver(() => map.invalidateSize({ pan: false }));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [map]);
-  return null;
-}
-
-function ClickHandler({ placing, onPlace }: { placing: Placing; onPlace: Props['onPlace'] }) {
-  useMapEvents({
-    click(e) {
-      if (placing !== 'none') onPlace(e.latlng.lat, e.latlng.lng);
-    },
-  });
-  return null;
-}
-
-/** Creates the map panes once, before any layer that uses them is added. */
-const PANES: [string, number][] = [['heat', 380], ['zones', 400], ['lines', 420], ['dataset', 450]];
-function CreatePanes() {
-  const map = useMap();
-  for (const [name, z] of PANES) {
-    if (!map.getPane(name)) map.createPane(name).style.zIndex = String(z);
-  }
-  return null;
+function writePref(key: string, value: string) {
+  try { window.localStorage.setItem(key, value); } catch { /* private window */ }
 }
 
 export default function MapView(props: Props) {
   const { springs, point, result, tab, sites, placing } = props;
+  const box = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const live = useRef(props);
+  live.current = props;
+  const [ready, setReady] = useState(false);
+  const [base, setBase] = useState<Base>(() => readPref('spring-tool-base', ['sat', 'topo', 'osm'] as const, 'sat'));
+  const [threeD, setThreeD] = useState(() => readPref('spring-tool-3d', ['on', 'off'] as const, 'on') === 'on');
   const [tilesFailed, setTilesFailed] = useState(false);
   const [heatOn, setHeatOn] = useState(false);
-  const [heatOpacity, setHeatOpacity] = useState(0.6);
+  const [heatOpacity, setHeatOpacity] = useState(0.65);
   const [legendOpen, setLegendOpen] = useState(() => typeof window === 'undefined' || window.innerWidth >= 900);
-  const counts = useRef({ loaded: 0, failed: 0 });
-  const tileHandlers = useMemo(() => ({
-    tileload: () => { counts.current.loaded += 1; setTilesFailed(false); },
-    tileerror: () => {
-      counts.current.failed += 1;
-      if (counts.current.failed >= 4 && counts.current.loaded === 0) setTilesFailed(true);
-    },
-  }), []);
 
+  const A = result?.A.result ?? null;
   const B = result?.B.result ?? null;
   const C = result?.C.result ?? null;
+  const zones = B?.recharge_zones ?? [];
   const siteClass = useMemo(() => {
     const m = new Map<string, DiSiteResult>();
     for (const s of C?.sites ?? []) m.set(s.id, s);
     return m;
   }, [C]);
-  const runKey = result?.run_id ?? 'none';
-  const resultSpring = result ? L.latLng(result.spring.latitude, result.spring.longitude) : null;
-  const overlay = B?.potential_overlay ?? null;
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') props.onCancelPlacing(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [props]);
-
   // DI sites belong to the DI impact tab; before any result, or while placing one, they show everywhere.
   const showSites = !result || tab === 'C' || placing === 'site';
-  const legend: { key: string; label: string; swatch: JSX.Element }[] = [];
-  const zonesSwatch = (
-    <span className="lg-zones">
-      {(['small', 'likely', 'large'] as const).map((z) => <i key={z} className="lg-fill" style={{ background: ZONE_STYLE[z].fill }} />)}
-    </span>
-  );
-  legend.push({ key: 'spring', label: 'Your spring', swatch: <i className="lg-pin" /> });
-  if (springs.length && (!B || tab === 'A')) legend.push({ key: 'ds', label: 'Springs in the dataset', swatch: <i className="lg-dot" /> });
-  if (B) {
-    if (tab === 'A') legend.push({ key: 'r', label: '500 m around the spring', swatch: <i className="lg-ring" /> });
-    if (B.surface_catchment.geojson && tab !== 'A') legend.push({ key: 'c', label: 'Surface catchment', swatch: <i className="lg-dash" /> });
-    legend.push({ key: 'z', label: 'Springshed (recharge area): small, likely, large', swatch: zonesSwatch });
-    if (tab === 'B') {
-      if (B.faults.features.length) legend.push({ key: 'f', label: 'Fault or thrust', swatch: <i className="lg-line" style={{ background: '#d1352b' }} /> });
-      if (B.lineaments.features.length) legend.push({ key: 'l', label: 'Lineament (possible crack line)', swatch: <i className="lg-line lg-dashed" /> });
-      if (B.streams.features.length) legend.push({ key: 's', label: 'Stream', swatch: <i className="lg-line" style={{ background: '#2b7bbd' }} /> });
+  const showDataset = springs.length > 0 && (!result || tab === 'A');
+
+  // ------------------------------------------------------------------ the map, once
+  useEffect(() => {
+    if (!box.current) return;
+    const map = new maplibregl.Map({
+      container: box.current,
+      bounds: UTTARAKHAND,
+      maxPitch: 75,
+      attributionControl: { compact: true },
+      style: {
+        version: 8,
+        sources: {
+          sat: { type: 'raster', tileSize: 256, maxzoom: 19, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics',
+            tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'] },
+          topo: { type: 'raster', tileSize: 256, maxzoom: 17,
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, SRTM | © <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
+            tiles: ['a', 'b', 'c'].map((s) => `https://${s}.tile.opentopomap.org/{z}/{x}/{y}.png`) },
+          osm: { type: 'raster', tileSize: 256, maxzoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'] },
+          dem: { type: 'raster-dem', tiles: [props.terrainUrl], tileSize: 256, encoding: 'terrarium', maxzoom: 14,
+            attribution: 'Elevation: Copernicus GLO-30' },
+          shade: { type: 'raster-dem', tiles: [props.terrainUrl], tileSize: 256, encoding: 'terrarium', maxzoom: 14 },
+        },
+        layers: [
+          { id: 'bg', type: 'background', paint: { 'background-color': '#dfe5dc' } },
+          ...BASES.map((b) => ({ id: `base-${b.id}`, type: 'raster' as const, source: b.id, layout: { visibility: (b.id === base ? 'visible' : 'none') as 'visible' | 'none' } })),
+          { id: 'hillshade', type: 'hillshade', source: 'shade', paint: { 'hillshade-exaggeration': 0.3, 'hillshade-shadow-color': '#2d3a2d' } },
+        ],
+      },
+    });
+    map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
+    map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-right');
+    mapRef.current = map;
+
+    let loaded = 0, failed = 0;
+    map.on('data', (e: any) => { if (e.tile && BASES.some((b) => b.id === e.sourceId)) { loaded += 1; setTilesFailed(false); } });
+    map.on('error', (e: any) => {
+      if (BASES.some((b) => b.id === e.sourceId)) {
+        failed += 1;
+        if (failed >= 4 && loaded === 0) setTilesFailed(true);
+      }
+    });
+
+    // 'style.load', not 'load': 'load' waits for every background tile, and never comes when they cannot download
+    map.once('style.load', () => {
+      const geo = (id: string) => map.addSource(id, { type: 'geojson', data: EMPTY });
+      ['zones', 'catchment', 'links', 'faults', 'lineaments', 'streams', 'rings', 'dataset'].forEach(geo);
+      map.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones', paint: {
+        'fill-color': ['match', ['get', 'rank'], 1, ZONE_RANK_COLORS[0], 2, ZONE_RANK_COLORS[1], ZONE_RANK_COLORS[2]],
+        'fill-opacity': 0.42 } });
+      map.addLayer({ id: 'zones-line', type: 'line', source: 'zones', paint: {
+        'line-color': ZONE_LINE, 'line-width': ['match', ['get', 'rank'], 1, 2.8, 1.8] } });
+      map.addLayer({ id: 'catchment-line', type: 'line', source: 'catchment', paint: { 'line-color': '#1d5f99', 'line-width': 2.5, 'line-dasharray': [3, 2.5] } });
+      map.addLayer({ id: 'streams', type: 'line', source: 'streams', paint: { 'line-color': '#2b7bbd', 'line-opacity': 0.85,
+        'line-width': ['+', 0.8, ['*', 0.9, ['coalesce', ['get', 'order'], 1]]] } });
+      map.addLayer({ id: 'lineaments', type: 'line', source: 'lineaments', paint: { 'line-color': '#e08a1e', 'line-width': 1.6, 'line-dasharray': [2.5, 2.5] } });
+      map.addLayer({ id: 'faults', type: 'line', source: 'faults', paint: { 'line-color': '#d1352b', 'line-width': 2.5 } });
+      map.addLayer({ id: 'links-glow', type: 'line', source: 'links', paint: { 'line-color': '#ffffff', 'line-width': 7, 'line-opacity': 0.7 } });
+      map.addLayer({ id: 'links', type: 'line', source: 'links', paint: { 'line-color': LINK, 'line-width': 3.5 } });
+      map.addLayer({ id: 'rings', type: 'line', source: 'rings', paint: { 'line-color': '#0b6e8a', 'line-width': 2,
+        'line-dasharray': [1, 2.5], 'line-opacity': ['match', ['get', 'radius_m'], 500, 1, 0.75] } });
+      map.addLayer({ id: 'dataset', type: 'circle', source: 'dataset', paint: { 'circle-radius': 4.5, 'circle-color': '#0b6e8a',
+        'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1.2 } });
+      setReady(true);
+    });
+
+    // hover labels for lines and areas
+    const tip = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'hover-tip', offset: 10 });
+    const hoverLayers = ['zones-fill', 'catchment-line', 'faults', 'lineaments', 'links', 'rings'];
+    map.on('mousemove', (e) => {
+      const layers = hoverLayers.filter((l) => map.getLayer(l) && map.getLayoutProperty(l, 'visibility') !== 'none');
+      const f = layers.length ? map.queryRenderedFeatures(e.point, { layers })[0] : undefined;
+      if (!f || live.current.placing !== 'none') { tip.remove(); return; }
+      const p = f.properties as Record<string, any>;
+      const text = f.layer.id === 'zones-fill' ? `Recharge zone ${p.id}: ${(linkLabel[p.link] ?? '').toLowerCase()}, ${num(p.area_ha, 1)} ha`
+        : f.layer.id === 'catchment-line' ? `Surface catchment: ${num(p.area_ha, 1)} ha (where rain runs off towards the spring)`
+        : f.layer.id === 'faults' ? `${p.name || 'Fault'}${p.type ? ` (${p.type})` : ''}`
+        : f.layer.id === 'links' ? `Possible water path to the spring: ${p.name}`
+        : f.layer.id === 'rings' ? p.label
+        : 'Lineament: a straight line on the elevation map that may follow a crack in the rock';
+      tip.setLngLat(e.lngLat).setText(text).addTo(map);
+    });
+    map.on('mouseout', () => tip.remove());
+
+    map.on('click', (e) => {
+      const p = live.current;
+      if (p.placing !== 'none') { p.onPlace(e.lngLat.lat, e.lngLat.lng); return; }
+      if (!map.getLayer('dataset') || map.getLayoutProperty('dataset', 'visibility') === 'none') return;
+      const hit = map.queryRenderedFeatures([[e.point.x - 5, e.point.y - 5], [e.point.x + 5, e.point.y + 5]], { layers: ['dataset'] })[0];
+      if (!hit) return;
+      const s = p.springs.find((x) => x.id === hit.properties?.id);
+      if (!s) return;
+      const body = el('pop', `<strong>${escapeHtml(s.name)}</strong><div>${escapeHtml([s.village, s.district].filter(Boolean).join(', '))}</div>
+        <div class="muted">${s.elevation_m != null ? `${num(s.elevation_m)} m · ` : ''}${escapeHtml(s.source)}</div>`);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn btn-small btn-primary';
+      btn.textContent = 'Use this spring';
+      const popup = new maplibregl.Popup({ offset: 8 }).setLngLat([s.longitude, s.latitude]).setDOMContent(body).addTo(map);
+      btn.onclick = () => { popup.remove(); live.current.onUseSpring(s); };
+      body.appendChild(btn);
+    });
+    map.on('mouseenter', 'dataset', () => { if (live.current.placing === 'none') map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', 'dataset', () => { if (live.current.placing === 'none') map.getCanvas().style.cursor = ''; });
+
+    const ro = new ResizeObserver(() => map.resize());
+    ro.observe(box.current);
+    return () => { ro.disconnect(); map.remove(); mapRef.current = null; };
+    // the map is made once; later changes go through the effects below
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ------------------------------------------------------------------ base map and 3D
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    for (const b of BASES) map.setLayoutProperty(`base-${b.id}`, 'visibility', b.id === base ? 'visible' : 'none');
+    setTilesFailed(false);
+    writePref('spring-tool-base', base);
+  }, [base, ready]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    if (threeD) {
+      map.setTerrain({ source: 'dem', exaggeration: EXAGGERATION });
+      if (map.getPitch() < 20) map.easeTo({ pitch: PITCH_3D, duration: 700, freezeElevation: true });
+    } else {
+      map.setTerrain(null);
+      map.easeTo({ pitch: 0, bearing: 0, duration: 600, freezeElevation: true });
     }
-    if (tab !== 'A' && B.recharge_spots.length) legend.push({ key: 'rs', label: 'Suggested recharge spot', swatch: <i className="lg-star">★</i> });
+    writePref('spring-tool-3d', threeD ? 'on' : 'off');
+  }, [threeD, ready]);
+
+  // the elevation tiles come from the local tool, or from a public copy in the demo
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    for (const id of ['dem', 'shade']) {
+      const src = map.getSource(id) as maplibregl.RasterDEMTileSource | undefined;
+      if (src && src.tiles?.[0] !== props.terrainUrl) src.setTiles([props.terrainUrl]);
+    }
+  }, [props.terrainUrl, ready]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (map) map.getCanvas().style.cursor = placing !== 'none' ? 'crosshair' : '';
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') live.current.onCancelPlacing(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [placing]);
+
+  // ------------------------------------------------------------------ what each tab shows
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    const set = (id: string, data: FeatureCollection) => (map.getSource(id) as maplibregl.GeoJSONSource).setData(data as any);
+    const show = (ids: string[], on: boolean) => ids.forEach((id) => map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none'));
+
+    set('dataset', showDataset ? fc(springs.map((s) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [s.longitude, s.latitude] }, properties: { id: s.id } }))) : EMPTY);
+    show(['dataset'], showDataset);
+
+    set('zones', fc([...zones].reverse().map((z) => z.geojson && { ...z.geojson, properties: { id: z.id, rank: z.rank, link: z.link.kind, area_ha: z.area_ha } })));
+    set('catchment', B?.surface_catchment.geojson ? fc([{ ...B.surface_catchment.geojson, properties: { area_ha: B.surface_catchment.area_ha } }]) : EMPTY);
+    set('links', fc(zones.map((z) => z.link.geojson && { ...z.link.geojson, properties: { name: `${z.link.name} (to ${z.id})` } })));
+    set('faults', B ? B.faults : EMPTY);
+    set('lineaments', B ? B.lineaments : EMPTY);
+    set('streams', B ? B.streams : EMPTY);
+    const s = result?.spring;
+    set('rings', s && A?.map ? fc(A.map.rings.map((r) => ring(s.latitude, s.longitude, r.radius_m, { radius_m: r.radius_m, label: r.label }))) : EMPTY);
+
+    const onA = !!result && tab === 'A', onB = !!result && tab === 'B', onC = !!result && tab === 'C';
+    show(['rings'], onA);
+    show(['zones-fill', 'zones-line', 'catchment-line'], onB || onC);
+    show(['faults', 'lineaments', 'streams', 'links-glow', 'links'], onB);
+    // on the DI tab the zones are context for where each handpump sits, so they are drawn lighter
+    map.setPaintProperty('zones-fill', 'fill-opacity', onC ? 0.2 : 0.42);
+    map.setPaintProperty('catchment-line', 'line-opacity', onC ? 0.6 : 1);
+
+    const image = (id: string, overlay: Overlay | null | undefined, visible: boolean, opacity: number, before: string) => {
+      if (map.getLayer(id)) map.removeLayer(id);
+      if (map.getSource(id)) map.removeSource(id);
+      if (!overlay || !visible) return;
+      map.addSource(id, { type: 'image', url: overlay.image, coordinates: corners(overlay) });
+      map.addLayer({ id, type: 'raster', source: id, paint: { 'raster-opacity': opacity, 'raster-fade-duration': 0 } }, before);
+    };
+    image('potential-img', B?.potential_overlay, onB && heatOn, heatOpacity, 'zones-fill');
+    image('landcover-img', A?.map?.land_cover, onA, 0.85, 'zones-fill');
+  }, [ready, result, tab, springs, showDataset, heatOn, heatOpacity, A, B, zones]);
+
+  // ------------------------------------------------------------------ markers
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    const made: maplibregl.Marker[] = [];
+    const add = (m: maplibregl.Marker) => { m.addTo(map); made.push(m); return m; };
+
+    if (point) {
+      const node = el('pin pin-spring', '<span></span>');
+      node.title = props.springName || 'Your spring';
+      const m = add(new maplibregl.Marker({ element: node, anchor: 'bottom', draggable: true }).setLngLat([point.lon, point.lat]));
+      m.on('dragend', () => { const ll = m.getLngLat(); live.current.onSpringDrag(ll.lat, ll.lng); });
+    }
+    if (B && (tab === 'B' || tab === 'C')) {
+      for (const z of zones) {
+        const box = bboxOf([z.geojson]);
+        if (!box) continue;
+        const node = el(`zone-tag zone-tag-${z.rank}`, z.id);
+        add(new maplibregl.Marker({ element: node }).setLngLat([(box[0][0] + box[1][0]) / 2, (box[0][1] + box[1][1]) / 2])
+          .setPopup(new maplibregl.Popup({ offset: 12 }).setDOMContent(el('pop', `<strong>Recharge zone ${z.id}</strong><div>${escapeHtml(z.why)}</div>`))));
+      }
+    }
+    if (showSites) {
+      sites.forEach((s, i) => {
+        const r = siteClass.get(s.id);
+        const moved = r && (Math.abs(r.latitude - s.latitude) > 1e-6 || Math.abs(r.longitude - s.longitude) > 1e-6);
+        const cls = r && !moved ? r.location_class : null;
+        const size = tab === 'C' ? 30 : 24;
+        const node = el(`site-icon${cls ? '' : ' site-new'}`, String(i + 1));
+        node.style.background = cls ? locationClass[cls].color : '#ffffff';
+        node.style.width = node.style.height = `${size}px`;
+        const name = escapeHtml(s.name || `DI site ${i + 1}`);
+        const body = cls && r
+          ? `<div><span class="badge" style="background:${locationClass[cls].color}">${locationClass[cls].label}</span><div>${escapeHtml(r.location_note)}</div></div>`
+          : '<div class="muted">Not assessed yet. Run the assessment again to see its effect.</div>';
+        const m = add(new maplibregl.Marker({ element: node, draggable: true }).setLngLat([s.longitude, s.latitude])
+          .setPopup(new maplibregl.Popup({ offset: size / 2 }).setDOMContent(el('pop', `<strong>${name}</strong><div>Roof ${num(s.roof_area_m2)} m²</div>${body}<div class="muted">Drag the marker to move it.</div>`))));
+        m.on('dragend', () => { const ll = m.getLngLat(); live.current.onSiteMove(s.id, ll.lat, ll.lng); });
+      });
+    }
+    return () => made.forEach((m) => m.remove());
+  }, [ready, point?.lat, point?.lon, props.springName, B, tab, zones, showSites, sites, siteClass]);
+
+  // ------------------------------------------------------------------ where the camera goes
+  const lastFocus = useRef(0);
+  useEffect(() => {
+    const map = mapRef.current;
+    const focus = props.focus;
+    if (!map || !ready || !focus || focus.n === lastFocus.current) return;
+    lastFocus.current = focus.n;
+    map.flyTo({ center: [focus.lon, focus.lat], zoom: focus.zoom, pitch: threeD ? PITCH_3D : 0, duration: 900, freezeElevation: true });
+  }, [props.focus, ready, threeD]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    if (!result) {
+      if (point && !props.focus) map.jumpTo({ center: [point.lon, point.lat], zoom: 14, pitch: threeD ? PITCH_3D : 0 });
+      return;
+    }
+    const s = result.spring;
+    const near = ring(s.latitude, s.longitude, tab === 'A' ? 1100 : 600, {});
+    const features: (Feature | null | undefined)[] = [near];
+    if (tab !== 'A' && B) features.push(B.surface_catchment.geojson, ...zones.map((z) => z.geojson));
+    const pts: [number, number][] = tab === 'C' ? sites.map((x) => [x.longitude, x.latitude]) : [];
+    const b = bboxOf(features, pts);
+    if (b) map.fitBounds(b, { padding: 60, maxZoom: 16.5, pitch: threeD ? PITCH_3D : 0, duration: 900, freezeElevation: true });
+    // only when the result or the tab changes, not on every edit
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result?.run_id, tab, ready]);
+
+  // ------------------------------------------------------------------ legend
+  const legend: { key: string; label: string; swatch: JSX.Element }[] = [];
+  legend.push({ key: 'spring', label: 'Your spring', swatch: <i className="lg-pin" /> });
+  if (showDataset) legend.push({ key: 'ds', label: 'Springs in the dataset', swatch: <i className="lg-dot" /> });
+  if (result && tab === 'A' && A?.map) {
+    legend.push({ key: 'r', label: 'Circles of 500 m and 1 km the map indicators use', swatch: <i className="lg-ring" /> });
+    for (const l of A.map.land_cover?.legend ?? []) {
+      legend.push({ key: `lc-${l.label}`, label: l.label, swatch: <i className="lg-fill" style={{ background: l.color, opacity: l.disturbed ? 1 : 0.45 }} /> });
+    }
+  }
+  if (B && (tab === 'B' || tab === 'C')) {
+    if (B.surface_catchment.geojson) legend.push({ key: 'c', label: 'Surface catchment', swatch: <i className="lg-dash" /> });
+    if (zones.length) legend.push({ key: 'z', label: `Top recharge zones ${zones.map((z) => z.id).join(', ')} (darkest is best)`, swatch: (
+      <span className="lg-zones">{zones.map((z) => <i key={z.id} className="lg-fill" style={{ background: ZONE_RANK_COLORS[z.rank - 1] }} />)}</span>
+    ) });
+  }
+  if (B && tab === 'B') {
+    if (zones.some((z) => z.link.geojson)) legend.push({ key: 'lk', label: 'Fault or crack linking a zone to the spring', swatch: <i className="lg-line" style={{ background: LINK }} /> });
+    if (B.faults.features.length) legend.push({ key: 'f', label: 'Fault or thrust', swatch: <i className="lg-line" style={{ background: '#d1352b' }} /> });
+    if (B.lineaments.features.length) legend.push({ key: 'l', label: 'Lineament (possible crack line)', swatch: <i className="lg-line lg-dashed" /> });
+    if (B.streams.features.length) legend.push({ key: 's', label: 'Stream', swatch: <i className="lg-line" style={{ background: '#2b7bbd' }} /> });
   }
   if (showSites && sites.length) {
     const classes = new Set<DiSiteResult['location_class'] | null>();
@@ -220,145 +416,20 @@ export default function MapView(props: Props) {
     }
     if (classes.has(null)) legend.push({ key: 'di-new', label: 'DI site (not assessed yet)', swatch: <i className="lg-site lg-site-new" /> });
   }
+  const overlay = B?.potential_overlay ?? null;
 
   return (
     <div className={`map-wrap${placing !== 'none' ? ' placing' : ''}`}>
-      <MapContainer bounds={UTTARAKHAND} className="map" preferCanvas zoomControl scrollWheelZoom worldCopyJump={false}>
-        <CreatePanes />
-        <SizeWatcher />
-        <ClickHandler placing={placing} onPlace={props.onPlace} />
-        <ViewController result={result} tab={tab} point={point} sites={sites} focus={props.focus} />
-        <TileWatchReset onReset={() => { counts.current = { loaded: 0, failed: 0 }; setTilesFailed(false); }} />
-        <LayersControl position="topright">
-          <LayersControl.BaseLayer name="Satellite">
-            <TileLayer
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-              attribution="Imagery &copy; Esri, Maxar, Earthstar Geographics"
-              maxZoom={19}
-              eventHandlers={tileHandlers}
-            />
-          </LayersControl.BaseLayer>
-          <LayersControl.BaseLayer checked name="Terrain">
-            <TileLayer
-              url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
-              attribution='Map data &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, SRTM | Style &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)'
-              maxZoom={17}
-              maxNativeZoom={17}
-              eventHandlers={tileHandlers}
-            />
-          </LayersControl.BaseLayer>
-          <LayersControl.BaseLayer name="Streets">
-            <TileLayer
-              url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              maxZoom={19}
-              eventHandlers={tileHandlers}
-            />
-          </LayersControl.BaseLayer>
+      <div ref={box} className="map" />
 
-          {springs.length > 0 && (
-            <LayersControl.Overlay checked name="Springs in the dataset">
-              <LayerGroup>
-                {springs.map((s) => (
-                  <CircleMarker key={s.id} center={[s.latitude, s.longitude]} radius={4.5} pane="dataset" bubblingMouseEvents={false}
-                    pathOptions={{ color: '#ffffff', weight: 1.2, fillColor: '#0b6e8a', fillOpacity: 0.9 }}>
-                    <Popup>
-                      <div className="pop">
-                        <strong>{s.name}</strong>
-                        <div>{[s.village, s.district].filter(Boolean).join(', ')}</div>
-                        <div className="muted">{s.elevation_m != null ? `${num(s.elevation_m)} m · ` : ''}{s.source}</div>
-                        <button type="button" className="btn btn-small btn-primary" onClick={() => props.onUseSpring(s)}>Use this spring</button>
-                      </div>
-                    </Popup>
-                  </CircleMarker>
-                ))}
-              </LayerGroup>
-            </LayersControl.Overlay>
-          )}
-
-          {B && B.faults.features.length > 0 && (
-            <LayersControl.Overlay checked name="Faults">
-              <GeoJSON key={`f-${runKey}`} data={B.faults as any} pane="lines"
-                style={() => ({ color: '#d1352b', weight: 2.5, opacity: 0.9 })}
-                onEachFeature={(f, layer) => layer.bindTooltip(`${f.properties?.name || 'Fault'}${f.properties?.type ? ` (${f.properties.type})` : ''}`, { sticky: true })} />
-            </LayersControl.Overlay>
-          )}
-          {B && B.lineaments.features.length > 0 && (
-            <LayersControl.Overlay checked name="Lineaments">
-              <GeoJSON key={`l-${runKey}`} data={B.lineaments as any} pane="lines"
-                style={() => ({ color: '#e08a1e', weight: 1.5, opacity: 0.95, dashArray: '5 5' })}
-                onEachFeature={(_f, layer) => layer.bindTooltip('Lineament: a straight line on the elevation map that may follow a crack in the rock', { sticky: true })} />
-            </LayersControl.Overlay>
-          )}
-          {B && B.streams.features.length > 0 && (
-            <LayersControl.Overlay checked name="Streams">
-              <GeoJSON key={`s-${runKey}`} data={B.streams as any} pane="lines"
-                style={(f) => ({ color: '#2b7bbd', weight: 0.8 + 0.9 * Number(f?.properties?.order ?? 1), opacity: 0.85 })} />
-            </LayersControl.Overlay>
-          )}
-        </LayersControl>
-
-        {overlay && heatOn && (
-          <ImageOverlay key={`h-${runKey}`} url={overlay.image} bounds={overlay.bounds} opacity={heatOpacity} pane="heat" />
-        )}
-
-        {B && (['large', 'likely', 'small'] as const).map((sc) => {
-          const z = B.zones.find((x) => x.scenario === sc);
-          return z ? (
-            <GeoJSON key={`z-${sc}-${runKey}-${tab}`} data={z.geojson as any} pane="zones" style={() => zoneStyle(sc, tab)}
-              onEachFeature={(_f, layer) => layer.bindTooltip(`Springshed, ${sc}: ${num(z.area_ha, 1)} ha`, { sticky: true })} />
-          ) : null;
-        })}
-        {B?.surface_catchment.geojson && (
-          <GeoJSON key={`c-${runKey}-${tab}`} data={B.surface_catchment.geojson as any} pane="zones"
-            style={() => ({ color: '#1d5f99', weight: tab === 'B' ? 2.5 : 1.8, dashArray: '7 6', fill: false, opacity: tab === 'A' ? 0.5 : 0.95 })}
-            onEachFeature={(_f, layer) => layer.bindTooltip(`Surface catchment: ${num(B.surface_catchment.area_ha, 1)} ha (where rain runs off towards the spring)`, { sticky: true })} />
-        )}
-
-        {resultSpring && tab === 'A' && (
-          <Circle center={resultSpring} radius={500} pathOptions={{ color: '#0b6e8a', weight: 2, dashArray: '2 6', fillColor: '#0b6e8a', fillOpacity: 0.06 }} />
-        )}
-
-        {B && tab !== 'A' && B.recharge_spots.map((s, i) => (
-          <Marker key={`rs-${runKey}-${i}`} position={[s.latitude, s.longitude]} icon={spotIcon}>
-            <Popup>
-              <div className="pop">
-                <strong>Suggested recharge spot {i + 1}</strong>
-                <div>{s.reason}</div>
-                <div className="muted">{num(s.elevation_m)} m · recharge potential {Math.round(s.potential * 100)}%</div>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
-
-        {showSites && sites.map((s, i) => {
-          const r = siteClass.get(s.id);
-          const moved = r && (Math.abs(r.latitude - s.latitude) > 1e-6 || Math.abs(r.longitude - s.longitude) > 1e-6);
-          const cls = r && !moved ? r.location_class : null;
-          return (
-            <Marker key={s.id} position={[s.latitude, s.longitude]} icon={siteIcon(i, cls, tab === 'C')} draggable
-              eventHandlers={{ dragend: (e) => { const ll = (e.target as L.Marker).getLatLng(); props.onSiteMove(s.id, ll.lat, ll.lng); } }}>
-              <Tooltip direction="top" offset={[0, -12]}>{s.name || `DI site ${i + 1}`}</Tooltip>
-              <Popup>
-                <div className="pop">
-                  <strong>{s.name || `DI site ${i + 1}`}</strong>
-                  <div>Roof {num(s.roof_area_m2)} m²</div>
-                  {cls && r ? <div><span className="badge" style={{ background: locationClass[cls].color }}>{locationClass[cls].label}</span><div>{r.location_note}</div></div>
-                    : <div className="muted">Not assessed yet. Run the assessment again to see its effect.</div>}
-                  <div className="muted">Drag the marker to move it.</div>
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
-
-        {point && (
-          <Marker position={[point.lat, point.lon]} icon={springIcon} draggable zIndexOffset={1000}
-            eventHandlers={{ dragend: (e) => { const ll = (e.target as L.Marker).getLatLng(); props.onSpringDrag(ll.lat, ll.lng); } }}>
-            <Tooltip direction="top">{props.springName || 'Your spring'}</Tooltip>
-          </Marker>
-        )}
-      </MapContainer>
+      <div className="map-switch" role="group" aria-label="Map view">
+        <button type="button" className={`seg${threeD ? ' on' : ''}`} aria-pressed={threeD} onClick={() => setThreeD(true)}>3D</button>
+        <button type="button" className={`seg${threeD ? '' : ' on'}`} aria-pressed={!threeD} onClick={() => setThreeD(false)}>2D</button>
+        <select value={base} onChange={(e) => setBase(e.target.value as Base)} aria-label="Background map">
+          {BASES.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
+        </select>
+      </div>
+      {threeD && <div className="map-tip">Right-drag (or Ctrl + drag) to tilt and turn. Heights are shown 1.5 times.</div>}
 
       {placing !== 'none' && (
         <div className={`map-hint${props.canCancel ? '' : ' map-hint-soft'}`} role="status">
@@ -371,7 +442,7 @@ export default function MapView(props: Props) {
         </div>
       )}
       {tilesFailed && (
-        <div className="map-note" role="status">The map background could not load (no internet?). Your spring and the results still show on a blank map.</div>
+        <div className="map-note" role="status">The map background could not load (no internet?). The hills are still drawn from the elevation map, with your spring and the results on top.</div>
       )}
 
       <div className="map-legend" aria-label="Map legend">
@@ -380,7 +451,7 @@ export default function MapView(props: Props) {
           <ul>
             {legend.map((l) => <li key={l.key}>{l.swatch}<span>{l.label}</span></li>)}
           </ul>
-          {overlay && (
+          {overlay && tab === 'B' && (
             <div className="heat-ctl">
               <label className="check">
                 <input type="checkbox" checked={heatOn} onChange={(e) => setHeatOn(e.target.checked)} />
@@ -404,10 +475,3 @@ export default function MapView(props: Props) {
     </div>
   );
 }
-
-/** Resets the tile failure counter when the user switches base layer. */
-function TileWatchReset({ onReset }: { onReset: () => void }) {
-  useMapEvents({ baselayerchange: onReset });
-  return null;
-}
-

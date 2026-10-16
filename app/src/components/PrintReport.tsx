@@ -1,7 +1,7 @@
 // A plain report that only shows when printing (see @media print in styles.css).
 import type { AssessResponse, ModuleOutput } from '../api';
 import type { FormState } from '../form';
-import { flow, litres, locationClass, num, pct, range, statusLabel } from '../format';
+import { flow, linkLabel, litres, locationClass, num, pct, range, statusLabel } from '../format';
 import { vulnerabilityQuestions } from '../questions';
 import { dipQuestions, textQuestions } from '../questionExtras';
 
@@ -42,7 +42,6 @@ export default function PrintReport({ result, form, demo }: { result: AssessResp
   const B = result.B.result;
   const C = result.C.result;
   const answers = answerList(form);
-  const likely = B?.zones.find((z) => z.scenario === 'likely');
   return (
     <div className="print-report">
       <header className="p-header">
@@ -92,24 +91,17 @@ export default function PrintReport({ result, form, demo }: { result: AssessResp
         {B ? (
           <>
             <p className="p-key">
-              Likely springshed area <b>{num(likely?.area_ha ?? B.target_area_ha.mid, 1)} ha</b> (range {num(B.target_area_ha.low, 1)}–{num(B.target_area_ha.high, 1)} ha).
-              Surface catchment {num(B.surface_catchment.area_ha, 1)} ha. Heights {num(B.height_band_m.min)}–{num(B.height_band_m.max)} m.
+              Recharge area this flow needs: about <b>{num(B.target_area_ha.mid, 1)} ha</b> (range {num(B.target_area_ha.low, 1)}–{num(B.target_area_ha.high, 1)} ha).
+              Surface catchment {num(B.surface_catchment.area_ha, 1)} ha.
             </p>
-            {B.zone_summary && (
-              <p>
-                Inside the likely springshed: mean slope {num(B.zone_summary.mean_slope_deg)}°, land cover{' '}
-                {Object.entries(B.zone_summary.land_cover_pct).map(([k, v]) => `${k} ${Math.round(v)}%`).join(', ')};
-                rock: {B.zone_summary.rock_units.join(', ')}; {B.zone_summary.crosses_fault ? 'crosses a fault' : 'no fault crossing'}.
-              </p>
-            )}
-            <List items={result.B.rationale} />
-            {B.recharge_spots.length > 0 && (
+            {B.recharge_zones.length > 0 && (
               <>
-                <p><b>Suggested recharge spots</b></p>
-                <ol>{B.recharge_spots.map((s, i) => <li key={i}>{s.latitude.toFixed(5)}, {s.longitude.toFixed(5)} ({num(s.elevation_m)} m): {s.reason}</li>)}</ol>
+                <p><b>Top recharge zones</b> (best first)</p>
+                <ol>{B.recharge_zones.map((z) => <li key={z.id}>{z.id} ({linkLabel[z.link.kind].toLowerCase()}): {z.why}</li>)}</ol>
               </>
             )}
-            <p className="p-caution">A first estimate from maps. Walk the springshed with a geologist before spending money.</p>
+            <List items={result.B.rationale} />
+            <p className="p-caution">A first estimate from maps. Walk the zones with a geologist before spending money.</p>
           </>
         ) : <List items={[...result.B.rationale, ...result.B.warnings]} />}
       </section>
@@ -122,7 +114,7 @@ export default function PrintReport({ result, form, demo }: { result: AssessResp
               Water put into the ground: <b>{num(C.totals.volume_m3_per_year)} m³ a year</b> ({litres(C.totals.volume_m3_per_year)}).
               Added dry-season flow <b>{flow(C.totals.added_flow_lpm_lean.mid)} L/min</b> (range {range(C.totals.added_flow_lpm_lean)})
               {C.totals.pct_of_lean_flow ? <>, about <b>+{flow(C.totals.pct_of_lean_flow.mid)}%</b> of today's {flow(C.totals.lean_flow_lpm)} L/min</> : null}.
-              {C.roofs_for_10pct != null && <> About {num(C.roofs_for_10pct)} roofs of 100 m² inside the likely springshed would add 10%.</>}
+              {C.roofs_for_10pct != null && <> About {num(C.roofs_for_10pct)} roofs of 100 m² in a recharge zone on the spring slope would add 10%.</>}
             </p>
             <table className="p-table p-small">
               <thead><tr><th>Site</th><th>Where</th><th className="num">m³/year</th><th className="num">Reaches spring</th><th className="num">Added dry flow L/min</th><th className="num">Level rise m</th></tr></thead>
@@ -144,7 +136,7 @@ export default function PrintReport({ result, form, demo }: { result: AssessResp
             <List items={C.monitoring_plan} />
           </>
         ) : (
-          <List items={[...result.C.rationale, ...(C?.roofs_for_10pct != null ? [`About ${num(C.roofs_for_10pct)} roofs of 100 m² inside the likely springshed would add 10% to the dry-season flow.`] : [])]} />
+          <List items={[...result.C.rationale, ...(C?.roofs_for_10pct != null ? [`About ${num(C.roofs_for_10pct)} roofs of 100 m² in a recharge zone on the spring slope would add 10% to the dry-season flow.`] : [])]} />
         )}
       </section>
 

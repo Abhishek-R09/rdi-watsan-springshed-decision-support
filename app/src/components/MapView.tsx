@@ -142,9 +142,12 @@ export default function MapView(props: Props) {
           osm: { type: 'raster', tileSize: 256, maxzoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
             tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'] },
           dem: { type: 'raster-dem', tiles: [props.terrainUrl], tileSize: 256, encoding: 'terrarium', maxzoom: 14,
-            attribution: 'Elevation: Copernicus GLO-30' },
+            attribution: 'Elevation: Copernicus GLO-30, AWS Terrain Tiles' },
           shade: { type: 'raster-dem', tiles: [props.terrainUrl], tileSize: 256, encoding: 'terrarium', maxzoom: 14 },
         },
+        // a sky and haze at the horizon, so a tilted 3D view fades out instead of ending in a hard edge
+        sky: { 'sky-color': '#bcd8ea', 'horizon-color': '#eef2ee', 'fog-color': '#eef2ee', 'sky-horizon-blend': 0.6,
+          'horizon-fog-blend': 0.7, 'fog-ground-blend': 0.85 },
         layers: [
           { id: 'bg', type: 'background', paint: { 'background-color': '#dfe5dc' } },
           ...BASES.map((b) => ({ id: `base-${b.id}`, type: 'raster' as const, source: b.id, layout: { visibility: (b.id === base ? 'visible' : 'none') as 'visible' | 'none' } })),

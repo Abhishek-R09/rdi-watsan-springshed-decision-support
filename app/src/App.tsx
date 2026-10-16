@@ -10,7 +10,7 @@ import PrintReport from './components/PrintReport';
 
 type Mode = 'checking' | 'live' | 'demo';
 // Elevation tiles for the 3D map: the tool serves them from its own map files; the demo uses a public copy.
-const LIVE_TERRAIN = '/api/terrain/{z}/{x}/{y}.png';
+const LIVE_TERRAIN = '/api/terrain/{z}/{x}/{y}.png?v=2'; // v: bump when the tiles change, so browsers drop old copies
 const DEMO_TERRAIN = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
 
 // DI sites further than this from the spring are treated as left over from another spring.

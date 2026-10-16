@@ -15,7 +15,8 @@ Endpoints:
     GET  /api/springs   the dataset springs for the search box and the map
     POST /api/assess    body and reply: see app/src/api.ts
     GET  /api/terrain/{z}/{x}/{y}.png   elevation tiles for the 3D map (Terrarium encoding), cut from the same
-                        Copernicus DEM files the modules use, so the 3D view works without internet
+                        Copernicus DEM files the modules use, so the 3D view works without internet; gaps are
+                        filled from public Terrarium tiles (saved for offline use) or the nearest local height
 Each assessment is saved in data/03_outputs/tool_runs/<run_id>/ (result.json and report.md).
 """
 
@@ -80,27 +81,45 @@ class CachedSession:
 
 
 class Terrain:
-    """Map tiles of ground height for the 3D view, cut from the Copernicus DEM tiles on this computer.
-    Terrarium encoding: height = R * 256 + G + B / 256 - 32768 (metres). No DEM there -> height 0."""
+    """Map tiles of ground height for the 3D view (Terrarium encoding: height = R * 256 + G + B / 256 - 32768 m).
+
+    Heights come from the Copernicus DEM tiles on this computer, the same files the modules use. Where those do not
+    cover a map tile (outside the cached area, small voids, and every tile zoomed out below level 7), the gaps are
+    filled from the public Terrarium elevation tiles, which are saved under <layer cache>/terrain_web so they also work
+    offline later. Without internet the gaps take the nearest local height, so the 3D view never drops to sea level
+    in a wall at the edge of the cached area."""
 
     SIZE = 256
+    WEB = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"
+    WEB_TIMEOUT_S = 4
+    WEB_RETRY_S = 300  # after a failed download, use local heights only for this long
+    READERS = 4  # tiles cut at the same time; each reader has its own open files (rasterio files are not thread-safe)
 
     def __init__(self, folder):
-        import rasterio
+        import queue
         self.lock = threading.Lock()
         self.files = sorted((Path(folder) / "dem").glob("*.tif"))
-        self.datasets = [rasterio.open(f) for f in self.files]
+        self.readers = queue.Queue()
+        for _ in range(self.READERS):
+            self.readers.put(self._open())
         self.cache = OrderedDict()
+        self.web_dir = Path(folder) / "terrain_web"
+        self.web_down_until = 0.0
+        self.fill_level = None
+
+    def _open(self):
+        import rasterio
+        return {f: rasterio.open(f) for f in self.files}
 
     def refresh(self):
-        """Pick up DEM tiles downloaded for a newly assessed place."""
-        import rasterio
+        """Pick up DEM tiles downloaded for a newly assessed place (each reader opens them when it is next used)."""
         new = [f for f in sorted(self.files[0].parent.glob("*.tif"))] if self.files else []
-        for f in new:
-            if f not in self.files:
-                self.files.append(f)
-                self.datasets.append(rasterio.open(f))
+        with self.lock:
+            added = [f for f in new if f not in self.files]
+            if added:
+                self.files += added
                 self.cache.clear()
+                self.fill_level = None
 
     def tile(self, z, x, y):
         key = (z, x, y)
@@ -108,25 +127,104 @@ class Terrain:
             if key in self.cache:
                 self.cache.move_to_end(key)
                 return self.cache[key]
-            png = self._png(self._heights(z, x, y))
+        heights, covered = self._heights(z, x, y)
+        if not covered.all():
+            heights = self._fill(z, x, y, heights, covered)
+        png = self._png(heights)
+        with self.lock:
             self.cache[key] = png
             while len(self.cache) > 600:
                 self.cache.popitem(last=False)
-            return png
+        return png
+
+    def _fill(self, z, x, y, heights, covered):
+        """Fill the cells no local DEM covers: from the public tile if it can be had, else the nearest local height."""
+        import numpy as np
+        web = self._web(z, x, y)
+        if web is not None:
+            return np.where(covered, heights, web)
+        if covered.any():
+            from scipy.ndimage import distance_transform_edt
+            _, (rows, cols) = distance_transform_edt(~covered, return_indices=True)
+            return heights[rows, cols]
+        return np.full(heights.shape, self._fill_level(), np.float32)
+
+    def _fill_level(self):
+        """Median height of the local DEM, for map tiles with no local or public heights at all (offline, far away)."""
+        import numpy as np
+        if self.fill_level is None:
+            datasets = self.readers.get()
+            try:
+                values = [ds.read(1, out_shape=(64, 64)).ravel() for ds in datasets.values()]
+            finally:
+                self.readers.put(datasets)
+            values = np.concatenate(values) if values else np.zeros(1)
+            values = values[values > -500]
+            self.fill_level = float(np.median(values)) if values.size else 0.0
+        return self.fill_level
+
+    def _web(self, z, x, y):
+        """The public Terrarium tile as heights (m), from the saved copy or downloaded once; None if not available."""
+        import time
+        import urllib.request
+        import numpy as np
+        from rasterio.io import MemoryFile
+        path = self.web_dir / str(z) / str(x) / f"{y}.png"
+        data = None
+        if path.is_file():
+            data = path.read_bytes()
+        elif time.time() >= self.web_down_until:
+            try:
+                with urllib.request.urlopen(self.WEB.format(z=z, x=x, y=y), timeout=self.WEB_TIMEOUT_S) as reply:
+                    data = reply.read()
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+            except Exception:
+                self.web_down_until = time.time() + self.WEB_RETRY_S
+                return None
+        if not data:
+            return None
+        try:
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")  # a map tile has no geotransform; that is expected
+                with MemoryFile(data) as mem, mem.open() as ds:
+                    rgb = ds.read().astype(np.float32)
+        except Exception:
+            return None
+        if rgb.shape[0] < 3 or rgb.shape[1:] != (self.SIZE, self.SIZE):
+            return None
+        return rgb[0] * 256 + rgb[1] + rgb[2] / 256 - 32768
 
     def _heights(self, z, x, y):
+        """Local DEM heights at the tile's pixel centres, and which pixels the local DEM covers."""
         import numpy as np
-        from rasterio.enums import Resampling
-        from rasterio.windows import from_bounds
         n, size = 2 ** z, self.SIZE
         frac = (np.arange(size) + 0.5) / size
         lons = (x + frac) / n * 360 - 180
         lats = np.degrees(np.arctan(np.sinh(np.pi * (1 - 2 * (y + frac) / n))))
         heights = np.zeros((size, size), np.float32)
-        if z < 7:
-            return heights
+        covered = np.zeros((size, size), bool)
+        if z < 7:  # a zoomed-out tile spans many DEM files: leave it to the public tile
+            return heights, covered
         west, east, south, north = lons[0], lons[-1], lats[-1], lats[0]
-        for ds in self.datasets:
+        datasets = self.readers.get()
+        try:
+            for f in self.files:
+                if f not in datasets:
+                    import rasterio
+                    datasets[f] = rasterio.open(f)
+            self._read_into(datasets.values(), lons, lats, west, east, south, north, heights, covered)
+        finally:
+            self.readers.put(datasets)
+        return heights, covered
+
+    def _read_into(self, datasets, lons, lats, west, east, south, north, heights, covered):
+        import numpy as np
+        from rasterio.enums import Resampling
+        from rasterio.windows import from_bounds
+        size = self.SIZE
+        for ds in datasets:
             b = ds.bounds
             if b.right < west or b.left > east or b.top < south or b.bottom > north:
                 continue
@@ -153,7 +251,7 @@ class Terrain:
                  + data[R0 + 1, C0] * dr * (1 - dc) + data[R0 + 1, C0 + 1] * dr * dc)
             use = inside_r[:, None] & inside_c[None, :] & (v > -500)
             heights[use] = v[use]
-        return heights
+            covered |= use
 
     @staticmethod
     def _png(heights):
@@ -386,7 +484,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "image/png")
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Cache-Control", "max-age=86400")
+            self.send_header("Cache-Control", "max-age=3600")
             self.end_headers()
             self.wfile.write(body)
             return

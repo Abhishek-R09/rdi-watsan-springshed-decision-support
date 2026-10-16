@@ -79,6 +79,25 @@ def test_terrain_tile_encoding_round_trips():
     assert np.allclose(decoded, heights, atol=0.01)
 
 
+@pytest.mark.skipif(not HAS_DEM, reason="Copernicus DEM tile for Nauli Dhara not in the layer cache")
+def test_terrain_has_no_sea_level_wall_at_the_edge_of_the_local_dem(tmp_path, monkeypatch):
+    """Offline, a map tile half outside the local DEM takes the nearest local height, not 0 m (a wall in 3D)."""
+    import shutil
+    (tmp_path / "dem").mkdir()
+    shutil.copy(CACHE / "dem" / "Copernicus_DSM_COG_10_N29_00_E078_00_DEM.tif", tmp_path / "dem")
+    terrain = server.Terrain(tmp_path)
+    monkeypatch.setattr(terrain, "_web", lambda z, x, y: None)  # no internet
+    z = 10
+    n = 2 ** z
+    x, y = int((79.0 + 180) / 360 * n), int((1 - math.asinh(math.tan(math.radians(29.5))) / math.pi) / 2 * n)  # spans 79 E
+    heights, covered = terrain._heights(z, x, y)
+    assert 0 < covered.mean() < 1
+    filled = terrain._fill(z, x, y, heights, covered)
+    assert filled.min() > 100 and np.array_equal(filled[covered], heights[covered])
+    far = terrain._fill(z, 10, 10, np.zeros((256, 256), np.float32), np.zeros((256, 256), bool))
+    assert far.min() > 100  # nothing local or public: the median local height, not sea level
+
+
 def _two_valley_context(slope_potential, far_potential):
     """A spring on a slope facing west; its own catchment rises east to a ridge at col 50, then a saddle, then higher
     ground in the next valley. A fault runs from the spring east, over the ridge, into that higher ground."""

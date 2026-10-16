@@ -48,6 +48,7 @@ The fuller design is in [`Project1_Agent_System_Implementation_Plan.md`](Project
   "spring": { "...": "the spring input, echoed back" },
   "result": { "...": "module-specific, see below" },
   "confidence": "Low | Medium | High",
+  "validation": "One sentence: has this module been checked against field evidence yet?",
   "rationale": ["Plain sentences, each one backed by a value in result"],
   "missing_inputs": [{ "id": "flow_vs_past", "indicator": "...", "needs": "..." }],
   "warnings": ["For example: the map elevation is 300 m off the given elevation"],
@@ -61,6 +62,8 @@ The fuller design is in [`Project1_Agent_System_Implementation_Plan.md`](Project
 - **provisional:** a result exists but rests on missing or weak evidence. For Module A, this covers any score without the decline question or with less than 75% of the weight covered.
 - **unavailable:** the module could not produce a result, and the reason is in `warnings`.
 - **failed:** the module hit an error.
+
+**`confidence`** says how complete the inputs were (the page shows it as "Evidence"). It does not say the answer is right. **`validation`** says that separately: until a module has been compared with field evidence (known declining springs, walked springsheds, monitored DI sites), it says "Not yet validated" and why.
 
 If one module is unavailable, the other modules' results still stand.
 

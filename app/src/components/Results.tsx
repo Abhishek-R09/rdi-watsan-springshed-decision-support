@@ -62,8 +62,10 @@ function ModuleFrame<R>({ m, children }: { m: ModuleOutput<R>; children: (r: R) 
       <div className="module-head">
         <h3>{m.title}</h3>
         <span className={`badge badge-${m.status}`}>{statusLabel[m.status]}</span>
-        {!broken && <span className="badge badge-conf">Confidence: {m.confidence}</span>}
+        {!broken && <span className="badge badge-conf" title="How complete the inputs were. It does not say the answer is right.">Evidence: {m.confidence}</span>}
+        {!broken && m.validation && <span className="badge badge-unvalidated" title={m.validation}>Not validated yet</span>}
       </div>
+      {!broken && m.validation && <p className="hint validation-note">{m.validation}</p>}
       {m.status === 'provisional' && !broken && (
         <p className="msg msg-amber small">Provisional: a first answer. Some inputs or checks are still missing.</p>
       )}
@@ -143,7 +145,7 @@ function VulnerabilityTab({ m, r }: { m: ModuleOutput<AResult>; r: AResult }) {
               : 'Higher = more at risk of drying up or getting dirty. It combines your field answers with what the maps say about the place.'}
           </p>
           <div className="meta-row">
-            <span><b>{m.confidence}</b> confidence</span>
+            <span><b>{m.confidence}</b> evidence</span>
             <span><b>{num(r.coverage_pct)}%</b> of the score has data</span>
           </div>
           <div className="coverage" aria-hidden="true"><span style={{ width: `${Math.min(100, r.coverage_pct)}%` }} /></div>
@@ -199,23 +201,28 @@ function SpringshedTab({ m, r, onFocus }: { m: ModuleOutput<BResult>; r: BResult
   const onSlope = zones.filter((z) => z.link.kind === 'Surface slope').length;
   return (
     <>
-      <p className="msg msg-caution">A first estimate from maps. Walk the zones with a geologist before spending money.</p>
+      <p className="msg msg-caution">Candidate zones from maps: places to inspect, not sites ready for works. Walk them with a geologist before spending money.</p>
       <div className="stats">
         <Stat label="Recharge area needed" accent="var(--green)"
           value={<>{num(r.target_area_ha.mid, 1)} <small>ha</small></>}
-          sub={`Could be ${num(r.target_area_ha.low, 1)} – ${num(r.target_area_ha.high, 1)} ha`} />
+          sub={r.target_area_ha.kind === 'default'
+            ? <><b className="flag-default">Default size</b>: no flow reading was given</>
+            : `Could be ${num(r.target_area_ha.low, 1)} – ${num(r.target_area_ha.high, 1)} ha`} />
         <Stat label="Surface catchment" accent="var(--water)"
           value={r.surface_catchment.geojson || r.surface_catchment.area_ha ? <>{num(r.surface_catchment.area_ha, 1)} <small>ha</small></> : '–'}
-          sub="Where rain runs off towards the spring" />
+          sub={r.exact_cell_catchment
+            ? `Allowing 30 m GPS error. At the exact point: ${num(r.exact_cell_catchment.area_ha, 1)} ha`
+            : 'Where rain runs off towards the spring'} />
         <Stat label="Top recharge zones" accent="var(--earth)"
           value={<>{zones.length}</>}
           sub={zones.length === 0 ? 'None found' : onSlope === zones.length ? 'All on the spring slope'
             : onSlope === 0 ? 'All beyond the spring slope' : `${onSlope} on the spring slope, ${zones.length - onSlope} beyond`} />
       </div>
-      <p className="small"><b>How much area is needed:</b> {r.target_area_ha.basis}</p>
+      <p className="small"><b>How much area is needed:</b> {r.target_area_ha.basis} Each zone is grown to about this size, so a match is by design, not a check.</p>
+      {r.streams_block_zones === false && <p className="small"><b>Streams:</b> not treated as barriers (your choice), so zones may cross a stream.</p>}
 
       <section className="block">
-        <h4>Best places to recharge this spring</h4>
+        <h4>Best candidate places to recharge this spring</h4>
         <p className="hint">Ranked by how well the ground soaks up rain, how surely its water reaches the spring, and how close it is. Click a zone to see it on the map.</p>
         {zones.length > 0 ? (
           <ol className="zone-list">
@@ -326,7 +333,7 @@ function DiTab({ m, r, onAddSite }: { m: ModuleOutput<CResult>; r: CResult; onAd
             <h4>What one roof could do</h4>
             <ul className="bullets">
               {roof != null && <li>One 100 m² roof in {num(r.rain.annual_mm)} mm of rain could put about <b>{num(roof)} m³</b> ({litres(roof)}) a year into the ground.</li>}
-              {r.roofs_for_10pct != null && <li>About <b>{num(r.roofs_for_10pct)}</b> roofs of 100 m² inside a recharge zone on the spring slope would add 10% to the dry-season flow.</li>}
+              {r.roofs_for_10pct != null && <li>About <b>{num(r.roofs_for_10pct)}</b> roofs of 100 m² inside a recharge zone on the spring slope could add 10% to the dry-season flow, if 60% of their water reaches the spring and all of it comes out in the dry months.</li>}
             </ul>
           </section>
         )}
@@ -338,21 +345,28 @@ function DiTab({ m, r, onAddSite }: { m: ModuleOutput<CResult>; r: CResult; onAd
   const maxLean = Math.max(t.added_flow_lpm_lean.high, 0.01);
   return (
     <>
+      {r.safety && (
+        <section className={`safety ${r.safety.ready ? 'safety-ok' : 'safety-stop'}`}>
+          <h4>{r.safety.ready ? 'Before any injection' : 'Not ready for DI yet'}</h4>
+          <ul className="safety-list">{r.safety.actions.map((a) => <li key={a}>{a}</li>)}</ul>
+        </section>
+      )}
       <div className="stats">
         <Stat label="Water put into the ground" accent="var(--water)"
           value={<>{num(t.volume_m3_per_year)} <small>m³/year</small></>} sub={litres(t.volume_m3_per_year)} />
-        <Stat label="Added dry-season flow" accent="var(--green)"
+        <Stat label="Dry-season water equivalent" accent="var(--green)"
           value={<>{flow(t.added_flow_lpm_lean.mid)} <small>L/min</small></>}
-          sub={<>Range {range(t.added_flow_lpm_lean)} L/min<RangeStrip {...t.added_flow_lpm_lean} max={maxLean * 1.1} /></>} />
+          sub={<>Range {range(t.added_flow_lpm_lean)} L/min; 0 if not connected<RangeStrip {...t.added_flow_lpm_lean} max={maxLean * 1.1} /></>} />
         {t.pct_of_lean_flow && (
           <Stat label="Share of today's dry-season flow" accent="var(--green)"
             value={<>+{flow(t.pct_of_lean_flow.mid)}<small>%</small></>}
             sub={`${range(t.pct_of_lean_flow)}% of ${flow(t.lean_flow_lpm)} L/min`} />
         )}
         {r.roofs_for_10pct != null && (
-          <Stat label="Roofs for +10% flow" accent="var(--earth)" value={num(r.roofs_for_10pct)} sub="100 m² roofs in a zone on the spring slope" />
+          <Stat label="Roofs for +10% flow" accent="var(--earth)" value={num(r.roofs_for_10pct)} sub="100 m² roofs in a zone on the spring slope, if the assumptions hold" />
         )}
       </div>
+      <p className="hint">These are planning scenarios: the water the sites could add if the assumed share reaches the spring and all of it comes out in the dry months. Only monitoring can show the real gain, which could be zero.</p>
       {!t.pct_of_lean_flow && <p className="hint">Add the lean-season flow in step 2 to see this as a share of today's flow.</p>}
 
       <section className="block">
@@ -369,11 +383,11 @@ function DiTab({ m, r, onAddSite }: { m: ModuleOutput<CResult>; r: CResult; onAd
                 </div>
                 <p className="small site-note">{s.location_note}</p>
                 <dl className="site-facts">
-                  <div><dt>Water / year</dt><dd>{num(s.volume_m3_per_year)} m³</dd></div>
-                  <div><dt>Reaches spring</dt><dd>{pct(s.share_reaching_spring.mid)} <span className="muted">({pct(s.share_reaching_spring.low)}–{pct(s.share_reaching_spring.high)})</span></dd></div>
-                  <div><dt>Added dry flow</dt><dd>{flow(s.added_flow_lpm_lean.mid)} L/min <span className="muted">({range(s.added_flow_lpm_lean)})</span></dd></div>
-                  <div><dt>Water level rise</dt><dd>{range(s.water_level_rise_m, (n) => n.toFixed(2))} m</dd></div>
-                  <div><dt>Travel time</dt><dd>{s.travel_time_days ? `${num(s.travel_time_days.low)}–${num(s.travel_time_days.high)} days` : '–'}</dd></div>
+                  <div><dt>Injected / year</dt><dd>{num(s.volume_m3_per_year)} m³{s.runoff_m3_per_year != null && <span className="muted"> of {num(s.runoff_m3_per_year)} m³ roof runoff</span>}</dd></div>
+                  <div><dt>Assumed to reach spring</dt><dd>{pct(s.share_reaching_spring.mid)} <span className="muted">({pct(s.share_reaching_spring.low)}–{pct(s.share_reaching_spring.high)}; 0 if not connected)</span></dd></div>
+                  <div><dt>Dry-season equivalent</dt><dd>{flow(s.added_flow_lpm_lean.mid)} L/min <span className="muted">({range(s.added_flow_lpm_lean)})</span></dd></div>
+                  <div><dt>Storage rise (illustration)</dt><dd>{range(s.water_level_rise_m, (n) => n.toFixed(2))} m</dd></div>
+                  <div><dt>Travel time (rough)</dt><dd>{s.travel_time_days ? `${num(s.travel_time_days.low)}–${num(s.travel_time_days.high)} days` : '–'}</dd></div>
                   <div><dt>Roof · distance</dt><dd>{num(s.roof_area_m2)} m² · {num(s.distance_to_spring_m)} m{s.height_above_spring_m != null ? `, ${s.height_above_spring_m >= 0 ? `${num(s.height_above_spring_m)} m above` : `${num(-s.height_above_spring_m)} m below`}` : ''}</dd></div>
                 </dl>
                 {s.flags.length > 0 && <ul className="flags">{s.flags.map((f, k) => <li key={k}>{f}</li>)}</ul>}

@@ -168,13 +168,14 @@ export default function MapView(props: Props) {
     // 'style.load', not 'load': 'load' waits for every background tile, and never comes when they cannot download
     map.once('style.load', () => {
       const geo = (id: string) => map.addSource(id, { type: 'geojson', data: EMPTY });
-      ['zones', 'catchment', 'links', 'faults', 'lineaments', 'streams', 'rings', 'dataset'].forEach(geo);
+      ['zones', 'catchment', 'exact', 'links', 'faults', 'lineaments', 'streams', 'rings', 'dataset'].forEach(geo);
       map.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones', paint: {
         'fill-color': ['match', ['get', 'rank'], 1, ZONE_RANK_COLORS[0], 2, ZONE_RANK_COLORS[1], ZONE_RANK_COLORS[2]],
         'fill-opacity': 0.42 } });
       map.addLayer({ id: 'zones-line', type: 'line', source: 'zones', paint: {
         'line-color': ZONE_LINE, 'line-width': ['match', ['get', 'rank'], 1, 2.8, 1.8] } });
       map.addLayer({ id: 'catchment-line', type: 'line', source: 'catchment', paint: { 'line-color': '#1d5f99', 'line-width': 2.5, 'line-dasharray': [3, 2.5] } });
+      map.addLayer({ id: 'exact-line', type: 'line', source: 'exact', paint: { 'line-color': '#1d5f99', 'line-width': 1.6, 'line-dasharray': [0.6, 1.6] } });
       map.addLayer({ id: 'streams', type: 'line', source: 'streams', paint: { 'line-color': '#2b7bbd', 'line-opacity': 0.85,
         'line-width': ['+', 0.8, ['*', 0.9, ['coalesce', ['get', 'order'], 1]]] } });
       map.addLayer({ id: 'lineaments', type: 'line', source: 'lineaments', paint: { 'line-color': '#e08a1e', 'line-width': 1.6, 'line-dasharray': [2.5, 2.5] } });
@@ -190,14 +191,15 @@ export default function MapView(props: Props) {
 
     // hover labels for lines and areas
     const tip = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'hover-tip', offset: 10 });
-    const hoverLayers = ['zones-fill', 'catchment-line', 'faults', 'lineaments', 'links', 'rings'];
+    const hoverLayers = ['zones-fill', 'catchment-line', 'exact-line', 'faults', 'lineaments', 'links', 'rings'];
     map.on('mousemove', (e) => {
       const layers = hoverLayers.filter((l) => map.getLayer(l) && map.getLayoutProperty(l, 'visibility') !== 'none');
       const f = layers.length ? map.queryRenderedFeatures(e.point, { layers })[0] : undefined;
       if (!f || live.current.placing !== 'none') { tip.remove(); return; }
       const p = f.properties as Record<string, any>;
       const text = f.layer.id === 'zones-fill' ? `Recharge zone ${p.id}: ${(linkLabel[p.link] ?? '').toLowerCase()}, ${num(p.area_ha, 1)} ha`
-        : f.layer.id === 'catchment-line' ? `Surface catchment: ${num(p.area_ha, 1)} ha (where rain runs off towards the spring)`
+        : f.layer.id === 'catchment-line' ? `Surface catchment: ${num(p.area_ha, 1)} ha, allowing 30 m GPS error (where rain runs off towards the spring)`
+        : f.layer.id === 'exact-line' ? `Surface catchment at the exact GPS point: ${num(p.area_ha, 1)} ha`
         : f.layer.id === 'faults' ? `${p.name || 'Fault'}${p.type ? ` (${p.type})` : ''}`
         : f.layer.id === 'links' ? `Possible water path to the spring: ${p.name}`
         : f.layer.id === 'rings' ? p.label
@@ -286,6 +288,7 @@ export default function MapView(props: Props) {
 
     set('zones', fc([...zones].reverse().map((z) => z.geojson && { ...z.geojson, properties: { id: z.id, rank: z.rank, link: z.link.kind, area_ha: z.area_ha } })));
     set('catchment', B?.surface_catchment.geojson ? fc([{ ...B.surface_catchment.geojson, properties: { area_ha: B.surface_catchment.area_ha } }]) : EMPTY);
+    set('exact', B?.exact_cell_catchment?.geojson ? fc([{ ...B.exact_cell_catchment.geojson, properties: { area_ha: B.exact_cell_catchment.area_ha } }]) : EMPTY);
     set('links', fc(zones.map((z) => z.link.geojson && { ...z.link.geojson, properties: { name: `${z.link.name} (to ${z.id})` } })));
     set('faults', B ? B.faults : EMPTY);
     set('lineaments', B ? B.lineaments : EMPTY);
@@ -296,7 +299,7 @@ export default function MapView(props: Props) {
     const onA = !!result && tab === 'A', onB = !!result && tab === 'B', onC = !!result && tab === 'C';
     show(['rings'], onA);
     show(['zones-fill', 'zones-line', 'catchment-line'], onB || onC);
-    show(['faults', 'lineaments', 'streams', 'links-glow', 'links'], onB);
+    show(['faults', 'lineaments', 'streams', 'links-glow', 'links', 'exact-line'], onB);
     // on the DI tab the zones are context for where each handpump sits, so they are drawn lighter
     map.setPaintProperty('zones-fill', 'fill-opacity', onC ? 0.2 : 0.42);
     map.setPaintProperty('catchment-line', 'line-opacity', onC ? 0.6 : 1);
@@ -394,7 +397,8 @@ export default function MapView(props: Props) {
     }
   }
   if (B && (tab === 'B' || tab === 'C')) {
-    if (B.surface_catchment.geojson) legend.push({ key: 'c', label: 'Surface catchment', swatch: <i className="lg-dash" /> });
+    if (B.surface_catchment.geojson) legend.push({ key: 'c', label: tab === 'B' && B.exact_cell_catchment?.geojson ? 'Surface catchment, allowing 30 m GPS error' : 'Surface catchment', swatch: <i className="lg-dash" /> });
+    if (tab === 'B' && B.exact_cell_catchment?.geojson) legend.push({ key: 'ce', label: 'Surface catchment at the exact GPS point', swatch: <i className="lg-dotted" /> });
     if (zones.length) legend.push({ key: 'z', label: `Top recharge zones ${zones.map((z) => z.id).join(', ')} (darkest is best)`, swatch: (
       <span className="lg-zones">{zones.map((z) => <i key={z.id} className="lg-fill" style={{ background: ZONE_RANK_COLORS[z.rank - 1] }} />)}</span>
     ) });

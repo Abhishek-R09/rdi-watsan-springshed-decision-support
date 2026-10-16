@@ -280,7 +280,7 @@ TITLES = {"A": "Spring vulnerability", "B": "Springshed (recharge area)", "C": "
 
 def failed(module, spring, reason, status="failed"):
     return {"module": module, "title": TITLES[module], "version": "v1 draft", "status": status, "spring": spring,
-            "result": None, "confidence": "Low", "rationale": [reason], "missing_inputs": [], "warnings": [],
+            "result": None, "confidence": "Low", "validation": "Not run.", "rationale": [reason], "missing_inputs": [], "warnings": [],
             "report_markdown": f"# {TITLES[module]}\n\n{reason}\n"}
 
 

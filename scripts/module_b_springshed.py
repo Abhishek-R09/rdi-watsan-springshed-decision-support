@@ -5,7 +5,8 @@ transparent hybrid that a geologist can check and correct in the field:
 
 1. Surface catchment. The 30 m Copernicus DEM is depression-filled and routed (D8, pyflwdir). The land draining
    to the spring cell is its surface catchment. A 30 m DEM and a phone GPS can both be one cell off, so the
-   catchments of the 8 cells around the spring are also allowed (unless a cell is a stream).
+   catchments of the 8 cells around the spring are also allowed (unless a cell is a stream). Both are reported:
+   the exact-cell catchment and the GPS-tolerant one, which can differ many times over.
 2. Links. Ground can send water to the spring in two ways: on the slope that drains to it (the surface catchment,
    plus a narrow margin for DEM error), or from further away, beyond the ridge, along a mapped fault or a DEM
    lineament (a likely crack) that passes near the spring, or up-dip when the field form gives the rock tilt.
@@ -14,12 +15,15 @@ transparent hybrid that a geologist can check and correct in the field:
    overlay, Nijesh 2024 / Joshi 2024; weights are a draft for WATSAN to change).
 4. Size. The recharge area the flow needs comes from the spring's peak (monsoon) flow, using the area-flow relation
    fitted to the 35 Rathi (2021) springsheds; with no flow reading, the typical 1-10 ha of hill springsheds is used.
+   Zones are grown to this size, so matching it is by design, not evidence that a zone is right.
 5. Top three zones. Every linked cell is scored: potential x link strength x closeness. The best cell seeds a zone,
    grown among cells with the same link up to the needed area; a deep valley between a far zone and the spring
    lowers or rules it out; the zone is set aside and the search repeats. The best three are R1-R3, wherever they
    lie: all on the spring's own slope, all beyond the ridge, or a mix.
 
-The result is a first estimate from maps, never a substitute for walking the zones with a geologist.
+The zones are candidate places to inspect, not delineated springsheds or sites ready for works. Streams stop a zone
+from growing by default (field answer streams_block_zones = false turns this off). Every number used is listed in
+config/assumption_register_v1.csv.
 Usage (one spring):
     python scripts/module_b_springshed.py --lat 29.91903 --lon 78.55647 [--elevation 1481] [--monsoon-flow-lpm 12]
            [--dip-direction 220 --dip-angle 30] [--geojson out.geojson]
@@ -81,6 +85,9 @@ LINK_PHRASE = {"Surface slope": "on the slope that drains to the spring",
                "Rock layers (up-dip)": "linked to the spring by rock layers tilting down towards it",
                "DEM lineament": "linked to the spring by a lineament (a straight line on the elevation map, likely a crack)"}
 NODATA = -9999.0
+VALIDATION = ("Not yet validated: no field-walked springshed boundary has been compared with these zones. "
+              "They are candidate places to inspect, not delineated springsheds.")
+GPS_SENSITIVE_RATIO = 3  # warn when allowing 30 m of GPS error makes the catchment this many times bigger
 
 WORLDCOVER = {10: "Tree cover", 20: "Shrubland", 30: "Grassland", 40: "Cropland", 50: "Built-up",
               60: "Bare / sparse vegetation", 70: "Snow and ice", 80: "Permanent water bodies",
@@ -141,7 +148,8 @@ def target_area(field):
     if monsoon and monsoon > 0:
         likely, spread = fit["a"] * monsoon ** fit["b"], 2.0
         basis = (f"Sized from the monsoon flow ({monsoon:g} L/min) with the area-flow relation of {fit['n']} delineated "
-                 f"Garhwal springsheds (Rathi 2021): area = {fit['a']:.3f} x flow^{fit['b']:.2f}.")
+                 f"Garhwal springsheds (Rathi 2021): area = {fit['a']:.3f} x flow^{fit['b']:.2f}. Those areas are paired with each "
+                 "spring's long-term maximum flow; one monsoon reading can be lower or higher, so treat the size as a rough guide.")
         if monsoon > fit["q_range"][1] * 1.5 or monsoon < fit["q_range"][0] / 1.5:
             spread = 3.0
             basis += f" That flow is outside the {fit['q_range'][0]:.0f}-{fit['q_range'][1]:.0f} L/min those springs cover, so the range is wider."
@@ -156,8 +164,9 @@ def target_area(field):
     else:
         small, likely, large = DEFAULT_AREA_HA
         return {"low": small, "mid": likely, "high": large, "kind": "default",
-                "basis": "No flow reading was given, so the typical size of delineated hill springsheds (1-10 ha; Rathi 2021, "
-                         "Spring Atlas profiles) was used. A monsoon flow reading would size it for this spring."}
+                "basis": "No flow reading was given, so this is a default, not a size for this spring: the typical size of "
+                         "delineated hill springsheds (1-10 ha; Rathi 2021, Spring Atlas profiles). A monsoon flow reading would "
+                         "size it for this spring."}
     likely = max(likely, 0.5)
     return {"low": round(max(likely / spread, 0.3), 2), "mid": round(likely, 2), "high": round(likely * spread, 2),
             "kind": kind, "basis": basis}
@@ -477,7 +486,7 @@ def delineate(inputs, session):
     def unavailable(reason):
         return {"module": "B", "title": "Springshed (recharge area)", "version": "v1 draft", "status": "unavailable",
                 "spring": {"name": name, "latitude": lat, "longitude": lon, "elevation_m": given_elevation},
-                "result": None, "confidence": "Low", "rationale": [reason], "missing_inputs": [], "warnings": warnings,
+                "result": None, "confidence": "Low", "validation": VALIDATION, "rationale": [reason], "missing_inputs": [], "warnings": warnings,
                 "report_markdown": f"# Springshed: {name}\n\n{reason}\n", "_zones": None}
 
     z, t = mod.read_window(layers.dem, lon, lat, WINDOW_M)
@@ -509,8 +518,13 @@ def delineate(inputs, session):
     own_ha, core_ha = float(own.sum() * cell_ha), float(core.sum() * cell_ha)
     touches_edge = bool(core[0, :].any() or core[-1, :].any() or core[:, 0].any() or core[:, -1].any())
     if touches_edge:
-        warnings.append(f"The spring sits on a stream whose catchment reaches beyond the {WINDOW_M / 1000:.1f} km map window, so the "
-                        "surface catchment shown is only its nearby part. Check the coordinate: most springs are on a slope, not in a channel.")
+        warnings.append(f"The surface catchment reaches the edge of the {WINDOW_M / 1000:.1f} km map window, so it is incomplete: "
+                        "the area shown is a lower limit. This often means the point is in a stream channel rather than on a slope, "
+                        "so check the coordinate.")
+    if own_ha > 0 and core_ha / own_ha >= GPS_SENSITIVE_RATIO:
+        warnings.append(f"The catchment depends heavily on the exact GPS point: {own_ha:.1f} ha drains to the map cell at the coordinate, "
+                        f"but {core_ha:.1f} ha if the outlet is one cell (30 m) off. Both are drawn. Re-take the GPS at the outlet "
+                        "and walk the ridge above it to see which is right.")
     if given_elevation is not None and abs(given_elevation - z_s) > 50:
         warnings.append(f"The elevation given ({given_elevation:.0f} m) differs from the map ({z_s:.0f} m) by {abs(given_elevation - z_s):.0f} m. "
                         "The coordinate may be off; the zone is drawn from the map point.")
@@ -642,7 +656,8 @@ def delineate(inputs, session):
     # 4. size: how much recharge area this flow needs
     target = target_area(field)
     near_spring = dist <= NEAR_SPRING_M
-    stream_block = stream & ~near_spring
+    streams_block = field.get("streams_block_zones") not in (False, "false", "no", "0", 0)
+    stream_block = stream & ~near_spring if streams_block else np.zeros(z.shape, bool)
     smooth = abs(t.a) * 0.6
 
     # 5. the top recharge zones, wherever they are: on the spring's own slope or beyond it along a link
@@ -663,6 +678,7 @@ def delineate(inputs, session):
     if not zones:
         warnings.append("No recharge zone could be found: no ground above the spring and linked to it scored well enough for recharge.")
     catchment_feature = _mask_to_feature(core, t, {"area_ha": round(core_ha, 2)}, smooth)
+    own_feature = _mask_to_feature(own, t, {"area_ha": round(own_ha, 2)}, smooth) if own.any() else None
     catchment_geom = shape(catchment_feature["geometry"]) if catchment_feature else None
 
     # recharge-potential picture for the map: only ground that can send water to the spring
@@ -694,7 +710,8 @@ def delineate(inputs, session):
         f"The land that drains to the spring on the surface (its surface catchment) is {core_ha:.1f} ha"
         + (" or more" if touches_edge else "") + f", allowing 30 m for GPS and map error ({own_ha:.1f} ha drains to the exact map cell). "
         "Rain soaking in here can feed the spring, but the rocks decide the real recharge area.",
-        f"This flow needs about {target['mid']:.1f} ha of recharge area (range {target['low']:.1f}-{target['high']:.1f} ha). " + target["basis"],
+        f"This flow needs about {target['mid']:.1f} ha of recharge area (range {target['low']:.1f}-{target['high']:.1f} ha). " + target["basis"]
+        + " Each zone is grown to about this size, so its area matching it is by design, not a check that the zone is right.",
         searched + " Each patch was scored on recharge potential (" + ", ".join(factors[f]["name"].lower() for f in used)
         + "), how strong its link to the spring is, and how close it is. The best three are R1-R3, wherever they lie.",
     ]
@@ -709,6 +726,8 @@ def delineate(inputs, session):
         else:
             rationale.append(f"{on_slope} of the top zones {'is' if on_slope == 1 else 'are'} on the spring's own slope; the other"
                              f"{'s lie' if len(zones) - on_slope > 1 else ' lies'} beyond it, linked by a fault, crack or the rock tilt.")
+    if not streams_block:
+        rationale.append("Streams were not treated as barriers (your choice): zones may cross a stream channel.")
     if core_ha < target["mid"]:
         rationale.append(f"The surface catchment ({core_ha:.1f} ha) is smaller than the {target['mid']:.1f} ha this flow needs, so part of "
                          "the water probably soaks in beyond it.")
@@ -726,8 +745,13 @@ def delineate(inputs, session):
     result = {
         "spring_cell": {"latitude": round(float(ys[row, col]), 6), "longitude": round(float(xs[row, col]), 6), "elevation_m": round(z_s),
                         "moved_m": 0, "note": "The 30 m map cell at the given coordinate."},
-        "surface_catchment": {"area_ha": round(core_ha, 2), "geojson": catchment_feature},
-        "target_area_ha": {"low": target["low"], "mid": target["mid"], "high": target["high"], "basis": target["basis"]},
+        "surface_catchment": {"area_ha": round(core_ha, 2), "geojson": catchment_feature,
+                              "note": "Allowing 30 m of GPS and map error: the land draining to the spring cell or any of its 8 neighbours."},
+        "exact_cell_catchment": {"area_ha": round(own_ha, 2), "geojson": own_feature,
+                                 "note": "The land draining to the map cell at the exact coordinate."},
+        "target_area_ha": {"low": target["low"], "mid": target["mid"], "high": target["high"], "basis": target["basis"],
+                           "kind": target["kind"]},
+        "streams_block_zones": streams_block,
         "recharge_zones": zones,
         "search": {"searched": searched, "links": n_links, "checks": ZONE_CHECKS + (LINKED_CHECKS if linked else [])},
         "potential_overlay": overlay,
@@ -741,7 +765,7 @@ def delineate(inputs, session):
     output = {
         "module": "B", "title": "Springshed (recharge area)", "version": "v1 draft",
         "spring": {"name": name, "latitude": lat, "longitude": lon, "elevation_m": given_elevation if given_elevation is not None else round(z_s)},
-        "status": "provisional", "result": result, "confidence": confidence,
+        "status": "provisional", "result": result, "confidence": confidence, "validation": VALIDATION,
         "rationale": rationale, "missing_inputs": missing, "warnings": warnings,
         "report_markdown": report_markdown(name, lat, lon, result, rationale, warnings),
         "_zones": {"zones": [{"id": zn["id"], "kind": zn["link"]["kind"], "geom": shape(zn["geojson"]["geometry"])} for zn in zones],
@@ -753,10 +777,13 @@ def delineate(inputs, session):
 def report_markdown(name, lat, lon, result, rationale, warnings):
     lines = [f"# Springshed and recharge zones: {name}", "",
              f"Location {lat:.5f}, {lon:.5f}; map elevation {result['spring_cell']['elevation_m']} m.", "",
-             f"Surface catchment (allowing 30 m GPS error): {result['surface_catchment']['area_ha']:.1f} ha. "
-             f"Recharge area this flow needs: about {result['target_area_ha']['mid']:.1f} ha.", ""]
+             f"Surface catchment: {result['exact_cell_catchment']['area_ha']:.1f} ha at the exact map cell, "
+             f"{result['surface_catchment']['area_ha']:.1f} ha allowing 30 m GPS error. "
+             f"Recharge area this flow needs: about {result['target_area_ha']['mid']:.1f} ha"
+             + (" (a default: no flow reading was given)" if result["target_area_ha"]["kind"] == "default" else "") + ".", "",
+             f"*{VALIDATION}*", ""]
     if result["recharge_zones"]:
-        lines += ["## Top recharge zones", *(f"- {zn['id']}: {zn['why']}" for zn in result["recharge_zones"]), ""]
+        lines += ["## Top candidate recharge zones (places to inspect)", *(f"- {zn['id']}: {zn['why']}" for zn in result["recharge_zones"]), ""]
     lines += ["## Why", *(f"- {r}" for r in rationale), "", "## Field checks", *(f"- {c}" for c in result["search"]["checks"]), ""]
     if warnings:
         lines += ["## Notes", *(f"- {w}" for w in warnings), ""]

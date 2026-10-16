@@ -48,7 +48,7 @@ export function toRequest(form: FormState): AssessRequest | null {
   const p = springPoint(form);
   if (!p) return null;
   const field: FieldAnswers = {};
-  const f = field as Record<string, string | number>;
+  const f = field as Record<string, string | number | boolean>;
   for (const q of vulnerabilityQuestions) {
     const raw = form.answers[q.id];
     if (raw == null || raw === '') continue;
@@ -65,6 +65,7 @@ export function toRequest(form: FormState): AssessRequest | null {
     const t = (form.answers[q.key] || '').trim();
     if (t) f[q.key] = t;
   }
+  if (form.answers.streams_block_zones === 'no') f.streams_block_zones = false;
   const elevation = parseNumber(form.spring.elevation);
   return {
     spring: { name: form.spring.name.trim() || undefined, latitude: p.lat, longitude: p.lon, elevation_m: elevation },

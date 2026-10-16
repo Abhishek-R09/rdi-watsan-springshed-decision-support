@@ -1,6 +1,6 @@
 Input springs scored: 1427 (test springs not used); location reference: 1266 input springs at 700 m or higher
-  Low: 364
-  Medium: 889
+  Low: 325
+  Medium: 928
   High: 154
 Location-only score (springs at 700 m or higher): median 51, range 15-79
 Location score by seasonality label (does exposure line up with how seasonal the spring is?):

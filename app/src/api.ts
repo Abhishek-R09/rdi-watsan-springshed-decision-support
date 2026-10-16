@@ -27,6 +27,7 @@ export type FieldAnswers = {
   // Module B extras
   dip_direction_deg?: number; // direction the rock layers tilt down towards, 0-360 from north
   dip_angle_deg?: number;
+  streams_block_zones?: boolean; // false: recharge zones may grow across stream channels (default: streams stop them)
 };
 
 export type DiSite = {
@@ -61,7 +62,8 @@ export type ModuleOutput<R> = {
   title: string;
   version: string;
   status: Status;
-  confidence: Confidence;
+  confidence: Confidence; // how complete the inputs were ("Evidence" on the page), not whether the answer is right
+  validation?: string; // whether the module has been checked against field evidence yet
   rationale: string[];
   missing_inputs: MissingInput[];
   warnings: string[];
@@ -131,8 +133,10 @@ export type RechargeZone = {
 
 export type BResult = {
   spring_cell: { latitude: number; longitude: number; elevation_m: number; moved_m: number; note: string };
-  surface_catchment: { area_ha: number; geojson: Feature | null };
-  target_area_ha: Range & { basis: string }; // recharge area the flow needs
+  surface_catchment: { area_ha: number; geojson: Feature | null; note?: string }; // allowing 30 m of GPS error
+  exact_cell_catchment?: { area_ha: number; geojson: Feature | null; note?: string }; // the map cell at the exact coordinate
+  target_area_ha: Range & { basis: string; kind?: 'monsoon flow' | 'lean flow' | 'default' }; // recharge area the flow needs
+  streams_block_zones?: boolean;
   recharge_zones: RechargeZone[]; // best first
   search: { searched: string; links: number; checks: string[] };
   potential_overlay: Overlay | null;
@@ -150,7 +154,8 @@ export type DiSiteResult = {
   longitude: number;
   elevation_m: number | null;
   roof_area_m2: number;
-  volume_m3_per_year: number;
+  runoff_m3_per_year?: number; // roof rain reaching the handpump
+  volume_m3_per_year: number; // of that, actually injected
   location_class: 'in_zone_slope' | 'in_zone_linked' | 'in_zone_crack' | 'in_catchment' | 'outside' | 'below_spring';
   zone_id?: string | null;
   location_note: string;
@@ -175,7 +180,8 @@ export type CResult = {
     pct_of_lean_flow: Range | null;
   };
   monthly_injection_m3: number[] | null; // Jan..Dec, all sites
-  roofs_for_10pct: number | null; // 100 m2 roofs in a slope recharge zone needed for +10% lean flow (mid case)
+  roofs_for_10pct: number | null; // 100 m2 roofs in a slope recharge zone needed for +10% lean flow (mid case, conditional)
+  safety?: { ready: boolean; actions: string[] }; // missing safeguards make the plan "not ready"
   assumptions: { id: string; label: string; value: number | string; unit: string; note: string }[];
   benchmarks: string[];
   monitoring_plan: string[];

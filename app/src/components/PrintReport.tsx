@@ -19,9 +19,12 @@ function answerList(form: FormState): [string, string][] {
 
 function Head<R>({ m, n }: { m: ModuleOutput<R>; n: number }) {
   return (
-    <h2>
-      {n}. {m.title} <span className="p-status">({statusLabel[m.status]}, {m.confidence.toLowerCase()} confidence)</span>
-    </h2>
+    <>
+      <h2>
+        {n}. {m.title} <span className="p-status">({statusLabel[m.status]}, {m.confidence.toLowerCase()} evidence)</span>
+      </h2>
+      {m.validation && <p className="p-caution">{m.validation}</p>}
+    </>
   );
 }
 
@@ -91,12 +94,14 @@ export default function PrintReport({ result, form, demo }: { result: AssessResp
         {B ? (
           <>
             <p className="p-key">
-              Recharge area this flow needs: about <b>{num(B.target_area_ha.mid, 1)} ha</b> (range {num(B.target_area_ha.low, 1)}–{num(B.target_area_ha.high, 1)} ha).
-              Surface catchment {num(B.surface_catchment.area_ha, 1)} ha.
+              Recharge area this flow needs: about <b>{num(B.target_area_ha.mid, 1)} ha</b> (range {num(B.target_area_ha.low, 1)}–{num(B.target_area_ha.high, 1)} ha)
+              {B.target_area_ha.kind === 'default' ? ', a default size: no flow reading was given' : ''}.
+              Surface catchment {num(B.surface_catchment.area_ha, 1)} ha allowing 30 m GPS error
+              {B.exact_cell_catchment ? `, ${num(B.exact_cell_catchment.area_ha, 1)} ha at the exact point` : ''}.
             </p>
             {B.recharge_zones.length > 0 && (
               <>
-                <p><b>Top recharge zones</b> (best first)</p>
+                <p><b>Top candidate recharge zones</b> (best first; places to inspect)</p>
                 <ol>{B.recharge_zones.map((z) => <li key={z.id}>{z.id} ({linkLabel[z.link.kind].toLowerCase()}): {z.why}</li>)}</ol>
               </>
             )}
@@ -112,19 +117,25 @@ export default function PrintReport({ result, form, demo }: { result: AssessResp
           <>
             <p className="p-key">
               Water put into the ground: <b>{num(C.totals.volume_m3_per_year)} m³ a year</b> ({litres(C.totals.volume_m3_per_year)}).
-              Added dry-season flow <b>{flow(C.totals.added_flow_lpm_lean.mid)} L/min</b> (range {range(C.totals.added_flow_lpm_lean)})
+              Dry-season water equivalent <b>{flow(C.totals.added_flow_lpm_lean.mid)} L/min</b> (range {range(C.totals.added_flow_lpm_lean)}; 0 if not connected)
               {C.totals.pct_of_lean_flow ? <>, about <b>+{flow(C.totals.pct_of_lean_flow.mid)}%</b> of today's {flow(C.totals.lean_flow_lpm)} L/min</> : null}.
-              {C.roofs_for_10pct != null && <> About {num(C.roofs_for_10pct)} roofs of 100 m² in a recharge zone on the spring slope would add 10%.</>}
+              {C.roofs_for_10pct != null && <> About {num(C.roofs_for_10pct)} roofs of 100 m² in a recharge zone on the spring slope could add 10%, if the assumptions hold.</>}
             </p>
+            {C.safety && (
+              <>
+                <p><b>{C.safety.ready ? 'Before any injection' : 'Not ready for DI yet'}</b></p>
+                <List items={C.safety.actions} />
+              </>
+            )}
             <table className="p-table p-small">
-              <thead><tr><th>Site</th><th>Where</th><th className="num">m³/year</th><th className="num">Reaches spring</th><th className="num">Added dry flow L/min</th><th className="num">Level rise m</th></tr></thead>
+              <thead><tr><th>Site</th><th>Where</th><th className="num">m³/year</th><th className="num">Assumed to reach spring</th><th className="num">Dry-season equivalent L/min</th><th className="num">Storage rise m (illustration)</th></tr></thead>
               <tbody>
                 {C.sites.map((s) => (
                   <tr key={s.id}>
                     <td>{s.name} ({num(s.roof_area_m2)} m²)</td>
                     <td>{locationClass[s.location_class].label}</td>
                     <td className="num">{num(s.volume_m3_per_year)}</td>
-                    <td className="num">{pct(s.share_reaching_spring.mid)}</td>
+                    <td className="num">{pct(s.share_reaching_spring.low)}–{pct(s.share_reaching_spring.high)}</td>
                     <td className="num">{flow(s.added_flow_lpm_lean.mid)} ({range(s.added_flow_lpm_lean)})</td>
                     <td className="num">{range(s.water_level_rise_m, (n) => n.toFixed(2))}</td>
                   </tr>
@@ -136,7 +147,7 @@ export default function PrintReport({ result, form, demo }: { result: AssessResp
             <List items={C.monitoring_plan} />
           </>
         ) : (
-          <List items={[...result.C.rationale, ...(C?.roofs_for_10pct != null ? [`About ${num(C.roofs_for_10pct)} roofs of 100 m² in a recharge zone on the spring slope would add 10% to the dry-season flow.`] : [])]} />
+          <List items={[...result.C.rationale, ...(C?.roofs_for_10pct != null ? [`About ${num(C.roofs_for_10pct)} roofs of 100 m² in a recharge zone on the spring slope could add 10% to the dry-season flow, if the assumptions hold.`] : [])]} />
         )}
       </section>
 

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import type { AResult, AssessResponse, BResult, CResult, Feature, Indicator, ModuleOutput } from '../api';
-import { MONTHS, classColor, flow, litres, locationClass, num, pct, range, scoreColor, statusLabel } from '../format';
+import type { AResult, AssessResponse, BResult, CResult, Feature, Indicator, ModuleOutput, RechargeZone } from '../api';
+import { MONTHS, ZONE_RANK_COLORS, classColor, flow, litres, linkLabel, locationClass, num, pct, range, scoreColor, statusLabel } from '../format';
 import { Gauge, MonthlyBars, RangeStrip, StackedBar } from './charts';
 import type { Tab } from './MapView';
 
@@ -195,69 +195,47 @@ function VulnerabilityTab({ m, r }: { m: ModuleOutput<AResult>; r: AResult }) {
 
 // ------------------------------------------------------------------ B
 function SpringshedTab({ m, r, onFocus }: { m: ModuleOutput<BResult>; r: BResult; onFocus: Props['onFocus'] }) {
-  const likely = r.zones.find((z) => z.scenario === 'likely');
-  const small = r.zones.find((z) => z.scenario === 'small');
-  const large = r.zones.find((z) => z.scenario === 'large');
-  const zs = r.zone_summary;
+  const zones = r.recharge_zones;
+  const onSlope = zones.filter((z) => z.link.kind === 'Surface slope').length;
   return (
     <>
-      <p className="msg msg-caution">A first estimate from maps. Walk the springshed with a geologist before spending money.</p>
+      <p className="msg msg-caution">A first estimate from maps. Walk the zones with a geologist before spending money.</p>
       <div className="stats">
-        <Stat label="Likely springshed area" accent="var(--green)"
-          value={<>{num(likely?.area_ha ?? r.target_area_ha.mid, 1)} <small>ha</small></>}
-          sub={`Could be ${num(small?.area_ha ?? r.target_area_ha.low, 1)} – ${num(large?.area_ha ?? r.target_area_ha.high, 1)} ha`} />
+        <Stat label="Recharge area needed" accent="var(--green)"
+          value={<>{num(r.target_area_ha.mid, 1)} <small>ha</small></>}
+          sub={`Could be ${num(r.target_area_ha.low, 1)} – ${num(r.target_area_ha.high, 1)} ha`} />
         <Stat label="Surface catchment" accent="var(--water)"
           value={r.surface_catchment.geojson || r.surface_catchment.area_ha ? <>{num(r.surface_catchment.area_ha, 1)} <small>ha</small></> : '–'}
           sub="Where rain runs off towards the spring" />
-        <Stat label="Height band" accent="var(--earth)"
-          value={<>{num(r.height_band_m.min)}–{num(r.height_band_m.max)} <small>m</small></>}
-          sub="Heights the springshed may use" />
+        <Stat label="Top recharge zones" accent="var(--earth)"
+          value={<>{zones.length}</>}
+          sub={zones.length === 0 ? 'None found' : onSlope === zones.length ? 'All on the spring slope'
+            : onSlope === 0 ? 'All beyond the spring slope' : `${onSlope} on the spring slope, ${zones.length - onSlope} beyond`} />
       </div>
-      <p className="small"><b>How big it should be:</b> {r.target_area_ha.basis}</p>
-      {r.spring_cell.moved_m > 0 && <p className="hint">{r.spring_cell.note}</p>}
+      <p className="small"><b>How much area is needed:</b> {r.target_area_ha.basis}</p>
 
-      {zs && (
-        <section className="block">
-          <h4>Inside the likely springshed</h4>
-          <StackedBar shares={zs.land_cover_pct} />
-          <dl className="facts">
-            <div><dt>Mean slope</dt><dd>{num(zs.mean_slope_deg)}°</dd></div>
-            <div><dt>Recharge potential</dt><dd>{Math.round(zs.mean_potential * 100)}%</dd></div>
-            <div><dt>Heights</dt><dd>{num(zs.elevation_range_m[0])}–{num(zs.elevation_range_m[1])} m</dd></div>
-            <div><dt>Crosses a fault</dt><dd>{zs.crosses_fault ? 'Yes' : 'No'}</dd></div>
-            {zs.outside_catchment_pct != null && <div><dt>Outside the surface catchment</dt><dd>{zs.outside_catchment_pct}%</dd></div>}
-            {zs.soil && <div className="wide"><dt>Soil (top 30 cm)</dt><dd>{zs.soil.class}: clay {num(zs.soil.clay_pct)}%, sand {num(zs.soil.sand_pct)}%</dd></div>}
-            <div className="wide"><dt>Rock</dt><dd>{zs.rock_units.join(', ') || '–'}</dd></div>
-          </dl>
-        </section>
-      )}
+      <section className="block">
+        <h4>Best places to recharge this spring</h4>
+        <p className="hint">Ranked by how well the ground soaks up rain, how surely its water reaches the spring, and how close it is. Click a zone to see it on the map.</p>
+        {zones.length > 0 ? (
+          <ol className="zone-list">
+            {zones.map((z) => <ZoneCard key={z.id} z={z} onFocus={onFocus} />)}
+          </ol>
+        ) : <p className="hint">No zone was found. {r.search.searched}</p>}
+        <p className="hint">{r.search.searched}</p>
+        {r.search.checks.length > 0 && (
+          <details className="checks">
+            <summary>How to check the zones in the field</summary>
+            <ul>{r.search.checks.map((x) => <li key={x}>{x}</li>)}</ul>
+          </details>
+        )}
+      </section>
+
       {r.geology && (
         <p className="small">
           <b>Rock at the spring:</b> {r.geology.unit} ({r.geology.rock_class.toLowerCase()})
           {r.geology.nearest_fault_m != null && <>. Nearest mapped fault: {num(r.geology.nearest_fault_m)} m ({r.geology.nearest_fault_name})</>}.
         </p>
-      )}
-
-      {r.detached && <BeyondRidge d={r.detached} onFocus={onFocus} />}
-
-      {r.recharge_spots.length > 0 && (
-        <section className="block">
-          <h4>Suggested recharge spots</h4>
-          <p className="hint">Good places for trenches, pits or planting. Click one to see it on the map.</p>
-          <ol className="spots">
-            {r.recharge_spots.map((s, i) => (
-              <li key={i}>
-                <button type="button" onClick={() => onFocus(s.latitude, s.longitude, 17)}>
-                  <span className="spot-num">★ {i + 1}</span>
-                  <span className="spot-body">
-                    <span>{s.reason}</span>
-                    <span className="muted small">{num(s.elevation_m)} m · potential {Math.round(s.potential * 100)}%</span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ol>
-        </section>
       )}
 
       {r.factors.length > 0 && (
@@ -274,7 +252,7 @@ function SpringshedTab({ m, r, onFocus }: { m: ModuleOutput<BResult>; r: BResult
           </ul>
         </section>
       )}
-      <Bullets title="How the springshed was drawn" items={m.rationale} />
+      <Bullets title="How the zones were found" items={m.rationale} />
       <MissingList m={m} />
       <Warnings items={m.warnings} />
     </>
@@ -292,42 +270,30 @@ function middleOf(f: Feature | null): [number, number] | null {
   return Number.isFinite(w) ? [(so + n) / 2, (w + e) / 2] : null;
 }
 
-function BeyondRidge({ d, onFocus }: { d: NonNullable<BResult['detached']>; onFocus: Props['onFocus'] }) {
+function ZoneCard({ z, onFocus }: { z: RechargeZone; onFocus: Props['onFocus'] }) {
+  const mid = middleOf(z.geojson);
+  const linked = z.link.kind !== 'Surface slope';
   return (
-    <section className="block beyond">
-      <h4>Recharge areas beyond the ridge</h4>
-      <p className="small">{d.reason}</p>
-      {d.candidates.length > 0 ? (
-        <>
-          <p className="hint">These are possibilities to check, not findings. Click one to see it on the map (purple, dashed).</p>
-          <ol className="spots">
-            {d.candidates.map((c) => {
-              const mid = middleOf(c.geojson);
-              return (
-                <li key={c.id}>
-                  <button type="button" onClick={() => mid && onFocus(mid[0], mid[1], 15)} disabled={!mid}>
-                    <span className="spot-num beyond-num">{c.id}</span>
-                    <span className="spot-body">
-                      <span>{c.why}</span>
-                      {c.rock_unit && <span className="muted small">Rock: {c.rock_unit}</span>}
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
-        </>
-      ) : (
-        <p className="hint">None found. {d.searched}</p>
-      )}
-      {d.candidates.length > 0 && <p className="hint">{d.searched}</p>}
-      {d.candidates.length > 0 && d.checks.length > 0 && (
-        <details className="checks">
-          <summary>How to check one in the field</summary>
-          <ul>{d.checks.map((x) => <li key={x}>{x}</li>)}</ul>
-        </details>
-      )}
-    </section>
+    <li>
+      <button type="button" className="zone-card" style={{ borderLeftColor: ZONE_RANK_COLORS[z.rank - 1] }}
+        onClick={() => mid && onFocus(mid[0], mid[1], 15)} disabled={!mid}>
+        <span className="zone-card-top">
+          <span className="zone-id">{z.id}</span>
+          <span className={`zone-link${linked ? ' linked' : ''}`}>{linkLabel[z.link.kind]}</span>
+          <span className="muted small">{num(z.area_ha, 1)} ha · {z.distance_m < 60 ? 'at the spring' : `${num(z.distance_m)} m away`} · {num(z.height_above_spring_m.mean)} m above</span>
+        </span>
+        <span className="small">{z.why}</span>
+        <StackedBar shares={z.land_cover_pct} />
+        <dl className="facts">
+          <div><dt>Recharge potential</dt><dd>{Math.round(z.mean_potential * 100)}%</dd></div>
+          <div><dt>Mean slope</dt><dd>{num(z.mean_slope_deg)}°</dd></div>
+          {z.soil && <div><dt>Soil (top 30 cm)</dt><dd>{z.soil.class.split(' (')[0]}</dd></div>}
+          <div><dt>Inside the catchment</dt><dd>{z.in_catchment_pct}%</dd></div>
+          {linked && <div className="wide"><dt>Link to the spring</dt><dd>{z.link.name}</dd></div>}
+          {z.rock_unit && <div className="wide"><dt>Rock</dt><dd>{z.rock_unit}</dd></div>}
+        </dl>
+      </button>
+    </li>
   );
 }
 
@@ -360,7 +326,7 @@ function DiTab({ m, r, onAddSite }: { m: ModuleOutput<CResult>; r: CResult; onAd
             <h4>What one roof could do</h4>
             <ul className="bullets">
               {roof != null && <li>One 100 m² roof in {num(r.rain.annual_mm)} mm of rain could put about <b>{num(roof)} m³</b> ({litres(roof)}) a year into the ground.</li>}
-              {r.roofs_for_10pct != null && <li>About <b>{num(r.roofs_for_10pct)}</b> roofs of 100 m² inside the likely springshed would add 10% to the dry-season flow.</li>}
+              {r.roofs_for_10pct != null && <li>About <b>{num(r.roofs_for_10pct)}</b> roofs of 100 m² inside a recharge zone on the spring slope would add 10% to the dry-season flow.</li>}
             </ul>
           </section>
         )}
@@ -384,7 +350,7 @@ function DiTab({ m, r, onAddSite }: { m: ModuleOutput<CResult>; r: CResult; onAd
             sub={`${range(t.pct_of_lean_flow)}% of ${flow(t.lean_flow_lpm)} L/min`} />
         )}
         {r.roofs_for_10pct != null && (
-          <Stat label="Roofs for +10% flow" accent="var(--earth)" value={num(r.roofs_for_10pct)} sub="100 m² roofs inside the likely springshed" />
+          <Stat label="Roofs for +10% flow" accent="var(--earth)" value={num(r.roofs_for_10pct)} sub="100 m² roofs in a zone on the spring slope" />
         )}
       </div>
       {!t.pct_of_lean_flow && <p className="hint">Add the lean-season flow in step 2 to see this as a share of today's flow.</p>}
@@ -479,7 +445,7 @@ export function HowItWorks({ demo, onExample }: { demo: boolean; onExample: () =
         </li>
         <li>
           <span className="how-icon how-b" aria-hidden="true">B</span>
-          <div><b>Springshed</b><p>Where the spring's water most likely soaks into the ground uphill, with good spots for recharge work.</p></div>
+          <div><b>Springshed</b><p>The three best places to recharge the spring, on its own slope or beyond the ridge, ranked.</p></div>
         </li>
         <li>
           <span className="how-icon how-c" aria-hidden="true">C</span>

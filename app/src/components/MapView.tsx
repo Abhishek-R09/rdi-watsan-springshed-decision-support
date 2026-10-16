@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { AssessResponse, DatasetSpring, DiSite, DiSiteResult, Feature, FeatureCollection, Overlay } from '../api';
-import { locationClass, num } from '../format';
+import { ZONE_RANK_COLORS, linkLabel, locationClass, num } from '../format';
 
 export type Tab = 'A' | 'B' | 'C';
 export type Placing = 'none' | 'spring' | 'site';
@@ -33,9 +33,8 @@ const BASES: { id: Base; label: string }[] = [
   { id: 'topo', label: 'Topo map' },
   { id: 'osm', label: 'Streets' },
 ];
-const ZONE_COLORS = { small: '#1f7a45', likely: '#3f9d55', large: '#a7d58f' } as const;
-const ZONE_LINES = { small: '#14532d', likely: '#1f7a45', large: '#5d9c4c' } as const;
-const DETACHED = '#8e5bb5';
+const ZONE_LINE = '#14532d';
+const LINK = '#8e5bb5';
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] };
 const EXAGGERATION = 1.5;
 const PITCH_3D = 58;
@@ -114,7 +113,7 @@ export default function MapView(props: Props) {
   const A = result?.A.result ?? null;
   const B = result?.B.result ?? null;
   const C = result?.C.result ?? null;
-  const detached = B?.detached?.candidates ?? [];
+  const zones = B?.recharge_zones ?? [];
   const siteClass = useMemo(() => {
     const m = new Map<string, DiSiteResult>();
     for (const s of C?.sites ?? []) m.set(s.id, s);
@@ -169,22 +168,19 @@ export default function MapView(props: Props) {
     // 'style.load', not 'load': 'load' waits for every background tile, and never comes when they cannot download
     map.once('style.load', () => {
       const geo = (id: string) => map.addSource(id, { type: 'geojson', data: EMPTY });
-      ['zones', 'catchment', 'detached', 'links', 'faults', 'lineaments', 'streams', 'rings', 'dataset'].forEach(geo);
+      ['zones', 'catchment', 'links', 'faults', 'lineaments', 'streams', 'rings', 'dataset'].forEach(geo);
       map.addLayer({ id: 'zones-fill', type: 'fill', source: 'zones', paint: {
-        'fill-color': ['match', ['get', 'scenario'], 'small', ZONE_COLORS.small, 'likely', ZONE_COLORS.likely, ZONE_COLORS.large],
-        'fill-opacity': ['match', ['get', 'scenario'], 'small', 0.4, 'likely', 0.32, 0.26] } });
+        'fill-color': ['match', ['get', 'rank'], 1, ZONE_RANK_COLORS[0], 2, ZONE_RANK_COLORS[1], ZONE_RANK_COLORS[2]],
+        'fill-opacity': 0.42 } });
       map.addLayer({ id: 'zones-line', type: 'line', source: 'zones', paint: {
-        'line-color': ['match', ['get', 'scenario'], 'small', ZONE_LINES.small, 'likely', ZONE_LINES.likely, ZONE_LINES.large],
-        'line-width': ['match', ['get', 'scenario'], 'likely', 2.5, 1.5] } });
-      map.addLayer({ id: 'detached-fill', type: 'fill', source: 'detached', paint: { 'fill-color': DETACHED, 'fill-opacity': 0.28 } });
-      map.addLayer({ id: 'detached-line', type: 'line', source: 'detached', paint: { 'line-color': DETACHED, 'line-width': 2.2, 'line-dasharray': [2, 1.5] } });
+        'line-color': ZONE_LINE, 'line-width': ['match', ['get', 'rank'], 1, 2.8, 1.8] } });
       map.addLayer({ id: 'catchment-line', type: 'line', source: 'catchment', paint: { 'line-color': '#1d5f99', 'line-width': 2.5, 'line-dasharray': [3, 2.5] } });
       map.addLayer({ id: 'streams', type: 'line', source: 'streams', paint: { 'line-color': '#2b7bbd', 'line-opacity': 0.85,
         'line-width': ['+', 0.8, ['*', 0.9, ['coalesce', ['get', 'order'], 1]]] } });
       map.addLayer({ id: 'lineaments', type: 'line', source: 'lineaments', paint: { 'line-color': '#e08a1e', 'line-width': 1.6, 'line-dasharray': [2.5, 2.5] } });
       map.addLayer({ id: 'faults', type: 'line', source: 'faults', paint: { 'line-color': '#d1352b', 'line-width': 2.5 } });
       map.addLayer({ id: 'links-glow', type: 'line', source: 'links', paint: { 'line-color': '#ffffff', 'line-width': 7, 'line-opacity': 0.7 } });
-      map.addLayer({ id: 'links', type: 'line', source: 'links', paint: { 'line-color': DETACHED, 'line-width': 3.5 } });
+      map.addLayer({ id: 'links', type: 'line', source: 'links', paint: { 'line-color': LINK, 'line-width': 3.5 } });
       map.addLayer({ id: 'rings', type: 'line', source: 'rings', paint: { 'line-color': '#0b6e8a', 'line-width': 2,
         'line-dasharray': [1, 2.5], 'line-opacity': ['match', ['get', 'radius_m'], 500, 1, 0.75] } });
       map.addLayer({ id: 'dataset', type: 'circle', source: 'dataset', paint: { 'circle-radius': 4.5, 'circle-color': '#0b6e8a',
@@ -194,14 +190,13 @@ export default function MapView(props: Props) {
 
     // hover labels for lines and areas
     const tip = new maplibregl.Popup({ closeButton: false, closeOnClick: false, className: 'hover-tip', offset: 10 });
-    const hoverLayers = ['zones-fill', 'detached-fill', 'catchment-line', 'faults', 'lineaments', 'links', 'rings'];
+    const hoverLayers = ['zones-fill', 'catchment-line', 'faults', 'lineaments', 'links', 'rings'];
     map.on('mousemove', (e) => {
       const layers = hoverLayers.filter((l) => map.getLayer(l) && map.getLayoutProperty(l, 'visibility') !== 'none');
       const f = layers.length ? map.queryRenderedFeatures(e.point, { layers })[0] : undefined;
       if (!f || live.current.placing !== 'none') { tip.remove(); return; }
       const p = f.properties as Record<string, any>;
-      const text = f.layer.id === 'zones-fill' ? `Springshed, ${p.scenario}: ${num(p.area_ha, 1)} ha`
-        : f.layer.id === 'detached-fill' ? `${p.id}: possible recharge area beyond the ridge, ${num(p.area_ha, 1)} ha`
+      const text = f.layer.id === 'zones-fill' ? `Recharge zone ${p.id}: ${(linkLabel[p.link] ?? '').toLowerCase()}, ${num(p.area_ha, 1)} ha`
         : f.layer.id === 'catchment-line' ? `Surface catchment: ${num(p.area_ha, 1)} ha (where rain runs off towards the spring)`
         : f.layer.id === 'faults' ? `${p.name || 'Fault'}${p.type ? ` (${p.type})` : ''}`
         : f.layer.id === 'links' ? `Possible water path to the spring: ${p.name}`
@@ -289,11 +284,9 @@ export default function MapView(props: Props) {
     set('dataset', showDataset ? fc(springs.map((s) => ({ type: 'Feature', geometry: { type: 'Point', coordinates: [s.longitude, s.latitude] }, properties: { id: s.id } }))) : EMPTY);
     show(['dataset'], showDataset);
 
-    const order = { large: 0, likely: 1, small: 2 } as const;
-    set('zones', B ? fc([...B.zones].sort((a, b) => order[a.scenario] - order[b.scenario]).map((z) => ({ ...z.geojson, properties: { scenario: z.scenario, area_ha: z.area_ha } }))) : EMPTY);
+    set('zones', fc([...zones].reverse().map((z) => z.geojson && { ...z.geojson, properties: { id: z.id, rank: z.rank, link: z.link.kind, area_ha: z.area_ha } })));
     set('catchment', B?.surface_catchment.geojson ? fc([{ ...B.surface_catchment.geojson, properties: { area_ha: B.surface_catchment.area_ha } }]) : EMPTY);
-    set('detached', fc(detached.map((d) => d.geojson && { ...d.geojson, properties: { id: d.id, area_ha: d.area_ha } })));
-    set('links', fc(detached.map((d) => d.link.geojson && { ...d.link.geojson, properties: { name: d.link.name } })));
+    set('links', fc(zones.map((z) => z.link.geojson && { ...z.link.geojson, properties: { name: `${z.link.name} (to ${z.id})` } })));
     set('faults', B ? B.faults : EMPTY);
     set('lineaments', B ? B.lineaments : EMPTY);
     set('streams', B ? B.streams : EMPTY);
@@ -302,12 +295,10 @@ export default function MapView(props: Props) {
 
     const onA = !!result && tab === 'A', onB = !!result && tab === 'B', onC = !!result && tab === 'C';
     show(['rings'], onA);
-    show(['zones-fill', 'zones-line', 'catchment-line', 'detached-fill', 'detached-line'], onB || onC);
+    show(['zones-fill', 'zones-line', 'catchment-line'], onB || onC);
     show(['faults', 'lineaments', 'streams', 'links-glow', 'links'], onB);
     // on the DI tab the zones are context for where each handpump sits, so they are drawn lighter
-    map.setPaintProperty('zones-fill', 'fill-opacity', onC ? ['match', ['get', 'scenario'], 'small', 0.22, 'likely', 0.18, 0.12]
-      : ['match', ['get', 'scenario'], 'small', 0.4, 'likely', 0.32, 0.26]);
-    map.setPaintProperty('detached-fill', 'fill-opacity', onC ? 0.14 : 0.28);
+    map.setPaintProperty('zones-fill', 'fill-opacity', onC ? 0.2 : 0.42);
     map.setPaintProperty('catchment-line', 'line-opacity', onC ? 0.6 : 1);
 
     const image = (id: string, overlay: Overlay | null | undefined, visible: boolean, opacity: number, before: string) => {
@@ -319,7 +310,7 @@ export default function MapView(props: Props) {
     };
     image('potential-img', B?.potential_overlay, onB && heatOn, heatOpacity, 'zones-fill');
     image('landcover-img', A?.map?.land_cover, onA, 0.85, 'zones-fill');
-  }, [ready, result, tab, springs, showDataset, heatOn, heatOpacity, A, B, detached]);
+  }, [ready, result, tab, springs, showDataset, heatOn, heatOpacity, A, B, zones]);
 
   // ------------------------------------------------------------------ markers
   useEffect(() => {
@@ -334,20 +325,13 @@ export default function MapView(props: Props) {
       const m = add(new maplibregl.Marker({ element: node, anchor: 'bottom', draggable: true }).setLngLat([point.lon, point.lat]));
       m.on('dragend', () => { const ll = m.getLngLat(); live.current.onSpringDrag(ll.lat, ll.lng); });
     }
-    if (B && tab === 'B') {
-      B.recharge_spots.forEach((s, i) => {
-        add(new maplibregl.Marker({ element: el('spot-icon', '★') }).setLngLat([s.longitude, s.latitude])
-          .setPopup(new maplibregl.Popup({ offset: 14 }).setDOMContent(el('pop', `<strong>Suggested recharge spot ${i + 1}</strong><div>${escapeHtml(s.reason)}</div>
-            <div class="muted">${num(s.elevation_m)} m · recharge potential ${Math.round(s.potential * 100)}%</div>`))));
-      });
-    }
     if (B && (tab === 'B' || tab === 'C')) {
-      for (const d of detached) {
-        const box = bboxOf([d.geojson]);
+      for (const z of zones) {
+        const box = bboxOf([z.geojson]);
         if (!box) continue;
-        const node = el('detached-tag', d.id);
+        const node = el(`zone-tag zone-tag-${z.rank}`, z.id);
         add(new maplibregl.Marker({ element: node }).setLngLat([(box[0][0] + box[1][0]) / 2, (box[0][1] + box[1][1]) / 2])
-          .setPopup(new maplibregl.Popup({ offset: 12 }).setDOMContent(el('pop', `<strong>${d.id}: possible recharge area beyond the ridge</strong><div>${escapeHtml(d.why)}</div>`))));
+          .setPopup(new maplibregl.Popup({ offset: 12 }).setDOMContent(el('pop', `<strong>Recharge zone ${z.id}</strong><div>${escapeHtml(z.why)}</div>`))));
       }
     }
     if (showSites) {
@@ -369,7 +353,7 @@ export default function MapView(props: Props) {
       });
     }
     return () => made.forEach((m) => m.remove());
-  }, [ready, point?.lat, point?.lon, props.springName, B, tab, detached, showSites, sites, siteClass]);
+  }, [ready, point?.lat, point?.lon, props.springName, B, tab, zones, showSites, sites, siteClass]);
 
   // ------------------------------------------------------------------ where the camera goes
   const lastFocus = useRef(0);
@@ -391,8 +375,7 @@ export default function MapView(props: Props) {
     const s = result.spring;
     const near = ring(s.latitude, s.longitude, tab === 'A' ? 1100 : 600, {});
     const features: (Feature | null | undefined)[] = [near];
-    if (tab !== 'A' && B) features.push(B.surface_catchment.geojson, ...B.zones.map((z) => z.geojson));
-    if (tab === 'B') features.push(...detached.map((d) => d.geojson));
+    if (tab !== 'A' && B) features.push(B.surface_catchment.geojson, ...zones.map((z) => z.geojson));
     const pts: [number, number][] = tab === 'C' ? sites.map((x) => [x.longitude, x.latitude]) : [];
     const b = bboxOf(features, pts);
     if (b) map.fitBounds(b, { padding: 60, maxZoom: 16.5, pitch: threeD ? PITCH_3D : 0, duration: 900, freezeElevation: true });
@@ -412,17 +395,15 @@ export default function MapView(props: Props) {
   }
   if (B && (tab === 'B' || tab === 'C')) {
     if (B.surface_catchment.geojson) legend.push({ key: 'c', label: 'Surface catchment', swatch: <i className="lg-dash" /> });
-    legend.push({ key: 'z', label: 'Springshed (recharge area): small, likely, large', swatch: (
-      <span className="lg-zones">{(['small', 'likely', 'large'] as const).map((z) => <i key={z} className="lg-fill" style={{ background: ZONE_COLORS[z] }} />)}</span>
+    if (zones.length) legend.push({ key: 'z', label: `Top recharge zones ${zones.map((z) => z.id).join(', ')} (darkest is best)`, swatch: (
+      <span className="lg-zones">{zones.map((z) => <i key={z.id} className="lg-fill" style={{ background: ZONE_RANK_COLORS[z.rank - 1] }} />)}</span>
     ) });
-    if (detached.length) legend.push({ key: 'd', label: 'Possible recharge area beyond the ridge', swatch: <i className="lg-fill lg-detached" /> });
   }
   if (B && tab === 'B') {
-    if (detached.some((d) => d.link.geojson)) legend.push({ key: 'lk', label: 'Possible water path to the spring', swatch: <i className="lg-line" style={{ background: DETACHED }} /> });
+    if (zones.some((z) => z.link.geojson)) legend.push({ key: 'lk', label: 'Fault or crack linking a zone to the spring', swatch: <i className="lg-line" style={{ background: LINK }} /> });
     if (B.faults.features.length) legend.push({ key: 'f', label: 'Fault or thrust', swatch: <i className="lg-line" style={{ background: '#d1352b' }} /> });
     if (B.lineaments.features.length) legend.push({ key: 'l', label: 'Lineament (possible crack line)', swatch: <i className="lg-line lg-dashed" /> });
     if (B.streams.features.length) legend.push({ key: 's', label: 'Stream', swatch: <i className="lg-line" style={{ background: '#2b7bbd' }} /> });
-    if (B.recharge_spots.length) legend.push({ key: 'rs', label: 'Suggested recharge spot', swatch: <i className="lg-star">★</i> });
   }
   if (showSites && sites.length) {
     const classes = new Set<DiSiteResult['location_class'] | null>();

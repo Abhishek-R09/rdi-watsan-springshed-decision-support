@@ -105,54 +105,42 @@ export type Overlay = {
 
 export type SoilSummary = { class: string; clay_pct: number; sand_pct: number };
 
-// A possible recharge area beyond the ridge (valley to valley), linked to the spring by a fault, crack or tilted rock layer
-export type DetachedArea = {
-  id: string;
+export type LinkKind = 'Surface slope' | 'GSI fault' | 'Rock layers (up-dip)' | 'DEM lineament';
+
+// One of the top recharge zones (R1-R3), ranked by recharge potential x link to the spring x closeness.
+// It may lie on the spring's own slope or beyond the ridge, linked by a fault, a crack (lineament) or tilted rock layers.
+export type RechargeZone = {
+  id: string; // R1, R2, R3
+  rank: number;
   area_ha: number;
-  geojson: Feature | null;
-  link: { kind: 'GSI fault' | 'DEM lineament' | 'Rock layers (up-dip)'; name: string; geojson: Feature | null };
+  geojson: Feature | null; // Polygon or MultiPolygon, WGS84
+  link: { kind: LinkKind; name: string; geojson: Feature | null }; // geojson: the fault or lineament line, if any
+  in_catchment_pct: number;
   distance_m: number;
-  height_above_spring_m: { min: number; mean: number };
-  mean_potential: number;
+  height_above_spring_m: { min: number; mean: number; max: number };
+  mean_potential: number; // 0-1
+  mean_slope_deg: number;
   land_cover_pct: Record<string, number>;
   soil: SoilSummary | null;
   rock_unit: string;
   valley_between_m: number;
-  cooler_by_c: number; // rough: how much cooler water from this height would be (0.6 C per 100 m)
-  rank: number;
+  crosses_fault: boolean;
+  score: number;
   why: string;
-};
-
-export type Zone = {
-  scenario: 'small' | 'likely' | 'large';
-  area_ha: number;
-  geojson: Feature; // Polygon or MultiPolygon, WGS84
 };
 
 export type BResult = {
   spring_cell: { latitude: number; longitude: number; elevation_m: number; moved_m: number; note: string };
   surface_catchment: { area_ha: number; geojson: Feature | null };
-  target_area_ha: Range & { basis: string };
-  height_band_m: { min: number; max: number }; // elevations above sea level the zone may use
-  zones: Zone[]; // nested: small inside likely inside large
+  target_area_ha: Range & { basis: string }; // recharge area the flow needs
+  recharge_zones: RechargeZone[]; // best first
+  search: { searched: string; links: number; checks: string[] };
   potential_overlay: Overlay | null;
   factors: { id: string; name: string; weight_pct: number; how: string }[];
-  zone_summary: {
-    mean_potential: number; // 0-1
-    mean_slope_deg: number;
-    elevation_range_m: [number, number];
-    land_cover_pct: Record<string, number>;
-    rock_units: string[];
-    crosses_fault: boolean;
-    outside_catchment_pct?: number; // share of the likely springshed outside the surface catchment
-    soil?: SoilSummary;
-  } | null;
   geology: { rock_class: string; unit: string; nearest_fault_m: number | null; nearest_fault_name: string } | null;
   faults: FeatureCollection; // GSI faults and thrusts in the window (properties.name, properties.type)
   lineaments: FeatureCollection; // DEM lineament candidates in the window
   streams: FeatureCollection; // DEM streams in the window (properties.order)
-  recharge_spots: { latitude: number; longitude: number; elevation_m: number; potential: number; reason: string }[];
-  detached?: { needed: boolean; reason: string; searched: string; candidates: DetachedArea[]; checks: string[] };
 };
 
 export type DiSiteResult = {
@@ -163,7 +151,8 @@ export type DiSiteResult = {
   elevation_m: number | null;
   roof_area_m2: number;
   volume_m3_per_year: number;
-  location_class: 'inside_likely' | 'inside_large' | 'inside_detached' | 'in_catchment' | 'outside' | 'below_spring';
+  location_class: 'in_zone_slope' | 'in_zone_linked' | 'in_zone_crack' | 'in_catchment' | 'outside' | 'below_spring';
+  zone_id?: string | null;
   location_note: string;
   share_reaching_spring: Range;
   added_flow_lpm_annual: Range;
@@ -186,7 +175,7 @@ export type CResult = {
     pct_of_lean_flow: Range | null;
   };
   monthly_injection_m3: number[] | null; // Jan..Dec, all sites
-  roofs_for_10pct: number | null; // 100 m2 roofs inside the likely zone needed for +10% lean flow (mid case)
+  roofs_for_10pct: number | null; // 100 m2 roofs in a slope recharge zone needed for +10% lean flow (mid case)
   assumptions: { id: string; label: string; value: number | string; unit: string; note: string }[];
   benchmarks: string[];
   monitoring_plan: string[];

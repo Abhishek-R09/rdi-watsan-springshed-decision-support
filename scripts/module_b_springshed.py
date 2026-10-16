@@ -1,4 +1,4 @@
-"""Module B: the likely recharge zone (springshed) of one spring, drawn on the map.
+"""Module B: where a spring's water soaks in, and the best places to recharge it, drawn on the map.
 
 There is no ready-made "point in, springshed out" method (docs: Project1 plan, section 4.4), so this is a
 transparent hybrid that a geologist can check and correct in the field:
@@ -6,21 +6,20 @@ transparent hybrid that a geologist can check and correct in the field:
 1. Surface catchment. The 30 m Copernicus DEM is depression-filled and routed (D8, pyflwdir). The land draining
    to the spring cell is its surface catchment. A 30 m DEM and a phone GPS can both be one cell off, so the
    catchments of the 8 cells around the spring are also allowed (unless a cell is a stream).
-2. Search area. Recharge happens uphill of the outlet and within a limited height above it. Delineated springsheds
-   in Garhwal span 80-360 m of relief (Rathi 2021, 35 springs) and the RDI Chamba springs 160-490 m, so cells from
-   the spring level up to HEIGHT_ABOVE_M above it and within MAX_DISTANCE_M are searched. The zone may cross the
-   ridge by a narrow margin (DEM error), and further when the field form says the rock layers tilt down towards the
-   spring from beyond it (dip direction).
-3. Recharge potential. Every cell gets a 0-1 score from slope, land cover, rock type and distance to faults or
-   lineaments, with the weights and class scores in config/module_b_recharge_factors_v1.csv (AHP-style overlay,
-   Nijesh 2024 / Joshi 2024; weights are a draft for WATSAN to change).
-4. Size. The target area comes from the spring's peak (monsoon) flow, using the area-flow relation fitted to the
-   35 Rathi (2021) springsheds; with no flow reading, the typical 1-10 ha of delineated hill springsheds is used.
-5. Zone. From the spring, cells are added uphill one at a time, best first (high potential, close to the spring),
-   without crossing a stream channel or (for the small and likely zones) a mapped GSI fault, until each target
-   area is reached. Three nested zones come out: small, likely and large.
+2. Links. Ground can send water to the spring in two ways: on the slope that drains to it (the surface catchment,
+   plus a narrow margin for DEM error), or from further away, beyond the ridge, along a mapped fault or a DEM
+   lineament (a likely crack) that passes near the spring, or up-dip when the field form gives the rock tilt.
+3. Recharge potential. Every cell gets a 0-1 score from slope, land cover, rock type, distance to faults or
+   lineaments and soil, with the weights and class scores in config/module_b_recharge_factors_v1.csv (AHP-style
+   overlay, Nijesh 2024 / Joshi 2024; weights are a draft for WATSAN to change).
+4. Size. The recharge area the flow needs comes from the spring's peak (monsoon) flow, using the area-flow relation
+   fitted to the 35 Rathi (2021) springsheds; with no flow reading, the typical 1-10 ha of hill springsheds is used.
+5. Top three zones. Every linked cell is scored: potential x link strength x closeness. The best cell seeds a zone,
+   grown among cells with the same link up to the needed area; a deep valley between a far zone and the spring
+   lowers or rules it out; the zone is set aside and the search repeats. The best three are R1-R3, wherever they
+   lie: all on the spring's own slope, all beyond the ridge, or a mix.
 
-The result is a first estimate from maps, never a substitute for walking the zone with a geologist.
+The result is a first estimate from maps, never a substitute for walking the zones with a geologist.
 Usage (one spring):
     python scripts/module_b_springshed.py --lat 29.91903 --lon 78.55647 [--elevation 1481] [--monsoon-flow-lpm 12]
            [--dip-direction 220 --dip-angle 30] [--geojson out.geojson]
@@ -52,33 +51,35 @@ FACTORS_CSV = ROOT / "config" / "module_b_recharge_factors_v1.csv"
 LITERATURE_CSV = ROOT / "data" / "01_staged" / "literature" / "csv" / "literature_spring_records_common_v1.csv"
 INPUT_CSV = ROOT / "data" / "02_processed" / "spring_master" / "spring_master_v1_input.csv"
 
-WINDOW_M = 4300  # DEM read around the spring (half-width): the attached zone plus the search beyond the ridge
-MAX_DISTANCE_M = 2000  # farthest a zone cell may be from the spring
-HEIGHT_ABOVE_M = 400  # highest a zone cell may be above the spring
+WINDOW_M = 4300  # DEM read around the spring (half-width): the whole search area plus a margin
 BELOW_TOLERANCE_M = 3  # DEM noise: cells this much below the spring still count as level with it
-STREAM_BARRIER_KM2 = 0.5  # D8 drainage area at which a channel is a stream the zone does not cross
+STREAM_BARRIER_KM2 = 0.5  # D8 drainage area at which a channel is a stream a zone does not cross
 STREAM_DISPLAY_KM2 = 0.1  # smaller channels are shown on the map but are not barriers
-NEAR_SPRING_M = 90  # stream and fault barriers do not apply this close to the spring
-RIDGE_MARGIN_M = 60  # small and likely zones may cross the catchment divide by this much (DEM error)
-WIDE_MARGIN_M = 150  # the large zone may reach this far beyond the divide
-DIP_SECTOR_DEG = 40  # half-width of the up-dip search sector when the rock tilt is known
+NEAR_SPRING_M = 90  # stream barriers and the valley check do not apply this close to the spring
+RIDGE_MARGIN_M = 60  # the spring's own slope reaches this far past the catchment divide (DEM error)
+DIP_SECTOR_DEG = 40  # half-width of the up-dip sector when the rock tilt is known
 MIN_DIP_DEG = 5
-DIP_OTHER_FACTOR = 0.5  # with a measured tilt, cells outside the up-dip sector rank at half their potential
-DISTANCE_SCALE_M = 600  # closeness to the spring breaks ties between equally good cells
-DEFAULT_AREA_HA = (1.5, 3.0, 8.0)  # small / likely / large without a flow reading
-SPOT_SEPARATION_M = 150
-# Recharge areas beyond the ridge ("detached": valley to valley), reached through a crack, fault or tilted rock layer
-DETACHED_MAX_M = 4000  # farthest a detached recharge area may be from the spring
-DETACHED_MIN_HEAD_M = 20  # it must lie at least this much above the spring for water to flow down to it
+DEFAULT_AREA_HA = (1.5, 3.0, 8.0)  # small / likely / large recharge area without a flow reading
+# The top recharge zones: on the spring's own slope, or beyond the ridge through a fault, crack or tilted rock layer
+N_ZONES = 3
+ZONE_MAX_M = 4000  # farthest a zone may be from the spring
+LINKED_MIN_HEAD_M = 20  # ground beyond the spring's slope must be at least this much higher for water to flow down
 CONDUIT_NEAR_SPRING_M = 200  # a fault or lineament this close to the spring can be the path the water takes
 CONDUIT_CORRIDOR_M = 250  # cells this close to that line count as linked to the spring
-DETACHED_MIN_POTENTIAL = 0.55  # recharge potential a detached cell needs
-DETACHED_MIN_HA = 1.0  # smaller patches are dropped
-DEEP_VALLEY_M = 30  # a valley this much below the spring between the two may catch the water first (ranked lower)
-CUT_VALLEY_M = 100  # a valley this much below the spring rules the candidate out
-CONDUIT_WEIGHT = {"GSI fault": 1.0, "Rock layers (up-dip)": 0.9, "DEM lineament": 0.7}
-LINK_WORDS = {"GSI fault": "a mapped fault", "Rock layers (up-dip)": "rock layers tilting down towards the spring",
-              "DEM lineament": "a lineament (a straight line on the elevation map, likely a crack)"}
+MIN_ZONE_POTENTIAL = 0.5  # recharge potential a zone cell needs
+FALLBACK_POTENTIAL = 0.35  # used, with a warning, when no linked ground reaches MIN_ZONE_POTENTIAL
+MIN_ZONE_HA = 1.0  # smaller patches are dropped
+ZONE_GAP_M = 90  # zones are kept at least this far apart
+DECAY_M = 4000  # closeness: a zone 1 km away scores 0.78 of the same zone at the spring, 3 km away 0.47
+DEEP_VALLEY_M = 30  # a valley this much below the spring between a far zone and the spring halves its score
+CUT_VALLEY_M = 100  # a valley this much below the spring rules the zone out
+DOWN_DIP_FACTOR = 0.6  # with a measured tilt, the spring's own slope counts less where the layers dip away from it
+LINK_KINDS = ["None", "Surface slope", "GSI fault", "Rock layers (up-dip)", "DEM lineament"]
+LINK_WEIGHT = {"Surface slope": 1.0, "GSI fault": 0.9, "Rock layers (up-dip)": 0.9, "DEM lineament": 0.7}
+LINK_PHRASE = {"Surface slope": "on the slope that drains to the spring",
+               "GSI fault": "linked to the spring by a mapped fault",
+               "Rock layers (up-dip)": "linked to the spring by rock layers tilting down towards it",
+               "DEM lineament": "linked to the spring by a lineament (a straight line on the elevation map, likely a crack)"}
 NODATA = -9999.0
 
 WORLDCOVER = {10: "Tree cover", 20: "Shrubland", 30: "Grassland", 40: "Cropland", 50: "Built-up",
@@ -297,112 +298,154 @@ def _grow(seed, allowed, priority, limit, start=None):
     return order
 
 
-DETACHED_CHECKS = [
-    "Walk the crack or fault line between the spring and the candidate area: seepage, small springs, a line of greener "
-    "vegetation or a gully along it all support a link.",
+ZONE_CHECKS = [
+    "Walk each zone with a geologist before spending money: look for deep soil, open cracks in the rock, and seepage or "
+    "green patches between the zone and the spring.",
+]
+LINKED_CHECKS = [
+    "Walk the crack or fault line between the spring and the zone: seepage, small springs, a line of greener vegetation "
+    "or a gully along it all support a link.",
     "Measure the spring's water temperature and conductivity (EC) every month. Water that soaked in higher up and farther "
     "away is usually cooler and steadier through the year than the local slope alone would give.",
     "After a heavy rain, note how long the spring takes to rise. A slow, smooth rise days later points to a farther or deeper "
     "source than a quick, sharp rise.",
     "If there is budget, an oxygen-18 isotope test of the spring water estimates the height at which it fell as rain; it "
-    "should match the candidate area's height, not the slope just above the spring.",
+    "should match the zone's height.",
 ]
 
 
-def _detached(c):
-    """Possible recharge areas beyond the ridge (valley to valley), linked to the spring by a fault, a lineament (a
-    likely crack) or rock layers tilting down towards it. A candidate must lie above the spring, outside its own
-    catchment and attached zone, score well for recharge, and not have a valley deeper than the spring in between
-    (that valley would catch the water first). Returns (candidates, masks)."""
-    import shapely
-    from scipy.ndimage import binary_dilation, label
+def _valley_between(c, near):
+    """How far the lowest ground on the straight line from the spring to a cell dips below the spring (m), ignoring the
+    ground right at the spring. A valley deeper than the spring in between would catch the water first."""
+    z, dist, row, col = c["z"], c["dist"], c["row"], c["col"]
+    steps = max(2, int(dist[near] / 15))
+    rr = np.linspace(row, near[0], steps).round().astype(int)
+    cc = np.linspace(col, near[1], steps).round().astype(int)
+    between = [z[r, q] for r, q in zip(rr, cc) if dist[r, q] > NEAR_SPRING_M and c["valid"][r, q]]
+    return max(0.0, c["z_s"] - min(between)) if between else 0.0
 
-    z, dist, potential = c["z"], c["dist"], c["potential"]
-    row, col, z_s = c["row"], c["col"], c["z_s"]
-    eligible = (c["valid"] & ~c["water"] & (z >= z_s + DETACHED_MIN_HEAD_M) & (dist <= DETACHED_MAX_M)
-                & ~c["attached"] & (potential >= DETACHED_MIN_POTENTIAL))
+
+def link_map(c):
+    """Every cell that can send water to the spring, and how: on the slope that drains to it (its surface catchment),
+    or beyond it along a fault or lineament passing near the spring, or up-dip when the rock tilt is known.
+    Returns (kind, weight, link_id, links): kind indexes LINK_KINDS, link_id indexes links (faults and lineaments)."""
+    import shapely
+    z, dist, z_s = c["z"], c["dist"], c["z_s"]
+    shape_ = z.shape
+    kind = np.zeros(shape_, np.int8)
+    weight = np.zeros(shape_)
+    link_id = np.full(shape_, -1, np.int32)
+    reach = c["valid"] & (dist <= ZONE_MAX_M)
+    linked_ok = reach & (z >= z_s + LINKED_MIN_HEAD_M)
+
+    def offer(mask, k, w, lid=-1):
+        better = mask & (w > weight)
+        kind[better], weight[better], link_id[better] = k, w, lid
+
     links = []
     spring_pt = shapely.Point(c["spring_utm"])
-    for geom, kind, name in c["conduits"]:
+    for geom, k, name in c["conduits"]:
         if geom.distance(spring_pt) <= CONDUIT_NEAR_SPRING_M:
-            corridor = shapely.distance(c["cell_points"], geom).reshape(z.shape) <= CONDUIT_CORRIDOR_M
-            links.append((corridor, kind, name, geom))
+            corridor = shapely.distance(c["cell_points"], geom).reshape(shape_) <= CONDUIT_CORRIDOR_M
+            links.append({"kind": k, "name": name, "geom": geom})
+            offer(linked_ok & corridor, LINK_KINDS.index(k), LINK_WEIGHT[k], len(links) - 1)
+    up_sector = None
     if c["up_dip"] is not None:
         off = np.abs((c["bearing"] - c["up_dip"] + 180) % 360 - 180)
-        sector = off <= DIP_SECTOR_DEG
-        unit = c["unit_names"][row, col]
-        if unit:
-            sector &= c["unit_names"] == unit
-        links.append((sector, "Rock layers (up-dip)", f"The rock layers{f' ({unit.lower()})' if unit else ''} tilt down towards the spring", None))
+        up_sector = off <= DIP_SECTOR_DEG
+        unit = c["unit_names"][c["row"], c["col"]]
+        same_unit = (c["unit_names"] == unit) if unit else np.ones(shape_, bool)
+        offer(linked_ok & up_sector & same_unit, LINK_KINDS.index("Rock layers (up-dip)"), LINK_WEIGHT["Rock layers (up-dip)"])
+    slope_w = np.full(shape_, LINK_WEIGHT["Surface slope"])
+    if up_sector is not None:
+        # with a measured tilt, water soaking in where the layers dip away from the spring mostly leaves its slope
+        slope_w = np.where(up_sector, slope_w, slope_w * DOWN_DIP_FACTOR)
+    on_slope = reach & c["drains"] & (z >= z_s - BELOW_TOLERANCE_M)
+    better = on_slope & (slope_w > weight)
+    kind[better], weight[better], link_id[better] = LINK_KINDS.index("Surface slope"), slope_w[better], -1
+    return kind, weight, link_id, links
 
-    n_target = max(1, math.ceil(max(c["target_mid"], DETACHED_MIN_HA) / c["cell_ha"]))
+
+def _rank_zones(c, kind, weight, link_id, min_potential):
+    """Greedy search for the best recharge zones: take the best remaining cell (potential x link strength x closeness),
+    grow a zone around it among cells with the same link, check the valley in between, set it aside and repeat.
+    Returns the zones (dicts with "mask") sorted best first, at most N_ZONES."""
+    from scipy.ndimage import binary_dilation
+    z, dist, potential = c["z"], c["dist"], c["potential"]
+    score = potential * weight * np.exp(-dist / DECAY_M)
+    avail = (weight > 0) & ~c["water"] & ~c["stream_block"] & (potential >= min_potential)
+    n_target = max(1, math.ceil(max(c["target_mid"], MIN_ZONE_HA) / c["cell_ha"]))
+    gap = max(1, round(ZONE_GAP_M / c["cell_m"]))
     found = []
-    for mask, kind, name, geom in links:
-        labels, n = label(eligible & mask, structure=np.ones((3, 3), bool))
-        for k in range(1, n + 1):
-            patch = labels == k
-            if patch.sum() * c["cell_ha"] < DETACHED_MIN_HA:
-                continue
-            best = np.unravel_index(np.argmax(np.where(patch, potential, -1)), z.shape)
-            cells = _grow(tuple(int(v) for v in best), patch, potential, n_target)
-            m = np.zeros(z.shape, bool)
-            m[tuple(zip(*cells))] = True
-            near = np.unravel_index(np.argmin(np.where(m, dist, np.inf)), z.shape)
-            # lowest ground on the straight line from the spring to the candidate, away from the spring itself
-            steps = max(2, int(dist[near] / 15))
-            rr = np.linspace(row, near[0], steps).round().astype(int)
-            cc = np.linspace(col, near[1], steps).round().astype(int)
-            between = [z[r, q] for r, q in zip(rr, cc) if dist[r, q] > NEAR_SPRING_M and c["valid"][r, q]]
-            valley = max(0.0, z_s - min(between)) if between else 0.0
-            if valley > CUT_VALLEY_M:
-                continue
-            height = z[m] - z_s
-            score = float(potential[m].mean()) * CONDUIT_WEIGHT[kind] * (0.5 if valley > DEEP_VALLEY_M else 1.0) \
-                * math.exp(-float(dist[near]) / DETACHED_MAX_M)
-            found.append({"mask": m, "kind": kind, "name": name, "geom": geom, "score": score, "valley": valley,
-                          "distance": float(dist[near]), "height_mean": float(height.mean()), "height_min": float(height.min())})
-    found.sort(key=lambda f: -f["score"])
-    kept = []
-    for f in found:
-        if all((f["mask"] & k["mask"]).sum() < 0.3 * f["mask"].sum() for k in kept):
-            kept.append(f)
-        if len(kept) == 3:
+    for _ in range(80):
+        if len(found) >= N_ZONES + 2 or not avail.any():
             break
-    out = []
-    for i, f in enumerate(kept, start=1):
-        m = f["mask"]
-        codes, counts = np.unique(c["land"][m], return_counts=True)
-        land_pct = {WORLDCOVER.get(int(code), "No data"): round(100 * n / m.sum()) for code, n in zip(codes, counts) if code}
-        units = [u for u in c["unit_names"][m] if u]
-        unit = max(set(units), key=units.count) if units else ""
-        texture = None
-        if c["soil"] is not None and np.isfinite(c["soil"]["clay"][m]).any():
-            clay, sand = float(np.nanmean(c["soil"]["clay"][m])), float(np.nanmean(c["soil"]["sand"][m]))
-            texture = {"class": soil_class(clay, sand), "clay_pct": round(clay), "sand_pct": round(sand)}
-        area = float(m.sum() * c["cell_ha"])
-        feature = _mask_to_feature(m, c["t"], {"id": f"D{i}", "area_ha": round(area, 2)}, c["smooth"])
-        link_feature = None
-        if f["geom"] is not None:
-            fc = _lines_in_window([f["geom"]], c["to_lonlat"], c["window_utm"], [{"kind": f["kind"], "name": f["name"]}])
-            link_feature = fc["features"][0] if fc["features"] else None
-        top_land = ", ".join(f"{v}% {k.lower()}" for k, v in sorted(land_pct.items(), key=lambda kv: -kv[1])[:2])
-        why = [f"{area:.1f} ha, {f['distance']:.0f} m from the spring and on average {f['height_mean']:.0f} m above it",
-               "linked to the spring by " + LINK_WORDS[f["kind"]] + (f" ({f['name']})" if f["kind"] == "GSI fault" else ""),
-               f"recharge potential {float(c['potential'][m].mean()):.2f}", top_land]
-        if texture:
-            why.append(f"{texture['class'].split(' (')[0].lower()} soil")
-        if f["valley"] > DEEP_VALLEY_M:
-            why.append(f"but a valley about {f['valley']:.0f} m below the spring lies in between and may catch the water first")
-        out.append({
-            "id": f"D{i}", "area_ha": round(area, 2), "geojson": feature,
-            "link": {"kind": f["kind"], "name": f["name"], "geojson": link_feature},
-            "distance_m": round(f["distance"]), "height_above_spring_m": {"min": round(f["height_min"]), "mean": round(f["height_mean"])},
-            "mean_potential": round(float(c["potential"][m].mean()), 2), "land_cover_pct": land_pct, "soil": texture,
-            "rock_unit": unit.capitalize(), "valley_between_m": round(f["valley"]),
-            "cooler_by_c": round(f["height_mean"] * 0.006, 1),
-            "rank": round(f["score"], 3), "why": "; ".join(w for w in why if w) + ".",
-        })
-    return out, [f["mask"] for f in kept], len(links)
+        seed = np.unravel_index(np.argmax(np.where(avail, score, -1.0)), z.shape)
+        region = avail & (kind == kind[seed]) & (link_id == link_id[seed])
+        cells = _grow(tuple(int(v) for v in seed), region, score, n_target)
+        m = np.zeros(z.shape, bool)
+        m[tuple(zip(*cells))] = True
+        if m.sum() * c["cell_ha"] < MIN_ZONE_HA:
+            avail &= ~m
+            continue
+        k = LINK_KINDS[int(kind[seed])]
+        near = np.unravel_index(np.argmin(np.where(m, dist, np.inf)), z.shape)
+        valley = 0.0 if k == "Surface slope" else _valley_between(c, near)
+        if valley > CUT_VALLEY_M:
+            avail &= ~m
+            continue
+        found.append({"mask": m, "kind": k, "link": int(link_id[seed]), "valley": valley, "distance": float(dist[near]),
+                      "score": float(score[m].mean()) * (0.5 if valley > DEEP_VALLEY_M else 1.0)})
+        avail &= ~binary_dilation(m, iterations=gap)
+    found.sort(key=lambda f: -f["score"])
+    return found[:N_ZONES]
+
+
+def _describe_zone(c, i, f, links):
+    m = f["mask"]
+    z_s, cell_ha = c["z_s"], c["cell_ha"]
+    area = float(m.sum() * cell_ha)
+    height = c["z"][m] - z_s
+    codes, counts = np.unique(c["land"][m], return_counts=True)
+    land_pct = {WORLDCOVER.get(int(code), "No data"): round(100 * n / m.sum()) for code, n in zip(codes, counts) if code}
+    units = [u for u in c["unit_names"][m] if u]
+    unit = max(set(units), key=units.count) if units else ""
+    texture = None
+    if c["soil"] is not None and np.isfinite(c["soil"]["clay"][m]).any():
+        clay, sand = float(np.nanmean(c["soil"]["clay"][m])), float(np.nanmean(c["soil"]["sand"][m]))
+        texture = {"class": soil_class(clay, sand), "clay_pct": round(clay), "sand_pct": round(sand)}
+    in_catchment = round(100 * float((m & c["core"]).sum()) / m.sum())
+    zid = f"R{i}"
+    link = links[f["link"]] if f["link"] >= 0 else None
+    link_name = link["name"] if link else ("The slope that drains to the spring" if f["kind"] == "Surface slope"
+                                           else "The rock layers tilt down towards the spring")
+    link_feature = None
+    if link:
+        fc = _lines_in_window([link["geom"]], c["to_lonlat"], c["window_utm"], [{"kind": f["kind"], "name": link["name"]}])
+        link_feature = fc["features"][0] if fc["features"] else None
+    top_land = ", ".join(f"{v}% {k.lower()}" for k, v in sorted(land_pct.items(), key=lambda kv: -kv[1])[:2])
+    where = (f"{f['distance']:.0f} m from the spring" if f["distance"] >= 60 else "starting at the spring")
+    why = [f"{area:.1f} ha, {where} and on average {height.mean():.0f} m above it",
+           LINK_PHRASE[f["kind"]] + (f" ({link['name']})" if link and f["kind"] == "GSI fault" else ""),
+           f"recharge potential {float(c['potential'][m].mean()):.2f}", top_land]
+    if texture:
+        why.append(f"{texture['class'].split(' (')[0].lower()} soil")
+    if f["kind"] != "Surface slope" and in_catchment >= 20:
+        why.append(f"{in_catchment}% of it inside the surface catchment")
+    if f["valley"] > DEEP_VALLEY_M:
+        why.append(f"but a valley about {f['valley']:.0f} m below the spring lies in between and may catch some water first")
+    return {
+        "id": zid, "rank": i, "area_ha": round(area, 2),
+        "geojson": _mask_to_feature(m, c["t"], {"id": zid, "rank": i, "link": f["kind"], "area_ha": round(area, 2)}, c["smooth"]),
+        "link": {"kind": f["kind"], "name": link_name, "geojson": link_feature},
+        "in_catchment_pct": in_catchment, "distance_m": round(f["distance"]),
+        "height_above_spring_m": {"min": round(float(height.min())), "mean": round(float(height.mean())), "max": round(float(height.max()))},
+        "mean_potential": round(float(c["potential"][m].mean()), 2), "mean_slope_deg": round(float(c["slope"][m].mean()), 1),
+        "land_cover_pct": dict(sorted(land_pct.items(), key=lambda kv: -kv[1])), "soil": texture,
+        "rock_unit": unit.capitalize(), "valley_between_m": round(f["valley"]),
+        "crosses_fault": bool((c["fault_cells"] & m).any()),
+        "score": round(f["score"], 3), "why": "; ".join(w for w in why if w) + ".",
+    }
 
 
 # --------------------------------------------------------------------------- main
@@ -417,7 +460,7 @@ def delineate(inputs, session):
     import pyflwdir
     import rasterio.features
     from pyproj import Transformer
-    from scipy.ndimage import binary_dilation, distance_transform_edt
+    from scipy.ndimage import binary_dilation
     from shapely import STRtree, box, points as shapely_points
     from shapely.geometry import shape
 
@@ -472,24 +515,19 @@ def delineate(inputs, session):
         warnings.append(f"The elevation given ({given_elevation:.0f} m) differs from the map ({z_s:.0f} m) by {abs(given_elevation - z_s):.0f} m. "
                         "The coordinate may be off; the zone is drawn from the map point.")
 
-    # 2. search area
-    band = valid & (z >= z_s - BELOW_TOLERANCE_M) & (z <= z_s + HEIGHT_ABOVE_M) & (dist <= MAX_DISTANCE_M)
-    beyond = valid & (z >= z_s + DETACHED_MIN_HEAD_M) & (dist <= DETACHED_MAX_M)  # where detached areas are searched
+    # 2. where water can come from: the slope draining to the spring (with a margin for DEM error), and the
+    #    up-dip direction when the rock tilt is known (faults and lineaments are added once the geology is read)
     above = z >= z_s + 5
     cells_per_m = 1 / min(dx, dy)
     ridge = binary_dilation(core, iterations=max(1, round(RIDGE_MARGIN_M * cells_per_m))) & above
-    wide = binary_dilation(core, iterations=max(1, round(WIDE_MARGIN_M * cells_per_m))) & above
     dip_dir, dip_angle = _number(field.get("dip_direction_deg")), _number(field.get("dip_angle_deg"))
-    dip_sector = np.zeros(z.shape, bool)
     up_dip = None
     if dip_dir is not None and (dip_angle is None or dip_angle >= MIN_DIP_DEG):
         up_dip = (dip_dir + 180) % 360
-        off = np.abs((bearing - up_dip + 180) % 360 - 180)
-        dip_sector = (off <= DIP_SECTOR_DEG) & above
         rationale.append(f"The rock layers tilt down towards {dip_dir:.0f} degrees, so water can reach the spring from up-dip "
                          f"(towards {up_dip:.0f} degrees), even beyond the ridge; that direction was searched as well.")
     elif dip_dir is not None:
-        rationale.append(f"The rock layers are nearly flat ({dip_angle:g} degrees), so their tilt was not used to extend the search.")
+        rationale.append(f"The rock layers are nearly flat ({dip_angle:g} degrees), so their tilt was not used.")
 
     # 3. recharge potential
     factors = load_factors()
@@ -601,110 +639,34 @@ def delineate(inputs, session):
     potential = sum(scores[f] * factors[f]["weight"] for f in used) / total_weight
     water = land == 80
 
-    # 4. size
+    # 4. size: how much recharge area this flow needs
     target = target_area(field)
-    priority = potential * (0.5 + 0.5 * np.exp(-dist / DISTANCE_SCALE_M))
-    if dip_sector.any():
-        # Measured rock tilt outranks surface shape: up-dip cells come first, and the rest of the catchment is
-        # taken only after them, so the springshed can lie mostly or wholly outside the surface catchment.
-        priority = np.where(dip_sector, priority, priority * DIP_OTHER_FACTOR)
-    else:
-        priority = np.where(core, priority, priority * 0.9)
     near_spring = dist <= NEAR_SPRING_M
     stream_block = stream & ~near_spring
-    fault_block = fault_cells & ~near_spring
-
-    # 5. zones: small and likely may not cross a mapped fault; large may
-    base = band & ~water & ~stream_block
-    allowed_likely = base & ~fault_block & (core | ridge | dip_sector)
-    allowed_large = base & (core | wide | dip_sector)
-    n_small, n_likely, n_large = (max(1, math.ceil(target[k] / cell_ha)) for k in ("low", "mid", "high"))
-    order = _grow((row, col), allowed_likely, priority, n_likely)
-    order_large = _grow((row, col), allowed_large, priority, n_large, start=order)
-    masks = {}
-    for scenario, cells in (("small", order[:n_small]), ("likely", order), ("large", order_large)):
-        m = np.zeros(z.shape, bool)
-        rows_, cols_ = zip(*cells)
-        m[list(rows_), list(cols_)] = True
-        masks[scenario] = m
-    limited = len(order) < n_likely
-    if limited:
-        warnings.append(f"The likely zone stopped at {len(order) * cell_ha:.1f} ha, short of the {target['mid']:.1f} ha target: the land "
-                        "above the spring on this side of the ridge, streams and faults ran out. The real recharge area may lie beyond "
-                        "the ridge; the tilt of the rock layers (dip direction) would show where.")
     smooth = abs(t.a) * 0.6
-    zones = []
-    zone_geoms = {}
-    for scenario in ("small", "likely", "large"):
-        area = float(masks[scenario].sum() * cell_ha)
-        feature = _mask_to_feature(masks[scenario], t, {"scenario": scenario, "area_ha": round(area, 2)}, smooth)
-        if feature:
-            zones.append({"scenario": scenario, "area_ha": round(area, 2), "geojson": feature})
-            zone_geoms[scenario] = shape(feature["geometry"])
+
+    # 5. the top recharge zones, wherever they are: on the spring's own slope or beyond it along a link
+    ctx = {"z": z, "t": t, "dist": dist, "bearing": bearing, "valid": valid, "water": water, "potential": potential,
+           "row": row, "col": col, "z_s": z_s, "conduits": conduits, "cell_points": cell_points, "spring_utm": to_utm(lon, lat),
+           "up_dip": up_dip, "unit_names": unit_names, "drains": core | ridge, "core": core, "stream_block": stream_block,
+           "target_mid": target["mid"], "cell_ha": cell_ha, "cell_m": min(dx, dy), "land": land, "soil": soil,
+           "slope": slope, "fault_cells": fault_cells, "smooth": smooth, "to_lonlat": to_lonlat, "window_utm": window_utm}
+    kind, weight, link_id, links = link_map(ctx)
+    found = _rank_zones(ctx, kind, weight, link_id, MIN_ZONE_POTENTIAL)
+    if not found:
+        found = _rank_zones(ctx, kind, weight, link_id, FALLBACK_POTENTIAL)
+        if found:
+            warnings.append(f"No ground linked to the spring reaches a recharge potential of {MIN_ZONE_POTENTIAL}, so weaker ground "
+                            f"(from {FALLBACK_POTENTIAL}) was used. Recharge works here will need more care (pits, trenches, planting).")
+    zones = [_describe_zone(ctx, i, f, links) for i, f in enumerate(found, start=1)]
+    zones = [zn for zn in zones if zn["geojson"]]
+    if not zones:
+        warnings.append("No recharge zone could be found: no ground above the spring and linked to it scored well enough for recharge.")
     catchment_feature = _mask_to_feature(core, t, {"area_ha": round(core_ha, 2)}, smooth)
     catchment_geom = shape(catchment_feature["geometry"]) if catchment_feature else None
 
-    # summary of the likely zone
-    likely = masks["likely"]
-    codes, counts = np.unique(land[likely], return_counts=True)
-    land_pct = {WORLDCOVER.get(int(c), "No data"): round(100 * n / likely.sum(), 1) for c, n in zip(codes, counts) if c}
-    rock_units = sorted({u for u in unit_names[likely] if u})
-    crosses_fault = bool((fault_cells & masks["large"]).any())
-    zone_summary = {"mean_potential": round(float(potential[likely].mean()), 2),
-                    "mean_slope_deg": round(float(slope[likely].mean()), 1),
-                    "elevation_range_m": [round(float(z[likely].min())), round(float(z[likely].max()))],
-                    "land_cover_pct": dict(sorted(land_pct.items(), key=lambda kv: -kv[1])),
-                    "rock_units": rock_units[:6], "crosses_fault": crosses_fault}
-
-    if soil is not None and np.isfinite(soil["clay"][likely]).any():
-        clay, sand = float(np.nanmean(soil["clay"][likely])), float(np.nanmean(soil["sand"][likely]))
-        zone_summary["soil"] = {"class": soil_class(clay, sand), "clay_pct": round(clay), "sand_pct": round(sand)}
-
-    # recharge areas beyond the ridge, reached through a fault, crack or tilted rock layer
-    spring_utm = to_utm(lon, lat)
-    attached = core | binary_dilation(core, iterations=max(1, round(WIDE_MARGIN_M * cells_per_m))) | masks["large"]
-    detached, detached_masks, n_links = _detached({
-        "z": z, "t": t, "dist": dist, "bearing": bearing, "valid": valid, "water": water, "attached": attached,
-        "potential": potential, "row": row, "col": col, "z_s": z_s, "conduits": conduits, "cell_points": cell_points,
-        "spring_utm": spring_utm, "up_dip": up_dip, "unit_names": unit_names, "target_mid": target["mid"],
-        "cell_ha": cell_ha, "land": land, "soil": soil, "smooth": smooth, "to_lonlat": to_lonlat, "window_utm": window_utm})
-    short = core_ha < target["mid"]
-    if short or limited:
-        need = (f"The surface catchment ({core_ha:.1f} ha) is smaller than the {target['mid']:.1f} ha this flow needs"
-                if short else "The land above the spring on its own side of the ridge ran out before the zone reached its target size")
-        need += ", so part of the water probably comes from beyond the ridge."
-    else:
-        need = ("The spring's own slope is large enough for its flow, so areas beyond the ridge are only possible extra sources.")
-    detached_result = {
-        "needed": bool(short or limited), "reason": need,
-        "searched": (f"Searched up to {DETACHED_MAX_M / 1000:.0f} km away, at least {DETACHED_MIN_HEAD_M} m above the spring, along "
-                     f"{n_links} possible water path{'s' if n_links != 1 else ''} (faults or lineaments passing within "
-                     f"{CONDUIT_NEAR_SPRING_M} m of the spring" + (", and the up-dip direction of the rock layers)" if up_dip is not None else ")")),
-        "candidates": detached, "checks": DETACHED_CHECKS if detached else [],
-    }
-
-    # best spots for recharge works inside the likely zone
-    spots = []
-    candidates = np.argwhere(likely & (land != 50) & ~water)
-    ranked = sorted(candidates.tolist(), key=lambda rc: -potential[rc[0], rc[1]])
-    for r, c in ranked:
-        if len(spots) == 3:
-            break
-        p = (float(ys[r, c]), float(xs[r, c]))
-        if any(math.hypot((p[0] - s["latitude"]) * m_lat, (p[1] - s["longitude"]) * m_lon) < SPOT_SEPARATION_M for s in spots):
-            continue
-        why = [f"{slope[r, c]:.0f} degree slope"]
-        if land[r, c]:
-            why.insert(0, WORLDCOVER.get(int(land[r, c]), "").lower())
-        if rock[r, c]:
-            why.append(f"{rock[r, c].lower()} rock" if not rock[r, c].startswith("Mixed") else "mixed rock")
-        if np.isfinite(struct_dist[r, c]):
-            why.append(f"{struct_dist[r, c]:.0f} m from a fault or lineament")
-        spots.append({"latitude": round(p[0], 6), "longitude": round(p[1], 6), "elevation_m": round(float(z[r, c])),
-                      "potential": round(float(potential[r, c]), 2), "reason": ", ".join(w for w in why if w).capitalize()})
-
-    # recharge-potential picture for the map
-    show = (band | beyond) & ~water
+    # recharge-potential picture for the map: only ground that can send water to the spring
+    show = (weight > 0) & ~water
     level = np.clip((potential * len(LEGEND)).astype(int), 0, len(LEGEND) - 1)
     rgba = np.zeros(z.shape + (4,), np.uint8)
     for i, (_, color) in enumerate(LEGEND):
@@ -723,69 +685,58 @@ def delineate(inputs, session):
         warnings.append(f"Streams could not be drawn: {error}")
 
     # words
-    likely_ha = zones[1]["area_ha"] if len(zones) > 1 else 0
+    n_links = len(links) + (1 if up_dip is not None else 0)
+    searched = (f"Searched all ground within {ZONE_MAX_M / 1000:.0f} km that can send water to the spring: the slope that drains to it "
+                f"(its surface catchment), and ground at least {LINKED_MIN_HEAD_M} m higher beyond it along "
+                f"{len(links)} fault{'s' if len(links) != 1 else ''} or lineament{'s' if len(links) != 1 else ''} passing within "
+                f"{CONDUIT_NEAR_SPRING_M} m of the spring" + (" and in the up-dip direction of the rock layers" if up_dip is not None else "") + ".")
     rationale[:0] = [
         f"The land that drains to the spring on the surface (its surface catchment) is {core_ha:.1f} ha"
         + (" or more" if touches_edge else "") + f", allowing 30 m for GPS and map error ({own_ha:.1f} ha drains to the exact map cell). "
         "Rain soaking in here can feed the spring, but the rocks decide the real recharge area.",
-        f"The likely springshed (recharge area) is {likely_ha:.1f} ha (small {zones[0]['area_ha']:.1f} ha, large {zones[-1]['area_ha']:.1f} ha). "
-        + target["basis"],
-        f"It was grown uphill from the spring, between its level ({z_s:.0f} m) and {HEIGHT_ABOVE_M} m above it, taking first the "
-        "cells most likely to soak up rain (" + ", ".join(factors[f]["name"].lower() for f in used) + ") and those closest to the spring. "
-        "It does not cross streams, and the small and likely zones do not cross mapped faults.",
+        f"This flow needs about {target['mid']:.1f} ha of recharge area (range {target['low']:.1f}-{target['high']:.1f} ha). " + target["basis"],
+        searched + " Each patch was scored on recharge potential (" + ", ".join(factors[f]["name"].lower() for f in used)
+        + "), how strong its link to the spring is, and how close it is. The best three are R1-R3, wherever they lie.",
     ]
-    forest = sum(v for k, v in land_pct.items() if k in ("Tree cover", "Shrubland", "Grassland"))
-    disturbed = sum(v for k, v in land_pct.items() if k in ("Built-up", "Cropland", "Bare / sparse vegetation"))
-    rationale.append(f"In the likely zone: {forest:.0f}% forest, shrub or grass and {disturbed:.0f}% built-up, farmed or bare land; "
-                     f"mean slope {zone_summary['mean_slope_deg']:.0f} degrees; land from {zone_summary['elevation_range_m'][0]} to "
-                     f"{zone_summary['elevation_range_m'][1]} m.")
-    outside_pct = 100 * float((likely & ~core).sum()) / max(int(likely.sum()), 1)
-    zone_summary["outside_catchment_pct"] = round(outside_pct)
-    if outside_pct >= 50:
-        rationale.append(f"{outside_pct:.0f}% of the likely springshed lies outside the surface catchment: the rock tilt carries water to "
-                         "the spring from beyond the ridge, so the two areas differ.")
-    elif outside_pct >= 10:
-        rationale.append(f"{outside_pct:.0f}% of the likely springshed lies outside the surface catchment.")
-    if crosses_fault:
-        rationale.append("A mapped GSI fault crosses the large zone. Faults can carry water to the spring or cut it off; a geologist "
-                         "should check which side feeds it.")
-    if detached:
-        d = detached[0]
-        rationale.append(("Beyond the ridge: " if detached_result["needed"] else "Possible extra source beyond the ridge: ")
-                         + f"{len(detached)} candidate area{'s' if len(detached) > 1 else ''} could also feed the spring. "
-                         f"The best, {d['id']}, is {d['why'][0].lower()}{d['why'][1:]} Check it in the field before relying on it.")
-    elif detached_result["needed"]:
-        rationale.append("Part of the water probably comes from beyond the ridge, but no fault, lineament or rock tilt near the spring "
-                         "points to where. A compass reading of the rock layers at the outlet would help.")
-    if spots:
-        rationale.append(f"The best places for recharge works (trenches, pits, plantation) are marked: {spots[0]['reason'].lower()}.")
+    if zones:
+        rationale.append(f"R1, the best place to recharge this spring: {zones[0]['why'][0].lower()}{zones[0]['why'][1:]}")
+        on_slope = sum(1 for zn in zones if zn["link"]["kind"] == "Surface slope")
+        if on_slope == len(zones):
+            rationale.append("All the top zones are on the spring's own slope, inside or at the edge of its surface catchment.")
+        elif on_slope == 0:
+            rationale.append("None of the top zones is on the spring's own slope: the ground there scores lower than ground linked to "
+                             "the spring by a fault, crack or the rock tilt. Check those links in the field before relying on them.")
+        else:
+            rationale.append(f"{on_slope} of the top zones {'is' if on_slope == 1 else 'are'} on the spring's own slope; the other"
+                             f"{'s lie' if len(zones) - on_slope > 1 else ' lies'} beyond it, linked by a fault, crack or the rock tilt.")
+    if core_ha < target["mid"]:
+        rationale.append(f"The surface catchment ({core_ha:.1f} ha) is smaller than the {target['mid']:.1f} ha this flow needs, so part of "
+                         "the water probably soaks in beyond it.")
     if target["kind"] == "default":
-        missing.append({"id": "monsoon_flow_lpm", "indicator": "Monsoon flow", "needs": "One bucket reading in the monsoon sizes the zone for this spring."})
+        missing.append({"id": "monsoon_flow_lpm", "indicator": "Monsoon flow", "needs": "One bucket reading in the monsoon sizes the zones for this spring."})
     elif target["kind"] == "lean flow":
-        missing.append({"id": "monsoon_flow_lpm", "indicator": "Monsoon flow", "needs": "A monsoon reading sizes the zone better than the lean-season flow."})
+        missing.append({"id": "monsoon_flow_lpm", "indicator": "Monsoon flow", "needs": "A monsoon reading sizes the zones better than the lean-season flow."})
     if dip_dir is None:
         missing.append({"id": "dip_direction_deg", "indicator": "Rock tilt (dip direction and angle)",
-                        "needs": "A compass reading of the rock layers near the outlet shows whether the recharge area lies beyond the ridge."})
-    missing.append({"id": "field_walk", "indicator": "Field check", "needs": "Walk the likely zone with a geologist before spending money on works."})
+                        "needs": "A compass reading of the rock layers near the outlet shows whether water comes from beyond the ridge."})
+    missing.append({"id": "field_walk", "indicator": "Field check", "needs": "Walk the zones with a geologist before spending money on works."})
     confidence = "Medium" if target["kind"] == "monsoon flow" and dip_dir is not None and "rock" in used else "Low"
+    linked = any(zn["link"]["kind"] != "Surface slope" for zn in zones)
 
     result = {
         "spring_cell": {"latitude": round(float(ys[row, col]), 6), "longitude": round(float(xs[row, col]), 6), "elevation_m": round(z_s),
                         "moved_m": 0, "note": "The 30 m map cell at the given coordinate."},
         "surface_catchment": {"area_ha": round(core_ha, 2), "geojson": catchment_feature},
         "target_area_ha": {"low": target["low"], "mid": target["mid"], "high": target["high"], "basis": target["basis"]},
-        "height_band_m": {"min": round(z_s - BELOW_TOLERANCE_M), "max": round(z_s + HEIGHT_ABOVE_M)},
-        "zones": zones,
+        "recharge_zones": zones,
+        "search": {"searched": searched, "links": n_links, "checks": ZONE_CHECKS + (LINKED_CHECKS if linked else [])},
         "potential_overlay": overlay,
         "factors": [{"id": f, "name": factors[f]["name"], "weight_pct": round(100 * factors[f]["weight"] / total_weight),
                      "how": factors[f]["why"]} for f in used],
-        "zone_summary": zone_summary,
         "geology": geology,
         "faults": faults_fc,
         "lineaments": lineaments_fc,
         "streams": streams_fc,
-        "recharge_spots": spots,
-        "detached": detached_result,
     }
     output = {
         "module": "B", "title": "Springshed (recharge area)", "version": "v1 draft",
@@ -793,31 +744,23 @@ def delineate(inputs, session):
         "status": "provisional", "result": result, "confidence": confidence,
         "rationale": rationale, "missing_inputs": missing, "warnings": warnings,
         "report_markdown": report_markdown(name, lat, lon, result, rationale, warnings),
-        "_zones": {**zone_geoms, "catchment": catchment_geom, "dem": (z, t), "spring_elevation_m": z_s,
-                   "detached": [shape(d["geojson"]["geometry"]) for d in detached if d["geojson"]]},
+        "_zones": {"zones": [{"id": zn["id"], "kind": zn["link"]["kind"], "geom": shape(zn["geojson"]["geometry"])} for zn in zones],
+                   "catchment": catchment_geom, "dem": (z, t), "spring_elevation_m": z_s},
     }
     return output
 
 
 def report_markdown(name, lat, lon, result, rationale, warnings):
-    zones = {z["scenario"]: z["area_ha"] for z in result["zones"]}
-    lines = [f"# Springshed (recharge area): {name}", "",
+    lines = [f"# Springshed and recharge zones: {name}", "",
              f"Location {lat:.5f}, {lon:.5f}; map elevation {result['spring_cell']['elevation_m']} m.", "",
-             "| | Area (ha) |", "|---|---|",
-             f"| Surface catchment (allowing 30 m GPS error) | {result['surface_catchment']['area_ha']:.1f} |",
-             *(f"| {s.capitalize()} springshed (recharge area) | {zones[s]:.1f} |" for s in ("small", "likely", "large") if s in zones), "",
-             "## Why", *(f"- {r}" for r in rationale), ""]
-    det = result.get("detached") or {}
-    if det.get("candidates"):
-        lines += ["## Possible recharge areas beyond the ridge", det["reason"], "",
-                  *(f"- {d['id']}: {d['why']}" for d in det["candidates"]), "",
-                  "Field checks:", *(f"- {c}" for c in det["checks"]), ""]
-    if result["recharge_spots"]:
-        lines += ["## Best places for recharge works", *(f"- {s['latitude']:.5f}, {s['longitude']:.5f} ({s['elevation_m']} m): {s['reason']}"
-                                                          for s in result["recharge_spots"]), ""]
+             f"Surface catchment (allowing 30 m GPS error): {result['surface_catchment']['area_ha']:.1f} ha. "
+             f"Recharge area this flow needs: about {result['target_area_ha']['mid']:.1f} ha.", ""]
+    if result["recharge_zones"]:
+        lines += ["## Top recharge zones", *(f"- {zn['id']}: {zn['why']}" for zn in result["recharge_zones"]), ""]
+    lines += ["## Why", *(f"- {r}" for r in rationale), "", "## Field checks", *(f"- {c}" for c in result["search"]["checks"]), ""]
     if warnings:
         lines += ["## Notes", *(f"- {w}" for w in warnings), ""]
-    lines += ["A first estimate from maps (Module B v1 draft). Walk the zone with a geologist before spending money on works."]
+    lines += ["A first estimate from maps (Module B v1 draft). Walk the zones with a geologist before spending money on works."]
     return "\n".join(lines)
 
 
@@ -837,7 +780,7 @@ def main():
     parser.add_argument("--lean-flow-lpm", type=float)
     parser.add_argument("--dip-direction", type=float)
     parser.add_argument("--dip-angle", type=float)
-    parser.add_argument("--geojson", help="write the zones and catchment to this GeoJSON file")
+    parser.add_argument("--geojson", help="write the recharge zones and catchment to this GeoJSON file")
     parser.add_argument("--cache", default=os.environ.get("SPRING_LAYER_CACHE", str(ROOT / ".layer_cache")))
     parser.add_argument("--local-layers", default=os.environ.get("SPRING_LOCAL_LAYERS", str(ROOT / ".local_layers")))
     args = parser.parse_args()
@@ -849,7 +792,7 @@ def main():
     print(output["report_markdown"])
     if args.geojson and output["result"]:
         r = output["result"]
-        features = [z["geojson"] for z in r["zones"]] + ([r["surface_catchment"]["geojson"]] if r["surface_catchment"]["geojson"] else [])
+        features = [zn["geojson"] for zn in r["recharge_zones"]] + ([r["surface_catchment"]["geojson"]] if r["surface_catchment"]["geojson"] else [])
         Path(args.geojson).write_text(json.dumps({"type": "FeatureCollection", "features": features}), encoding="utf-8")
         print(f"Saved {args.geojson}")
 

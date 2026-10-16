@@ -250,11 +250,12 @@ input[type='range'] { width: 100%; accent-color: var(--water); margin: 6px 0 0; 
   background: rgba(255, 255, 255, 0.88); color: var(--ink-2); font-size: 12px; pointer-events: none;
 }
 .map-wrap.placing .map-tip { display: none; }
-.detached-tag {
-  padding: 2px 7px; border-radius: 999px; background: #8e5bb5; color: #fff; font-weight: 750; font-size: 12px;
+.zone-tag {
+  padding: 2px 8px; border-radius: 999px; background: #1f7a45; color: #fff; font-weight: 750; font-size: 12.5px;
   border: 2px solid #fff; box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35); cursor: pointer;
 }
-.lg-detached { background: rgba(142, 91, 181, 0.45); border: 1.5px dashed #8e5bb5 !important; }
+.zone-tag-2 { background: #3f9d55; }
+.zone-tag-3 { background: #86c06c; color: #10361f; }
 .hover-tip .maplibregl-popup-content { padding: 5px 9px; font-size: 12.5px; max-width: 260px; }
 .maplibregl-popup-content { border-radius: 10px; font-family: var(--font); }
 .map-hint {
@@ -417,8 +418,15 @@ input[type='range'] { width: 100%; accent-color: var(--water); margin: 6px 0 0; 
 }
 .spots button:hover { border-color: var(--green); background: var(--green-soft); }
 .spot-num { flex: none; font-weight: 750; color: var(--green); white-space: nowrap; }
-.spot-num.beyond-num { color: #8e5bb5; }
-.beyond .spots button:hover { border-color: #8e5bb5; background: #f4eefa; }
+.zone-list { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 8px; }
+.zone-card { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; display: grid; gap: 6px;
+  background: var(--surface); border: 1px solid var(--line); border-left: 5px solid var(--green); border-radius: var(--radius); padding: 10px 12px; }
+.zone-card:hover { background: var(--green-soft); }
+.zone-card-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.zone-card-top .zone-id { font-weight: 800; font-size: 15px; }
+.zone-link { font-size: 12px; font-weight: 650; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); }
+.zone-link.linked { background: #f1e9f8; color: #6a3f8f; }
+.zone-card .facts { margin: 0; }
 .checks summary { cursor: pointer; font-size: 13px; color: var(--water-dark); margin-top: 6px; }
 .checks ul { margin: 6px 0 0; padding-left: 18px; font-size: 13px; color: var(--ink-2); display: grid; gap: 4px; }
 .spot-body { display: grid; gap: 2px; font-size: 13.5px; }

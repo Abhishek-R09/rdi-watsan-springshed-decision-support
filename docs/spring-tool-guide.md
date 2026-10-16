@@ -3,7 +3,7 @@
 One spring goes in. Three results come out, on a map:
 
 1. **Vulnerability assessment** (Module A). Is the spring at risk of declining? This gives a 0-100 score, a Low, Medium or High class, and the reasons.
-2. **Springshed and recharge zone** (Module B). Where does the spring's water soak in? This gives the surface catchment, three nested recharge zones (small, likely, large), possible recharge areas beyond the ridge, a recharge-potential map, and the best spots for recharge works.
+2. **Springshed and recharge zone** (Module B). Where does the spring's water soak in? This gives the surface catchment, the top three recharge zones (R1-R3) wherever they lie, on the spring's own slope or beyond the ridge, and a recharge-potential map.
 3. **Potential impact of DI recharging** (Module C). What could rooftop water injected into defunct handpumps add to the spring? This gives the water injected, the added lean-season flow, the water-level rise, a travel time and a monitoring plan.
 
 Everything runs on your laptop. The tool calls no paid service and uses no AI model. Each method is plain arithmetic on map layers and field answers, and every number comes with its reason.
@@ -52,7 +52,7 @@ Every run is saved in `data/03_outputs/tool_runs/<date-time>-<spring>/`:
 2. **Field observations** (optional). Every answer improves the result:
    - Flow now vs 10-20 years ago matters most for vulnerability. It is the only direct sign of decline.
    - Monsoon flow sizes the recharge zone.
-   - The rock tilt (dip direction and angle) lets the zone extend beyond the ridge when the rock layers slope down towards the spring.
+   - The rock tilt (dip direction and angle) lets the tool look for recharge ground up-dip of the spring, even beyond the ridge.
 3. **DI plan** (optional). Click **Add DI site**, click the map where the handpump is, and enter the roof area. You can open **Assumptions** to change:
    - the rainfall;
    - the share of roof rain collected;
@@ -62,8 +62,8 @@ Every run is saved in `data/03_outputs/tool_runs/<date-time>-<spring>/`:
    | Tab | What the map shows |
    |---|---|
    | Vulnerability | The 500 m and 1 km circles the map indicators are measured in, land cover inside 1 km (disturbed land drawn strong), and nearby dataset springs |
-   | Springshed | Surface catchment, springshed zones, areas beyond the ridge and their water paths, faults, lineaments, streams, recharge spots, and the heat map switch |
-   | DI impact | DI sites coloured by where they sit, with the springshed and catchment drawn faintly for context |
+   | Springshed | Surface catchment, the top recharge zones R1-R3 and the fault or crack that links each one to the spring, faults, lineaments, streams, and the heat map switch |
+   | DI impact | DI sites coloured by where they sit, with the recharge zones and catchment drawn faintly for context |
 
    The map is 3D by default: right-drag (or Ctrl + drag) to tilt and turn it. Heights are drawn 1.5 times. The **2D** button flattens it, and the background can be satellite, a topo map or streets. The 3D hills come from the tool's own elevation tiles, so they show even when the background cannot download.
 5. **Print report** prints the three sections.
@@ -83,10 +83,10 @@ The method is unchanged from [module-a-vulnerability.md](module-a-vulnerability.
 `scripts/module_b_springshed.py`, with weights in `config/module_b_recharge_factors_v1.csv`.
 
 1. **Surface catchment.** This is the land that drains to the spring, taken from the 30 m Copernicus elevation map. The tool allows 30 m for GPS and map error.
-2. **Search area.** The tool searches uphill of the spring:
-   - from the spring's level up to 400 m above it (delineated Garhwal springsheds span 80-360 m of relief; the Chamba springs span 160-490 m);
-   - within 2 km of the spring;
-   - beyond the ridge only when the rock tilt says so.
+2. **Search area.** The tool looks for recharge ground in one search, on the spring's own slope and beyond it:
+   - up to 4 km from the spring;
+   - every cell must be linked to the spring in one of four ways (see step 5);
+   - cells linked only by a fault, a crack or rock tilt must be at least 20 m above the spring.
 3. **Recharge potential.** Each 30 m cell gets a score from 0 to 1:
 
    | Factor | Weight | What scores high |
@@ -99,21 +99,29 @@ The method is unchanged from [module-a-vulnerability.md](module-a-vulnerability.
 
    Without SoilGrids files the soil factor is left out and the other weights are scaled up.
 
-4. **Size.** The target size comes from the monsoon flow, using the area-flow relation of 35 delineated springsheds (Rathi 2021): area ≈ 0.20 × flow^0.68 ha. With no flow reading, the typical 1.5 / 3 / 8 ha of hill springsheds is used.
-5. **Zone.** The zone is grown uphill from the spring, best cells first. It never crosses a stream channel. The small and likely zones also never cross a mapped fault.
+4. **Recharge area needed.** This comes from the monsoon flow, using the area-flow relation of 35 delineated springsheds (Rathi 2021): area ≈ 0.20 × flow^0.68 ha. With no flow reading, the typical 1.5 / 3 / 8 ha of hill springsheds is used. Each zone is grown to about the middle value (at least 1 ha).
+5. **Link to the spring.** A cell can only feed the spring if water has a way to get there:
 
-   When the rock tilt is entered, cells up-dip of the spring come first. The springshed can then lie mostly or wholly outside the surface catchment. The tab shows what share of the springshed lies outside the catchment.
+   | Link | Strength | Which cells |
+   |---|---|---|
+   | Spring slope | 1.0 | Inside the surface catchment (plus a 60 m ridge margin), not below the spring |
+   | GSI fault | 0.9 | Within 250 m of a mapped fault that passes within 200 m of the spring |
+   | Rock tilt (up-dip) | 0.9 | Up-dip of the spring (±40°) in the same rock unit, when the dip is entered |
+   | DEM lineament (crack) | 0.7 | Within 250 m of a lineament that passes within 200 m of the spring |
 
-6. **Beyond the ridge (valley to valley).** Some springs are fed from the next valley, along a fault, a crack or tilted rock layers, so their recharge area does not start at the spring. The tool looks for this when the surface catchment is smaller than the area the flow needs, or when the zone above runs out of good ground:
+   When the dip is entered, slope cells that are not up-dip count a little less (×0.6).
+6. **Top three zones.** Each cell gets: recharge potential × link strength × closeness (falls off over about 4 km). The tool then:
+   - starts a zone at the best cell and grows it through neighbouring cells with the same link, best first, up to the size needed;
+   - for zones linked by a fault, crack or tilt, checks the ground in between: if it dips more than 30 m below the spring, a stream there may catch the water first, so the zone is ranked lower; more than 100 m rules it out;
+   - keeps a 90 m gap and repeats, then keeps the best three as **R1, R2, R3**.
 
-   - **Water paths:** a mapped GSI fault or a DEM lineament that passes within 200 m of the spring, or, when the rock tilt is entered, the up-dip direction in the same rock unit.
-   - **Candidate ground:** within 250 m of that path, up to 4 km away, at least 20 m above the spring, outside the attached zones, with recharge potential of 0.55 or more (slope, land cover, rock, soil), and at least 1 ha.
-   - **Valley check:** if the ground between the area and the spring dips more than 30 m below the spring, the stream there may catch the water first, so the area is ranked lower; more than 100 m rules it out.
-   - **Ranking:** potential × path strength (fault 1.0, rock tilt 0.9, lineament 0.7) × closeness. The best three are shown as D1-D3.
+   Only ground with a recharge potential of 0.5 or more is used (0.35 with a warning if there is none).
 
-   These are hypotheses, not findings. The tab lists field checks for each: walk the fault or crack line for seeps, track water temperature and EC monthly, note how slowly the spring rises after rain, and (with budget) an oxygen-18 test of the recharge height.
+   There is no rule that a zone must be near the spring or far from it. For a spring with good ground on its own slope, all three can be on the slope. For a spring with poor ground above it but a fault to a better slope, R1 can be in the next valley. Each zone card says what links it, how far and how high it is, its land cover, soil and rock, and why it ranked where it did.
 
-The map shows the **surface catchment** (dashed blue: where rain runs off towards the spring) and the **springshed** (green: where rain soaks in and feeds it) as separate layers, because the two are not the same area.
+   Zones beyond the surface catchment are hypotheses, not findings. The tab lists field checks: walk the fault or crack line for seeps, track water temperature and EC monthly, note how slowly the spring rises after rain, and (with budget) an oxygen-18 test of the recharge height.
+
+The map shows the **surface catchment** (dashed blue: where rain runs off towards the spring) and the **recharge zones** R1-R3 (green, darkest is best: where rain soaks in and feeds it) as separate layers, because the two are not the same area.
 
 **Confidence** is Low by default. It is Medium when both the monsoon flow and the rock tilt are given and the GSI geology covers the spring.
 
@@ -139,9 +147,9 @@ The map shows the **surface catchment** (dashed blue: where rain runs off toward
 
 | Where the handpump is | Share reaching the spring (low, mid, best) |
 |---|---|
-| Inside the likely zone | 30%, 60%, 100% |
-| Inside the large zone only | 10%, 30%, 60% |
-| Inside a possible area beyond the ridge | 5%, 20%, 50% |
+| Inside a recharge zone on the spring slope | 30%, 60%, 100% |
+| Inside a recharge zone linked by a fault or rock tilt | 10%, 30%, 60% |
+| Inside a recharge zone linked by a crack (lineament) | 5%, 20%, 50% |
 | Elsewhere in the catchment | 5%, 15%, 30% |
 | Outside the catchment | 0%, 2%, 10% |
 | Below the spring | None |

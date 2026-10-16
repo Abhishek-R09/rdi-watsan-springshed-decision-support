@@ -5,16 +5,23 @@ any of our data, so nothing can be trained; this is transparent water-balance ar
 shown (docs: Project1 plan, section 4.5). The numbers are upper bounds to plan and monitor against, not predictions.
 
 For each DI site:
-- Water injected per year  V = roof area x annual rain x collection coefficient x injection efficiency.
+- Roof runoff reaching the handpump = roof area x annual rain x collection coefficient (gutter, pipe, splash losses).
+- Water injected per year  V = that runoff x injection efficiency (first flush, overflow, downtime, clogging). The two
+  factors cover different losses, so none is counted twice.
 - Share that reaches the spring. Set by where the site sits relative to Module B's top recharge zones: inside a zone
   on the spring's own slope most of it can, inside a zone linked by a fault or rock tilt some, by a crack less,
   elsewhere in the surface catchment little, below the spring none.
-  These shares are judgement (low / mid / best case), to be replaced by monitoring.
+  These shares are judgement (low / mid / best case), to be replaced by monitoring. Being inside a zone does not
+  show the site is connected to the spring: with no connection the gain is zero, and every result says so.
 - Added spring flow. Spread over the whole year (annual average), or, best case, all coming out in the lean season.
-- Water-level rise near the handpump after the wettest month: injected volume / (circle of influence x specific
-  yield). A temporary mound, not a lasting rise.
-- Travel time to the spring: distance / (K x gradient / effective porosity), with wide hard-rock ranges for K;
-  an order of magnitude only.
+  The lean-season figure is a water-volume equivalent under that timing assumption, not an expected gain.
+- Illustrative storage rise near the handpump after the wettest month: that month's volume / (circle of influence x
+  specific yield). A storage calculation, not a predicted recharge mound (that needs recharge rate, aquifer
+  properties and boundaries), and the rock at the spring may not be the rock at the injection depth.
+- Travel time to the spring: distance / (K x gradient / effective porosity). Specific yield stands in for effective
+  porosity and the ground-surface slope (at least 0.02) for the water-table gradient; an order of magnitude only,
+  and it does not show that a flow path exists.
+- Safety gate: a DI plan is "not ready" while any site lacks a first-flush diverter or a filter; the actions are listed.
 
 Usage: called by the tool server (scripts/spring_tool_server.py) after Modules A and B. Its inputs follow
 docs/module-contract.md plus "di": {"sites": [...], "assumptions": {...}}.
@@ -30,6 +37,10 @@ MINUTES_PER_YEAR = 525_600
 DAYS_PER_MONTH = 30.44
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
+VALIDATION = ("Not yet validated: no monitored DI site has been compared with these estimates. They are planning "
+              "scenarios that depend on the assumed shares; the real gain could be zero.")
+MIN_GRADIENT = 0.02  # assumed lowest water-table gradient for the travel time
+BELOW_SPRING_M = 3  # a site this much lower than the spring (DEM noise allowed) counts as below it
 DEFAULTS = {"annual_rain_mm": None, "collection_coefficient": 0.8, "injection_efficiency": 0.85,
             "lean_season_months": 5, "radius_of_influence_m": 50}
 LIMITS = {"collection_coefficient": (0.3, 1.0), "injection_efficiency": (0.3, 1.0), "lean_season_months": (1, 12),
@@ -52,7 +63,8 @@ LOCATION_NOTE = {
                       "reach it if that crack carries water."),
     "in_catchment": "In the surface catchment but outside the top recharge zones: little of the water is likely to reach this spring.",
     "outside": "Outside the spring's catchment and its recharge zones: the water will mostly feed other springs or streams.",
-    "below_spring": "Lower than the spring outlet: water injected here cannot feed this spring.",
+    "below_spring": ("Lower than the spring outlet on the surface: water injected here is unlikely to feed this spring "
+                     "(surface height alone cannot prove it either way)."),
 }
 ZONE_CLASS = {"Surface slope": "in_zone_slope", "GSI fault": "in_zone_linked", "Rock layers (up-dip)": "in_zone_linked",
               "DEM lineament": "in_zone_crack"}
@@ -65,7 +77,8 @@ AQUIFER = {
 }
 BENCHMARKS = [
     "ICIMOD reports +23% and +48% average spring flow after full springshed treatment (trenches, pits, plantation over the "
-    "whole recharge area) at two Indian Himalayan pilot springs. DI at a few handpumps should add well below that unless roofs are large.",
+    "whole recharge area) at two Indian Himalayan pilot springs. That is for whole-springshed treatment, not DI alone, so it is "
+    "context only, not evidence of what DI does; DI at a few handpumps should add well below that unless roofs are large.",
     "RDI's handpump design collects about 70-80% of roof rain. A 100 m2 roof under 1,600 mm of rain injects about 100-110 m3 a year.",
 ]
 MONITORING = [
@@ -116,8 +129,8 @@ def rainfall(features, layers, lon, lat, override):
         source = f"IMD gridded rain gauges, mean of {features.get('rain_imd_years_used', '2001-2025')}"
     elif features.get("rain_chirps_mean_annual_mm_2018_2025"):
         annual = float(features["rain_chirps_mean_annual_mm_2018_2025"])
-        source = ("CHIRPS satellite estimate, 2018-2025 mean. In these hills CHIRPS reads about 45% above the IMD gauges, "
-                  "so this may be optimistic; add the IMD files or enter a local value")
+        source = ("CHIRPS satellite estimate, 2018-2025 mean. At the dataset springs CHIRPS read about 45% above the IMD gauges "
+                  "(a comparison, not a correction factor), so this may be optimistic; add the IMD files or enter a local value")
     elif monthly:
         annual, source = sum(monthly), "CHIRPS monthly, 2018-2025 mean"
     else:
@@ -173,7 +186,7 @@ def estimate(inputs, session=None, features=None, b_output=None):
     base = {"module": "C", "title": "Potential impact of DI recharge", "version": "v1 draft",
             "spring": {"name": name, "latitude": lat, "longitude": lon, "elevation_m": spring.get("elevation_m")}}
     if rain is None:
-        return {**base, "status": "unavailable", "result": None, "confidence": "Low",
+        return {**base, "status": "unavailable", "result": None, "confidence": "Low", "validation": VALIDATION,
                 "rationale": ["No rainfall value was found for this location. Enter the yearly rainfall under the DI assumptions."],
                 "missing_inputs": [{"id": "annual_rain_mm", "indicator": "Yearly rainfall", "needs": "A yearly rainfall value in mm."}],
                 "warnings": warnings, "report_markdown": f"# DI impact: {name}\n\nNo rainfall value was found.\n"}
@@ -213,7 +226,7 @@ def estimate(inputs, session=None, features=None, b_output=None):
         height = None if z is None or spring_z is None else z - spring_z
         distance = math.hypot((s_lat - lat) * m_per_deg_lat, (s_lon - lon) * m_per_deg_lon)
         zone = None
-        if height is not None and height < -3:
+        if height is not None and height < -BELOW_SPRING_M:
             where = "below_spring"
         elif (zone := next((zn for zn in zones.get("zones") or [] if zn["geom"].contains(point)), None)):
             where = ZONE_CLASS.get(zone["kind"], "in_zone_linked")
@@ -221,7 +234,8 @@ def estimate(inputs, session=None, features=None, b_output=None):
             where = "in_catchment"
         else:
             where = "outside"
-        volume = roof * rain_m * cc * eff
+        runoff = roof * rain_m * cc
+        volume = runoff * eff
         share = SHARE[where]
         annual = [volume * f * 1000 / MINUTES_PER_YEAR for f in share]
         lean = [volume * f * 1000 / lean_minutes for f in share]
@@ -229,7 +243,7 @@ def estimate(inputs, session=None, features=None, b_output=None):
         rise = (peak_month / (math.pi * radius ** 2 * sy[1]), peak_month / (math.pi * radius ** 2 * sy[0]))
         travel = None
         if height is not None and height > 0 and distance > 0:
-            gradient = max(height / distance, 0.02)
+            gradient = max(height / distance, MIN_GRADIENT)
             travel = {"low": round(distance * sy[0] / (k[1] * gradient), 1), "high": round(distance * sy[1] / (k[0] * gradient))}
         flags = []
         if not s.get("first_flush"):
@@ -239,7 +253,8 @@ def estimate(inputs, session=None, features=None, b_output=None):
         if roof > 300:
             flags.append("Large roof: check the handpump can take the peak monsoon inflow without overflowing.")
         if where in ("outside", "below_spring"):
-            flags.append("Consider moving this site into one of the top recharge zones (R1-R3).")
+            flags.append("Consider moving this site into one of the top recharge zones (R1-R3). Keep this site's record: "
+                         "surface position alone does not prove it is cut off from the spring.")
         if distance > 2000:
             flags.append("More than 2 km from the spring.")
         if rain["monthly_mm"]:
@@ -248,7 +263,7 @@ def estimate(inputs, session=None, features=None, b_output=None):
         results.append({
             "id": site_id, "name": label, "latitude": s_lat, "longitude": s_lon,
             "elevation_m": None if z is None else round(z), "roof_area_m2": roof,
-            "volume_m3_per_year": round(volume, 1), "location_class": where,
+            "runoff_m3_per_year": round(runoff, 1), "volume_m3_per_year": round(volume, 1), "location_class": where,
             "location_note": LOCATION_NOTE[where].format(zone=zone["id"] if zone else ""), "zone_id": zone["id"] if zone else None,
             "share_reaching_spring": _range(*share), "added_flow_lpm_annual": _range(*annual, digits=3),
             "added_flow_lpm_lean": _range(*lean, digits=3),
@@ -271,57 +286,92 @@ def estimate(inputs, session=None, features=None, b_output=None):
         inside = sum(1 for r in results if r["location_class"].startswith("in_zone"))
         rationale.append(f"{len(results)} DI {'site' if len(results) == 1 else 'sites'} with {sum(r['roof_area_m2'] for r in results):,.0f} m2 of roof can inject about "
                          f"{total_volume:,.0f} m3 ({total_volume * 1000:,.0f} litres) a year at {rain['annual_mm']:,} mm of rain.")
-        rationale.append(f"{inside} of {len(results)} {'lies' if inside == 1 else 'lie'} inside the top recharge zones. Counting only the share that can reach the spring, "
-                         f"the spring could gain {tot_lean['mid']:.2f} L/min in the lean season (range {tot_lean['low']:.2f}-{tot_lean['high']:.2f}), "
-                         f"if all of it comes out then; spread over the year it is {tot_annual['mid']:.2f} L/min.")
+        rationale.append(f"{inside} of {len(results)} {'lies' if inside == 1 else 'lie'} inside the top recharge zones. If the assumed share of the water "
+                         f"reaches the spring (shown per site) and all of it comes out in the {lean_months:g}-month lean season, that is "
+                         f"{tot_lean['mid']:.2f} L/min then (range {tot_lean['low']:.2f}-{tot_lean['high']:.2f}); spread over the year it is "
+                         f"{tot_annual['mid']:.2f} L/min. These are water-volume equivalents under those assumptions, not expected gains.")
+        rationale.append("If a site turns out not to be connected to the spring, which only monitoring can show, its gain is zero.")
         if pct:
-            rationale.append(f"That is about {pct['mid']:.0f}% of the present lean-season flow of {lean_flow:g} L/min "
+            rationale.append(f"Under the same assumptions that is about {pct['mid']:.0f}% of the present lean-season flow of {lean_flow:g} L/min "
                              f"(range {pct['low']:.0f}-{pct['high']:.0f}%).")
-        rationale.append("The water level near each handpump may rise for a while after the wettest month (shown per site); "
-                         "it falls back as the water spreads through the rock.")
+        rationale.append("The storage rise shown per site is an illustration of how much water the rock would have to hold near "
+                         "the handpump after the wettest month, not a predicted water-level rise.")
     else:
         rationale.append("No DI sites were placed yet. Add them on the map to see what they would add.")
     if roofs_for_10pct:
-        rationale.append(f"To add 10% to the lean flow ({0.1 * lean_flow:.2f} L/min), about {roofs_for_10pct} {'roof' if roofs_for_10pct == 1 else 'roofs'} of 100 m2 on the spring's own slope inside a recharge zone would be needed (mid case).")
+        rationale.append(f"To add 10% to the lean flow ({0.1 * lean_flow:.2f} L/min), about {roofs_for_10pct} {'roof' if roofs_for_10pct == 1 else 'roofs'} of 100 m2 on the spring's own slope inside a recharge zone would be needed, "
+                         "if 60% of their water reaches the spring and all of it comes out in the lean season (both assumptions).")
     if not lean_flow:
         missing.append({"id": "lean_flow_lpm", "indicator": "Lean-season flow",
                         "needs": "A May-June bucket reading turns the added flow into a % of what the spring gives now."})
     if not zones:
         missing.append({"id": "springshed", "indicator": "Springshed", "needs": "The springshed section must run to place the sites."})
 
-    benchmarks = [f"One 100 m2 roof inside a recharge zone on the spring's own slope adds about {one_roof:.2f} L/min to the lean-season flow (mid case)."] + BENCHMARKS
+    benchmarks = [f"One 100 m2 roof inside a recharge zone on the spring's own slope could add about {one_roof:.2f} L/min to the lean-season flow, "
+                  "if 60% of its water reaches the spring and all of it comes out in the lean season."] + BENCHMARKS
+    safety = safety_gate(results)
     assumption_rows = [
         {"id": "annual_rain_mm", "label": "Yearly rain", "value": rain["annual_mm"], "unit": "mm", "note": rain["source"]},
-        {"id": "collection_coefficient", "label": "Roof rain collected", "value": cc, "unit": "share", "note": "RDI design 0.7-0.8 for metal or concrete roofs."},
-        {"id": "injection_efficiency", "label": "Kept after first flush and overflow", "value": eff, "unit": "share", "note": "Assumed 0.8-0.9."},
-        {"id": "share", "label": "Share reaching the spring", "value": "0.3-1.0 in a recharge zone on the spring's slope; 0.1-0.6 in one linked by a fault or rock tilt; 0.05-0.5 by a crack; up to 0.3 elsewhere in the catchment",
-         "unit": "share", "note": "Judgement until monitoring data exist."},
-        {"id": "lean_season_months", "label": "Lean season", "value": lean_months, "unit": "months", "note": "Best case: all extra water comes out in these months."},
+        {"id": "collection_coefficient", "label": "Roof rain reaching the handpump", "value": cc, "unit": "share",
+         "note": "Gutter, pipe and splash losses. RDI design 0.7-0.8 for metal or concrete roofs."},
+        {"id": "injection_efficiency", "label": "Share of that water actually injected", "value": eff, "unit": "share",
+         "note": "First flush, overflow, downtime and clogging (a different loss from the one above). Assumed 0.8-0.9."},
+        {"id": "share", "label": "Share reaching the spring", "value": "0 if not connected; otherwise 0.3-1.0 in a recharge zone on the spring's slope; 0.1-0.6 in one linked by a fault or rock tilt; 0.05-0.5 by a crack; up to 0.3 elsewhere in the catchment",
+         "unit": "share", "note": "Judgement until monitoring data exist; not measured connection."},
+        {"id": "lean_season_months", "label": "Lean season", "value": lean_months, "unit": "months",
+         "note": "Timing assumption: all extra water comes out in these months. Needs evidence of storage and slow release."},
         {"id": "specific_yield", "label": "Specific yield of the rock", "value": f"{sy[0] * 100:g}-{sy[1] * 100:g}", "unit": "%",
-         "note": f"{aquifer.capitalize()} ({rock_text or 'rock not known'}). CGWB GEC-2015 norms, to confirm with WATSAN."},
-        {"id": "radius_of_influence_m", "label": "Mound radius around the handpump", "value": radius, "unit": "m", "note": "Unknown; 20-150 m is plausible."},
-        {"id": "conductivity", "label": "Rock permeability (K)", "value": f"{k[0]:g}-{k[1]:g}", "unit": "m/day", "note": "Wide range for fractured rock; travel times are an order of magnitude only."},
+         "note": f"{aquifer.capitalize()} ({rock_text or 'rock not known'}), from the rock at the spring, which may differ at the injection depth. "
+                 "Also used in place of effective porosity for the travel time. CGWB GEC-2015 norms, to confirm with WATSAN."},
+        {"id": "radius_of_influence_m", "label": "Storage circle around the handpump", "value": radius, "unit": "m",
+         "note": "Unknown; 20-150 m is plausible. Used only for the illustrative storage rise."},
+        {"id": "conductivity", "label": "Rock permeability (K)", "value": f"{k[0]:g}-{k[1]:g}", "unit": "m/day",
+         "note": f"Wide range for fractured rock. The travel time uses the ground slope (at least {MIN_GRADIENT}) in place of the water-table gradient, so it is an order of magnitude only."},
     ]
     result = {
         "rain": rain, "sites": results,
         "totals": {"volume_m3_per_year": round(total_volume, 1), "added_flow_lpm_annual": tot_annual,
                    "added_flow_lpm_lean": tot_lean, "lean_flow_lpm": lean_flow, "pct_of_lean_flow": pct},
         "monthly_injection_m3": [round(v, 1) for v in monthly_total] if rain["monthly_mm"] and results else None,
-        "roofs_for_10pct": roofs_for_10pct, "assumptions": assumption_rows,
+        "roofs_for_10pct": roofs_for_10pct, "assumptions": assumption_rows, "safety": safety,
         "benchmarks": benchmarks, "monitoring_plan": MONITORING,
     }
-    return {**base, "status": "provisional", "result": result, "confidence": "Low", "rationale": rationale,
+    if results and not safety["ready"]:
+        rationale.insert(0, "Not ready for DI yet: " + "; ".join(a for a in safety["actions"] if a.startswith("Fit")) + ".")
+    return {**base, "status": "provisional", "result": result, "confidence": "Low", "validation": VALIDATION, "rationale": rationale,
             "missing_inputs": missing, "warnings": warnings, "report_markdown": report_markdown(name, result, rationale, warnings)}
 
 
+def safety_gate(results):
+    """Is the DI plan ready to recommend? Missing safeguards are actions, not just warnings next to a gain."""
+    actions = []
+    no_flush = [r["name"] for r in results if any(f.startswith("No first-flush") for f in r["flags"])]
+    no_filter = [r["name"] for r in results if any(f.startswith("No filter") for f in r["flags"])]
+    if no_flush:
+        actions.append(f"Fit a first-flush diverter at {', '.join(no_flush)}")
+    if no_filter:
+        actions.append(f"Fit a filter at {', '.join(no_filter)}")
+    if results:
+        actions += ["Test the roof water and the spring water (turbidity, coliform, iron) before the first injection",
+                    "Check each handpump for clogging and overflow after the first heavy rain, and clean the filter each season",
+                    "Confirm with WATSAN that each site is suitable (no latrine or soak pit nearby, handpump casing sound)"]
+    return {"ready": bool(results) and not no_flush and not no_filter, "actions": actions}
+
+
 def report_markdown(name, result, rationale, warnings):
-    lines = [f"# Potential impact of DI recharge: {name}", "", "Best-case water balance, not a prediction (Module C v1 draft).", "",
+    lines = [f"# Potential impact of DI recharge: {name}", "",
+             "Planning scenario, not a prediction (Module C v1 draft). " + VALIDATION, "",
              "## Summary", *(f"- {r}" for r in rationale), ""]
+    if result["safety"]["actions"]:
+        lines += ["## Before any injection" + ("" if result["safety"]["ready"] else " (not ready yet)"),
+                  *(f"- [ ] {a}" for a in result["safety"]["actions"]), ""]
     if result["sites"]:
-        lines += ["| Site | Where | Water injected (m3/yr) | Added lean flow (L/min, low-mid-best) | Water-level rise (m) |", "|---|---|---|---|---|"]
+        lines += ["| Site | Where | Share assumed to reach the spring (low-mid-best) | Water injected (m3/yr) | Lean-season equivalent (L/min, low-mid-best; 0 if not connected) | Illustrative storage rise (m) |",
+                  "|---|---|---|---|---|---|"]
         for s in result["sites"]:
             f = s["added_flow_lpm_lean"]
-            lines.append(f"| {s['name']} | {s['location_class'].replace('_', ' ')} | {s['volume_m3_per_year']:.0f} | "
+            sh = s["share_reaching_spring"]
+            lines.append(f"| {s['name']} | {s['location_class'].replace('_', ' ')} | {sh['low']:.0%}-{sh['mid']:.0%}-{sh['high']:.0%} | {s['volume_m3_per_year']:.0f} | "
                          f"{f['low']:.2f} - {f['mid']:.2f} - {f['high']:.2f} | {s['water_level_rise_m']['low']:.1f}-{s['water_level_rise_m']['high']:.1f} |")
         lines.append("")
     lines += ["## Assumptions", *(f"- {a['label']}: {a['value']} {a['unit']} ({a['note']})" for a in result["assumptions"]), "",

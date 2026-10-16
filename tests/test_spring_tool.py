@@ -185,6 +185,56 @@ def test_di_site_on_the_slope_counts_more_than_a_linked_one():
     assert out["result"]["totals"]["pct_of_lean_flow"]["mid"] > 0
 
 
+def test_di_plan_is_not_ready_without_safeguards():
+    sites = [{"id": "a", "name": "School", "latitude": 29.92, "longitude": 78.556, "roof_area_m2": 100, "first_flush": False, "filter": True},
+             {"id": "b", "name": "Temple", "latitude": 29.921, "longitude": 78.556, "roof_area_m2": 80, "first_flush": True, "filter": True}]
+    out = module_c.estimate({"spring": NAULI, "field": {}, "di": {"sites": sites, "assumptions": {"annual_rain_mm": 1600}}})
+    safety = out["result"]["safety"]
+    assert not safety["ready"]
+    assert any(a.startswith("Fit a first-flush diverter at School") for a in safety["actions"])
+    assert out["rationale"][0].startswith("Not ready for DI yet")
+    assert any("gain is zero" in r for r in out["rationale"])  # the no-connection case is always stated
+    assert out["validation"].startswith("Not yet validated")
+    site = out["result"]["sites"][0]
+    assert site["volume_m3_per_year"] == pytest.approx(site["runoff_m3_per_year"] * 0.85, abs=0.1)
+    sites[0]["first_flush"] = True
+    assert module_c.estimate({"spring": NAULI, "field": {}, "di": {"sites": sites, "assumptions": {"annual_rain_mm": 1600}}})["result"]["safety"]["ready"]
+
+
+def _code_value(ref):
+    """'module_c_di_impact:SHARE[in_zone_slope]' -> the value in the code."""
+    module_name, path = ref.split(":")
+    module = {"module_b_springshed": module_b, "module_c_di_impact": module_c}.get(module_name)
+    if module is None:
+        import module_a_vulnerability as module
+    name, *keys = re.findall(r"[^\[\]]+", path)
+    value = getattr(module, name)
+    for key in keys:
+        value = value[key]
+    return value
+
+
+def test_assumption_register_matches_the_code():
+    import csv
+    rows = list(csv.DictReader((ROOT / "config" / "assumption_register_v1.csv").open(encoding="utf-8")))
+    assert len({r["rule_id"] for r in rows}) == len(rows)
+    assert {r["status"] for r in rows} <= {"sourced", "fitted", "assumption", "user setting"}
+    checked = 0
+    for r in rows:
+        if not r["code_ref"] or r["status"] == "fitted":
+            continue
+        value = _code_value(r["code_ref"])
+        if isinstance(value, dict):  # e.g. LINK_WEIGHT: compare the values in order
+            value = list(value.values())
+        values = list(value) if isinstance(value, (list, tuple)) else [value]
+        listed = [float(v) for v in r["value"].split("|")]
+        if r["rule_id"] == "B-20":  # main threshold and its fallback
+            values = [module_b.MIN_ZONE_POTENTIAL, module_b.FALLBACK_POTENTIAL]
+        assert [float(v) for v in values] == pytest.approx(listed), r["rule_id"]
+        checked += 1
+    assert checked >= 35
+
+
 def test_bad_assumption_is_ignored_with_a_warning():
     out = module_c.estimate({"spring": NAULI, "field": {}, "di": {"sites": [], "assumptions": {"annual_rain_mm": 1600,
                                                                                                 "collection_coefficient": 7}}})
@@ -236,6 +286,10 @@ def test_full_assessment_of_nauli_dhara():
     assert [z["score"] for z in zones] == sorted((z["score"] for z in zones), reverse=True)
     assert b["result"]["potential_overlay"]["image"].startswith("data:image/png;base64,")
     assert b["result"]["surface_catchment"]["area_ha"] > 0 and b["result"]["search"]["checks"]
+    exact = b["result"]["exact_cell_catchment"]
+    assert 0 < exact["area_ha"] <= b["result"]["surface_catchment"]["area_ha"] and exact["geojson"]
+    assert any("depends heavily on the exact GPS point" in w for w in b["warnings"])  # 0.7 vs 21 ha
+    assert all(response[m]["validation"].startswith("Not yet validated") for m in "ABC")
     assert "_zones" not in b
     assert [r["radius_m"] for r in a["result"]["map"]["rings"]] == [500, 1000]
     assert c["result"]["sites"][0]["location_class"] in module_c.SHARE

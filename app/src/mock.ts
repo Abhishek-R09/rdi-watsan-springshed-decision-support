@@ -168,6 +168,7 @@ function moduleA(req: AssessRequest, elevation: number): AssessResponse['A'] {
   ].filter((m) => !(m.id in f) || (f as any)[m.id] === undefined || (f as any)[m.id] === '');
   return {
     module: 'A', title: 'Vulnerability assessment', version: '0.4-demo', status: 'complete', confidence: 'Medium',
+    validation: 'Not yet validated: the score has not been checked against springs known to be declining or steady. Weights and cut-offs are a draft for WATSAN to review.',
     rationale: [
       `Score ${score} of 100, a Medium vulnerability: the spring is under some pressure but not in crisis.`,
       'The biggest contributors are the many households using it and the drop in flow people report.',
@@ -218,7 +219,9 @@ function moduleB(lat: number, lon: number, elev: number): AssessResponse['B'] {
   const result: BResult = {
     spring_cell: { latitude: lat, longitude: lon, elevation_m: elev - 9, moved_m: 14, note: 'The spring was moved 14 m to the nearest elevation-map cell on the slope line.' },
     surface_catchment: { area_ha: 8.0, geojson: catchment },
-    target_area_ha: { low: 1.2, mid: 3.0, high: 7.5, basis: 'Sized from the lean-season flow (4 L/min) times 3.3, the median monsoon/lean ratio, with the Rathi (2021) area-flow relation.' },
+    exact_cell_catchment: { area_ha: 2.1, geojson: blob(lat, lon, 2.1, 2.0, 335, w2) },
+    target_area_ha: { low: 1.2, mid: 3.0, high: 7.5, kind: 'lean flow', basis: 'Sized from the lean-season flow (4 L/min) times 3.3, the median monsoon/lean ratio, with the Rathi (2021) area-flow relation.' },
+    streams_block_zones: true,
     recharge_zones: zones,
     search: {
       searched: 'Searched all ground within 4 km that can send water to the spring: the slope that drains to it, and ground at least 20 m higher beyond it along 2 faults or lineaments passing within 200 m of the spring.',
@@ -261,6 +264,7 @@ function moduleB(lat: number, lon: number, elev: number): AssessResponse['B'] {
   };
   return {
     module: 'B', title: 'Springshed (recharge area)', version: '0.3-demo', status: 'provisional', confidence: 'Low',
+    validation: 'Not yet validated: no field-walked springshed boundary has been compared with these zones. They are candidate places to inspect, not delineated springsheds.',
     rationale: [
       'All ground within 4 km that can send water to the spring was scored on recharge potential, how strong its link to the spring is, and how close it is.',
       'R1, the best place to recharge this spring, is just above the outlet on its own slope.',
@@ -332,6 +336,7 @@ function moduleC(req: AssessRequest, lat: number, lon: number, elev: number, b: 
       longitude: s.longitude,
       elevation_m: elev + height,
       roof_area_m2: s.roof_area_m2,
+      runoff_m3_per_year: Math.round((s.roof_area_m2 * rain) / 1000 * a.collection_coefficient * 10) / 10,
       volume_m3_per_year: Math.round(vol * 10) / 10,
       location_class: cls,
       location_note: notes[cls].replace('{zone}', zone?.id ?? ''),
@@ -367,6 +372,15 @@ function moduleC(req: AssessRequest, lat: number, lon: number, elev: number, b: 
     },
     monthly_injection_m3: sites.length ? MONTHLY_RAIN.map((v) => Math.round((v / rainTotal) * volume * 10) / 10) : null,
     roofs_for_10pct: leanFlow > 0 ? Math.ceil((0.1 * leanFlow) / perRoofLean) : null,
+    safety: {
+      ready: sites.length > 0 && sites.every((s) => !s.flags.some((f) => f.startsWith('No first-flush') || f.startsWith('No filter'))),
+      actions: sites.length ? [
+        ...sites.filter((s) => s.flags.some((f) => f.startsWith('No first-flush'))).map((s) => `Fit a first-flush diverter at ${s.name}`),
+        ...sites.filter((s) => s.flags.some((f) => f.startsWith('No filter'))).map((s) => `Fit a filter at ${s.name}`),
+        'Test the roof water and the spring water (turbidity, coliform, iron) before the first injection',
+        'Check each handpump for clogging and overflow after the first heavy rain, and clean the filter each season',
+      ] : [],
+    },
     assumptions: [
       { id: 'annual_rain_mm', label: 'Yearly rain', value: rain, unit: 'mm', note: a.annual_rain_mm == null ? 'From rainfall maps at the spring' : 'Entered by you' },
       { id: 'collection_coefficient', label: 'Share of roof rain reaching the handpump', value: a.collection_coefficient, unit: '', note: 'Losses from splashing, gutters and evaporation' },
@@ -377,7 +391,7 @@ function moduleC(req: AssessRequest, lat: number, lon: number, elev: number, b: 
     ],
     benchmarks: [
       'A 100 m² roof in 1,600 mm of rain catches about 160 m³ (1.6 lakh litres) a year before losses.',
-      'Roof-water recharge pilots in the Himalaya report 5-20% more lean flow after 2-3 years.',
+      'ICIMOD reports +23% and +48% spring flow after full springshed treatment (not DI alone), so this is context only.',
       'Springs in the dataset give a median lean flow of 5 L/min.',
     ],
     monitoring_plan: [
@@ -391,10 +405,12 @@ function moduleC(req: AssessRequest, lat: number, lon: number, elev: number, b: 
   return {
     module: 'C', title: 'Potential impact of DI recharging', version: '0.2-demo', status: sites.length ? 'provisional' : 'complete',
     confidence: 'Low',
+    validation: 'Not yet validated: no monitored DI site has been compared with these estimates. They are planning scenarios that depend on the assumed shares; the real gain could be zero.',
     rationale: sites.length ? [
       `${sites.length} DI site${sites.length > 1 ? 's' : ''} could put about ${Math.round(volume)} m³ of roof water into the ground each year.`,
       'Only part of it reaches this spring; the share depends on whether the handpump sits inside the recharge zone.',
       'The added flow is a best case: it assumes the extra water comes out evenly in the dry months.',
+      'If a site turns out not to be connected to the spring, which only monitoring can show, its gain is zero.',
     ] : ['No DI sites were given. Add handpumps on the map to see how much water they could add.'],
     missing_inputs: [],
     warnings: ['Demo data: these numbers are illustrative only.', 'Check each handpump is truly defunct and its bore is open before planning.'],

@@ -70,6 +70,13 @@ Every run is saved in `data/03_outputs/tool_runs/<date-time>-<spring>/`:
 
 ## 3. What each section does
 
+Every section shows two separate labels:
+
+- **Evidence** (Low, Medium or High) says how complete the inputs were. It does not say the answer is right.
+- **Not validated yet** says the section has not been checked against field evidence: known declining springs for A, walked springsheds for B, monitored DI sites for C. Hover over it for the detail.
+
+Every number Modules B and C use, and Module A's rules, is listed in [`config/assumption_register_v1.csv`](../config/assumption_register_v1.csv) with its source, where it applies, and whether it is sourced, fitted or an assumption. A test checks that the register matches the code. WATSAN can review from that one file.
+
 ### Vulnerability (Module A)
 
 The method is unchanged from [module-a-vulnerability.md](module-a-vulnerability.md):
@@ -77,12 +84,14 @@ The method is unchanged from [module-a-vulnerability.md](module-a-vulnerability.
 - There are 20 indicators in four groups (state, impact, stressor, response) with WATSAN-draft weights.
 - Map indicators are scored as percentiles among the input springs.
 - With location only, the result is an **exposure score**: it shows how exposed the setting is, not whether the spring is declining.
+- The lean-season flow reading feeds three indicators, so on 16 October 2026 the monsoon/lean ratio went from 6 to 3 and months of low flow from 5 to 8. The result notes the combined share when more than one is used.
+- `python scripts/module_a_checks.py --sensitivity` also compares equal weights with the draft weights: 12% of the input springs change class.
 
 ### Springshed and recharge zone (Module B)
 
 `scripts/module_b_springshed.py`, with weights in `config/module_b_recharge_factors_v1.csv`.
 
-1. **Surface catchment.** This is the land that drains to the spring, taken from the 30 m Copernicus elevation map. The tool allows 30 m for GPS and map error.
+1. **Surface catchment.** This is the land that drains to the spring, taken from the 30 m Copernicus elevation map. Two catchments are drawn: the one at the exact GPS point (dotted) and the one allowing 30 m for GPS and map error (dashed). They can differ many times over (Nauli Dhara: 0.7 ha vs 21 ha); when the second is 3 or more times the first, the tab warns you to re-take the GPS at the outlet. If the catchment reaches the edge of the map window, it is reported as incomplete.
 2. **Search area.** The tool looks for recharge ground in one search, on the spring's own slope and beyond it:
    - up to 4 km from the spring;
    - every cell must be linked to the spring in one of four ways (see step 5);
@@ -117,13 +126,17 @@ The method is unchanged from [module-a-vulnerability.md](module-a-vulnerability.
 
    Only ground with a recharge potential of 0.5 or more is used (0.35 with a warning if there is none).
 
+   Streams (channels draining 0.5 km² or more) stop a zone from growing, because a stream usually takes the water first. Where the rock may carry water under a stream, for example along a fault, untick **Streams stop a recharge zone** under Geology.
+
+   Zones are grown to the size the flow needs, so a zone's area matching that size is by design, not a check that it is right. The area-flow relation uses Rathi's long-term maximum flows; one monsoon bucket reading is not the same, so treat the size as a rough guide. With no flow reading, the 3 ha is a default and is marked so.
+
    There is no rule that a zone must be near the spring or far from it. For a spring with good ground on its own slope, all three can be on the slope. For a spring with poor ground above it but a fault to a better slope, R1 can be in the next valley. Each zone card says what links it, how far and how high it is, its land cover, soil and rock, and why it ranked where it did.
 
    Zones beyond the surface catchment are hypotheses, not findings. The tab lists field checks: walk the fault or crack line for seeps, track water temperature and EC monthly, note how slowly the spring rises after rain, and (with budget) an oxygen-18 test of the recharge height.
 
 The map shows the **surface catchment** (dashed blue: where rain runs off towards the spring) and the **recharge zones** R1-R3 (green, darkest is best: where rain soaks in and feeds it) as separate layers, because the two are not the same area.
 
-**Confidence** is Low by default. It is Medium when both the monsoon flow and the rock tilt are given and the GSI geology covers the spring.
+**Evidence** is Low by default. It is Medium when both the monsoon flow and the rock tilt are given and the GSI geology covers the spring.
 
 **Limits:**
 
@@ -135,15 +148,20 @@ The map shows the **surface catchment** (dashed blue: where rain runs off toward
 
 `scripts/module_c_di_impact.py`.
 
-**Water injected** = roof area × yearly rain × 0.8 collected × 0.85 kept after the first flush. All of these can be changed under Assumptions.
+**Water injected** is worked out in two steps, which cover different losses, so nothing is counted twice:
+
+- roof runoff reaching the handpump = roof area × yearly rain × 0.8 (gutter, pipe and splash losses);
+- water injected = that runoff × 0.85 (first flush, overflow, downtime and clogging).
+
+Both factors can be changed under Assumptions.
 
 **Rain source:**
 
 - The IMD gauge mean is used when the IMD files are present.
-- Otherwise the CHIRPS satellite estimate is used. It reads about 45% above IMD in these hills.
+- Otherwise the CHIRPS satellite estimate is used. At the dataset springs it read about 45% above IMD; that is a comparison, not a correction factor.
 - You can type in a local value instead.
 
-**Share reaching the spring** depends on where the handpump sits. These shares are judgement and should be replaced by monitoring.
+**Share reaching the spring** depends on where the handpump sits. These shares are judgement, not measured connection, and should be replaced by monitoring. Being inside a zone does not show the handpump is connected to the spring: if it is not, the gain is zero, and the tab says so next to every range.
 
 | Where the handpump is | Share reaching the spring (low, mid, best) |
 |---|---|
@@ -157,15 +175,17 @@ The map shows the **surface catchment** (dashed blue: where rain runs off toward
 **Added flow** is shown two ways:
 
 - spread over the year;
-- best case, all of it coming out in the lean season (5 months by default).
+- as a **dry-season water equivalent**: all of it coming out in the lean season (5 months by default). This is a timing assumption, so it is a water-volume equivalent, not an expected gain.
 
-When the lean flow is known, the tool also shows the added flow as a % of today's lean flow and the number of 100 m² roofs needed for +10%.
+When the lean flow is known, the tool also shows this as a % of today's lean flow and the number of 100 m² roofs needed for +10%. Both carry the same two assumptions (60% reaching the spring, all of it in the dry months).
 
-**Water-level rise** is the temporary mound after the wettest month: volume ÷ (circle of 50 m radius × specific yield). Specific yield is 0.5-3% for hard rock and 8-16% for alluvium or debris.
+**Storage rise (illustration)** shows how much water the rock would have to hold after the wettest month: that month's volume ÷ (circle of 50 m radius × specific yield). It is not a predicted water-level rise, which would need the recharge rate, the aquifer properties and its boundaries. Specific yield is 0.5-3% for hard rock and 8-16% for alluvium or debris, taken from the rock at the spring, which may not be the rock at the injection depth.
 
-**Travel time** is distance ÷ (permeability × slope of the water table ÷ porosity), using wide hard-rock ranges. Treat it as an order of magnitude only.
+**Travel time** is distance ÷ (permeability × gradient ÷ porosity), using wide hard-rock ranges. Specific yield stands in for effective porosity, and the ground slope (at least 0.02) for the water-table gradient. Treat it as an order of magnitude only; it does not show that a flow path exists.
 
-The section also lists water-safety flags (no first-flush diverter, no filter), benchmarks (ICIMOD: +23% and +48% after full springshed treatment) and a monitoring plan. The monitoring plan is how these estimates will be replaced by real numbers.
+**Safety gate.** If any site has no first-flush diverter or no filter, the tab opens with **Not ready for DI yet** and the actions to take. Every plan also lists the checks before the first injection: water-quality tests, clogging and overflow checks, and WATSAN's site check. Sites outside the zones or below the spring keep their record and the reason, because surface position alone does not prove they are cut off.
+
+The section also lists benchmarks (ICIMOD: +23% and +48% after full springshed treatment, which is context only, not evidence for DI alone) and a monitoring plan. The monitoring plan is how these estimates will be replaced by real numbers.
 
 ## 4. Working offline with an approved map set
 

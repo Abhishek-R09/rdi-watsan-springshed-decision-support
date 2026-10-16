@@ -185,6 +185,13 @@ function FieldStep({ form, setForm }: { form: FormState; setForm: SetForm }) {
               </div>
             );
           })}
+          <label className="check">
+            <input type="checkbox" checked={form.answers.streams_block_zones !== 'no'}
+              onChange={(e) => setAnswer('streams_block_zones', e.target.checked ? '' : 'no')} />
+            Streams stop a recharge zone
+          </label>
+          <p className="hint">On by default: a stream usually drains the water before it reaches the spring. Turn it off where
+            the rock carries water under the stream (for example along a fault).</p>
         </div>
       </details>
     </section>

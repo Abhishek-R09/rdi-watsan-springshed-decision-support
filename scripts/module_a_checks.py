@@ -7,7 +7,8 @@ Sensitivity (runs now, on the input springs only; test springs are not used)
   - The Low/Medium/High cut-offs moved by 5 points.
   - The decline weight at 15 / 20 / 25 for each answer to "flow now vs 10-20 years ago" (a what-if: the dataset has
     no such answers, so every hill spring is given the same answer in turn).
-  Writes data/03_outputs/module_a/sensitivity_v1.txt and sensitivity_by_indicator_v1.csv.
+  - Equal weights for every indicator vs the draft weights: how many springs change class, and which.
+  Writes data/03_outputs/module_a/sensitivity_v1.txt, sensitivity_by_indicator_v1.csv and equal_weights_changes_v1.csv.
 
 Validation (run once, when the field-visit answers or WATSAN's list of declining / steady springs come in)
   python scripts/module_a_checks.py --validate my_springs.csv [--cache ... --local-layers ...]
@@ -145,9 +146,41 @@ def sensitivity():
                 classes.append("Medium" if points == 100 and c == "Low" else c)  # floor rule
             cells.append("/".join(f"{100 * classes.count(c) / len(classes):.0f}" for c in ("Low", "Medium", "High")))
         lines.append(f"   {answer:18}" + "".join(f"{c:<21}" for c in cells))
+
+    lines += ["", *equal_weights(springs, indicators, base)]
     text = "\n".join(lines)
     (OUT / "sensitivity_v1.txt").write_text(text + "\n", encoding="utf-8")
     print(text)
+
+
+def equal_weights(springs, indicators, base):
+    """Every indicator weighted the same vs the draft weights: the class table, and a CSV of the springs that move."""
+    equal_w = {k: 1.0 for k in indicators}
+    order = ("Low", "Medium", "High")
+    rows, table = [], {(a, b): 0 for a in order for b in order}
+    for s, b in zip(springs, base):
+        score = weighted(s["scores"], equal_w)
+        e = classify(score)
+        table[(b, e)] += 1
+        if e != b:
+            rows.append({"record_id": s["record_id"], "draft_class": b, "equal_weights_class": e,
+                         "draft_score": round(weighted(s["scores"], {k: m["weight"] for k, m in indicators.items()}), 1),
+                         "equal_weights_score": round(score, 1), "indicators_with_value": len(s["scores"])})
+    with (OUT / "equal_weights_changes_v1.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=["record_id", "draft_class", "equal_weights_class", "draft_score",
+                                                    "equal_weights_score", "indicators_with_value"], lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
+    n = len(springs)
+    lines = [f"5. Equal weights for all {len(indicators)} indicators vs the draft weights",
+             f"   {100 * len(rows) / n:.0f}% of springs change class ({len(rows)} of {n}); list in equal_weights_changes_v1.csv",
+             "   rows = draft class, columns = equal-weights class",
+             "   " + " " * 8 + "".join(f"{c:>8}" for c in order)]
+    for a in order:
+        lines.append(f"   {a:8}" + "".join(f"{table[(a, b)]:>8}" for b in order))
+    lines.append("   With no field answers the dataset springs are scored mostly on map indicators, so this shows how much the")
+    lines.append("   draft's extra weight on rain and land matters. With field answers, the decline question (20 vs 5) matters most.")
+    return lines
 
 
 # --------------------------------------------------------------------------- validation

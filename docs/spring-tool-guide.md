@@ -65,7 +65,7 @@ Every run is saved in `data/03_outputs/tool_runs/<date-time>-<spring>/`:
    | Springshed | Surface catchment, the top recharge zones R1-R3 and the fault or crack that links each one to the spring, faults, lineaments, streams, and the heat map switch |
    | DI impact | DI sites coloured by where they sit, with the recharge zones and catchment drawn faintly for context |
 
-   The map is 3D by default: right-drag (or Ctrl + drag) to tilt and turn it. Heights are drawn 1.5 times. The **2D** button flattens it, and the background can be satellite, a topo map or streets. The 3D hills come from the tool's own elevation tiles, so they show even when the background cannot download.
+   The map is 3D by default: right-drag (or Ctrl + drag) to tilt and turn it. Heights are drawn 1.5 times. The **2D** button flattens it, and the background can be satellite, a topo map or streets. The 3D hills come from the tool's own elevation tiles, so they show even when the background cannot download. Beyond the area those tiles cover, and when zoomed far out, the hills come from public elevation tiles (AWS Terrain Tiles), which are saved under `MapCache\terrain_web` so they also show offline next time. With no internet and no saved copy, the ground there continues at the nearest known height instead of dropping to sea level.
 5. **Print report** prints the three sections.
 
 ## 3. What each section does

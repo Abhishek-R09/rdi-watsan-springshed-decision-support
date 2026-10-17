@@ -55,6 +55,19 @@ def test_real_route_contract_and_invalid_requests(app):
     assert client.get('/api/unknown', headers=auth()).status_code == 404
 
 
+def test_public_visual_terrain_avoids_gis_tile_work_but_keeps_auth(app, monkeypatch):
+    monkeypatch.setenv('SPRING_TERRAIN_SOURCE', 'public')
+    def forbidden(*args):
+        raise AssertionError('Hosted visual terrain must not allocate GIS tile buffers')
+    monkeypatch.setattr(render_app.core.Terrain, 'tile', forbidden)
+    client = app.test_client()
+    assert client.get('/api/terrain/14/11766/6764.png').status_code == 401
+    response = client.get('/api/terrain/14/11766/6764.png', headers=auth())
+    assert response.status_code == 302
+    assert response.headers['Location'] == 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/14/11766/6764.png'
+    assert client.get('/api/terrain/14/99999/6764.png', headers=auth()).status_code == 404
+
+
 def test_archive_failure_still_delivers_result_with_explicit_unsaved_status(monkeypatch):
     monkeypatch.setenv('SPRING_PILOT_PASSWORD', 'test-password')
     monkeypatch.setenv('SPRING_REQUIRE_ARCHIVE', '0')

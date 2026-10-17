@@ -5,7 +5,7 @@ import hmac
 import os
 import threading
 
-from flask import Flask, Response, jsonify, request, send_from_directory
+from flask import Flask, Response, jsonify, redirect, request, send_from_directory
 from werkzeug.exceptions import BadRequest, RequestEntityTooLarge, UnsupportedMediaType
 
 import spring_tool_server as core
@@ -82,6 +82,14 @@ def create_app(tool=None, archive=None):
     def terrain(z, x, y):
         if not (0 <= z <= 16 and 0 <= x < 2**z and 0 <= y < 2**z):
             return jsonify(error='No such tile'), 404
+        # The hosted pilot's visual terrain comes from the existing public provider.
+        # The browser downloads the PNG; the GIS worker avoids decoding/cutting tiles
+        # while an assessment is using its limited memory. Calculations still use
+        # the private, cached Copernicus DEM, exactly as before.
+        if os.environ.get('SPRING_TERRAIN_SOURCE') == 'public':
+            response = redirect(core.Terrain.WEB.format(z=z, x=x, y=y), code=302)
+            response.headers['Cache-Control'] = 'private, max-age=3600'
+            return response
         return Response(tool.terrain.tile(z, x, y), mimetype='image/png',
                         headers={'Cache-Control': 'private, max-age=3600'})
 

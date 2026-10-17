@@ -270,6 +270,23 @@ class Terrain:
                 + chunk(b"IDAT", zlib.compress(raw, 6)) + chunk(b"IEND", b""))
 
 
+def report_memory(stage):
+    """Small Linux deployment diagnostic; no spring inputs or credentials are logged."""
+    if os.environ.get('SPRING_LOG_MEMORY') != '1':
+        return
+    values = {}
+    try:
+        for line in Path('/proc/self/status').read_text().splitlines():
+            if line.startswith(('VmRSS:', 'VmHWM:')):
+                key, value, _ = line.split()
+                values[key.rstrip(':') + '_MiB'] = round(int(value) / 1024, 1)
+        values['container_MiB'] = round(int(Path('/sys/fs/cgroup/memory.current').read_text()) / 2**20, 1)
+    except (OSError, ValueError):
+        pass
+    if values:
+        print('Memory ' + stage + ': ' + json.dumps(values), flush=True)
+
+
 class Tool:
     def __init__(self):
         self.lock = threading.Lock()
@@ -342,6 +359,7 @@ class Tool:
         return response
 
     def _run(self, spring, field, di):
+        report_memory('assessment start')
         out = {}
         inputs = {"spring": spring, "field": field}
         try:
@@ -349,6 +367,7 @@ class Tool:
         except Exception as error:
             traceback.print_exc()
             out["A"] = failed("A", spring, f"The vulnerability score could not be computed: {error}")
+        report_memory('after vulnerability')
         # B works from the map cell's elevation; C compares DI sites with that same elevation
         key = (round(spring["latitude"], 6), round(spring["longitude"], 6), spring.get("elevation_m"),
                *(field.get(k) for k in ("monsoon_flow_lpm", "lean_flow_lpm", "dip_direction_deg", "dip_angle_deg")))
@@ -361,6 +380,7 @@ class Tool:
         except Exception as error:
             traceback.print_exc()
             out["B"] = failed("B", spring, f"The springshed could not be drawn: {error}")
+        report_memory('after springshed')
         try:
             features = self.session.features(spring["latitude"], spring["longitude"], spring.get("elevation_m"))
         except Exception:
@@ -370,6 +390,7 @@ class Tool:
         except Exception as error:
             traceback.print_exc()
             out["C"] = failed("C", spring, f"The DI impact could not be estimated: {error}")
+        report_memory('after DI')
         return out
 
 

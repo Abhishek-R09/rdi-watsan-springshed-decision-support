@@ -15,7 +15,9 @@ Prepared 17 October 2026. This prepares the existing Modules A, B and C for one 
 
 ## Current verification and limitations
 
-The fresh local hosted-adapter benchmark completed all three modules with synthetic field answers at the existing Nauli Dhara reference coordinate. The current machine recorded **18.50 seconds including process startup**, **11.7 seconds approximately for the assessment in the earlier engine-only run**, and **461.3 MiB peak process RSS for the hosted-adapter run**. These are Windows measurements; the Linux container, Gunicorn and Render's 0.1 CPU/512 MB environment have not been measured. The memory margin is narrow. Including missing layers can increase memory substantially.
+The initial Windows hosted-adapter benchmark peaked at **461.3 MiB process RSS**. On 17 October the user reported that the first Render assessment exceeded its memory limit and restarted. That local RSS check did not provide sufficient evidence of deployment headroom.
+
+After the memory changes below, the local benchmark completed all three modules with synthetic field answers at the existing Nauli Dhara reference coordinate, alongside **144 concurrent visual-terrain requests**. It recorded **22.2 seconds including process startup** and **428.6 MiB peak process RSS**. Comparing A/B/C outputs with the earlier compiled run found no differences, including 9,832 numeric values checked with 1e-9 tolerance. **34 deployment/module checks passed.** These remain Windows process measurements, excluding Gunicorn's master process and total Linux cgroup usage. The revised deployment still needs a successful Render cold run; larger map windows and additional datasets may require more than 512 MB.
 
 Docker is not installed on this machine, so an image build and Render cold-start assessment remain mandatory before taking this deployment to the field. A successful local test is not a claim that Render Free is sufficient.
 
@@ -97,6 +99,26 @@ The browser asks for the shared pilot login. Authentication protects the interfa
 Keep a local application/workbook fallback. Remote hosting still needs a working field internet connection; this preparation does not make the web application fully offline.
 
 ## Local checks
+
+### Memory settings for the 512 MB pilot
+
+The Docker image disables Numba's runtime compilation (`NUMBA_DISABLE_JIT=1`),
+limits GDAL's raster block cache to 8 MB, and limits glibc allocation arenas.
+The routing and scoring algorithms and input precision are unchanged; interpreted
+execution can be slower, especially for large catchments. Do not treat a passing
+Windows RSS benchmark as proof that Render's entire Linux container fits in 512 MB.
+
+With `SPRING_TERRAIN_SOURCE=public`, the authenticated terrain route redirects
+the browser to the existing AWS Terrarium provider. This is display-only terrain;
+assessments continue using the private cached Copernicus DEM. It avoids allocating
+server-side terrain image buffers while assessing. Local runs retain their original
+terrain path. The browser requires internet access to the public terrain provider.
+
+`SPRING_LOG_MEMORY=1` prints process RSS, peak RSS and Linux cgroup memory after
+each assessment module, without coordinates or credentials. Check these readings
+on the first and subsequent Render assessments, alongside Render's memory graph.
+If the service still runs out of memory, the free instance is not sufficient for
+that workload; retain all evidence and use a larger instance or another host.
 
 ```text
 pip install -r requirements-render.txt

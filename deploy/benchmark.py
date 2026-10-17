@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -30,12 +31,32 @@ def child(output):
     app = create_app(tool=tool, archive=lambda *args: {'durable': False, 'reason': 'Local benchmark; no cloud writes'})
     headers = {'Authorization': 'Basic ' + base64.b64encode(b'watsan:local-benchmark').decode()}
     start = time.perf_counter()
-    with app.test_client() as client:
-        response = client.post('/api/assess', json=request, headers=headers)
-        if response.status_code != 200:
-            raise RuntimeError(f'Hosted assessment failed with HTTP {response.status_code}')
-        result = response.json
+    stop = threading.Event()
+    terrain_errors, terrain_requests = [], [0]
+    def map_requests():
+        with app.test_client() as client:
+            while not stop.is_set():
+                response = client.get('/api/terrain/14/11766/6764.png', headers=headers)
+                if response.status_code != 302:
+                    terrain_errors.append(response.status_code)
+                    break
+                terrain_requests[0] += 1
+                stop.wait(.1)
+    thread = threading.Thread(target=map_requests)
+    thread.start()
+    try:
+        with app.test_client() as client:
+            response = client.post('/api/assess', json=request, headers=headers)
+            if response.status_code != 200:
+                raise RuntimeError(f'Hosted assessment failed with HTTP {response.status_code}')
+            result = response.json
+    finally:
+        stop.set()
+        thread.join()
+    if terrain_errors:
+        raise RuntimeError(f'Terrain requests failed during assessment: {terrain_errors}')
     Path(output).write_text(json.dumps({'seconds': time.perf_counter()-start,
+        'concurrent_terrain_requests': terrain_requests[0],
         'modules': {m: {'status': result[m]['status'], 'warnings': result[m]['warnings'],
                          'rationale': result[m]['rationale']} for m in 'ABC'},
         'note': 'Synthetic inputs. Current machine, not a 0.1 CPU / 512 MB Render measurement.'}, indent=2))
@@ -46,8 +67,9 @@ def main():
     folder = ROOT / '.deployment-benchmark'; folder.mkdir(exist_ok=True)
     result_path = folder / 'assessment.json'
     env = dict(os.environ, SPRING_RUNS_DIR=str(folder / 'runs'), OPENBLAS_NUM_THREADS='1',
-               OMP_NUM_THREADS='1', NUMBA_NUM_THREADS='1', GDAL_CACHEMAX='32',
-               SPRING_TERRAIN_READERS='1', SPRING_TERRAIN_CACHE='64', SPRING_FEATURE_CACHE='2', SPRING_ZONE_CACHE='1')
+               OMP_NUM_THREADS='1', NUMBA_NUM_THREADS='1', NUMBA_DISABLE_JIT='1', GDAL_CACHEMAX='8',
+               SPRING_TERRAIN_SOURCE='public', MALLOC_ARENA_MAX='2',
+               SPRING_TERRAIN_READERS='1', SPRING_TERRAIN_CACHE='16', SPRING_FEATURE_CACHE='2', SPRING_ZONE_CACHE='1')
     started = time.perf_counter()
     with (folder / 'process.log').open('w', encoding='utf-8') as log:
         process = subprocess.Popen([sys.executable, str(Path(__file__)), '--child', str(result_path)],
@@ -62,6 +84,7 @@ def main():
     summary = {'exit_code': process.returncode, 'elapsed_seconds': round(time.perf_counter()-started, 2),
                'peak_rss_mib': round(peak/1024**2, 1), 'render_ram_mib': 512,
                'within_512_mib_on_this_machine': peak <= 512*1024**2,
+               'settings': {key: env[key] for key in ('NUMBA_DISABLE_JIT', 'GDAL_CACHEMAX', 'SPRING_TERRAIN_SOURCE')},
                'note': 'Local RSS sample, not Linux cgroup total memory. Does not certify Render performance.'}
     (folder / 'summary.json').write_text(json.dumps(summary, indent=2))
     print(json.dumps(summary, indent=2))

@@ -19,6 +19,8 @@ The fresh local hosted-adapter benchmark completed all three modules with synthe
 
 Docker is not installed on this machine, so an image build and Render cold-start assessment remain mandatory before taking this deployment to the field. A successful local test is not a claim that Render Free is sufficient.
 
+The image installs `libexpat1`, required by the Rasterio/GDAL native libraries (`libexpat.so.1`), as well as `libgomp1`. `deploy/check_runtime.py` now runs as the unprivileged application user during the Docker build. It checks GIS imports, an in-memory GeoTIFF with a coordinate reference system, backend initialisation, the spring catalogue, recharge rules and literature fit, and the built frontend. A missing native library therefore fails the build instead of repeatedly crashing the deployed worker. This check uses no cloud credentials and downloads no maps; it does not replace the real hosted assessment and archive test.
+
 Preparation checks passed: 32 deployment/module tests; the hosted frontend production build; the Blueprint against Render's published JSON schema; Linux x86-64/Python 3.12 binary dependency resolution; and whitespace validation. The updated map rendered in the local browser without recorded console errors. Storage tests used a fake client: no external bucket or live persistence has been verified yet.
 
 The locally prepared map bundle is `deploy/artifacts/pilot-v1.tar.gz`, **328,186,107 bytes**, with SHA-256:

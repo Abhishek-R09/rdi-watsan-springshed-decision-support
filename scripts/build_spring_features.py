@@ -1005,8 +1005,8 @@ def open_layers(points, cache, local_layers, lineaments=LINEAMENTS_FILE, soil_hw
     buildings=False skips Google Open Buildings, which is read over the internet for every spring."""
     cache = Path(cache)
     os.environ.setdefault("GDAL_DISABLE_READDIR_ON_OPEN", "EMPTY_DIR")
-    if Path("/root/.ccr/ca-bundle.crt").exists():
-        os.environ.setdefault("CURL_CA_BUNDLE", "/root/.ccr/ca-bundle.crt")
+    # Use the platform trust store (or an explicitly configured CURL_CA_BUNDLE).
+    # Probing an old machine's /root certificate path fails for unprivileged cloud users.
     print("Opening layers")
     layers = argparse.Namespace(
         dem=[rasterio.open(p) for p in dem_tiles_for(points, cache)],

@@ -1,8 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
+import mapWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import type { AssessResponse, DatasetSpring, DiSite, DiSiteResult, Feature, FeatureCollection, Overlay } from '../api';
 import { ZONE_RANK_COLORS, linkLabel, locationClass, num } from '../format';
+
+// MapLibre 6 ships a separate module worker. Vite must bundle it and its imports;
+// otherwise it looks beside the app bundle for a worker file that was never copied.
+maplibregl.setWorkerUrl(mapWorkerUrl);
 
 export type Tab = 'A' | 'B' | 'C';
 export type Placing = 'none' | 'spring' | 'site';
@@ -36,7 +41,6 @@ const BASES: { id: Base; label: string }[] = [
 const ZONE_LINE = '#14532d';
 const LINK = '#8e5bb5';
 const EMPTY: FeatureCollection = { type: 'FeatureCollection', features: [] };
-const EXAGGERATION = 1.5;
 const PITCH_3D = 58;
 
 function fc(features: (Feature | null | undefined)[]): FeatureCollection {
@@ -105,6 +109,8 @@ export default function MapView(props: Props) {
   const [ready, setReady] = useState(false);
   const [base, setBase] = useState<Base>(() => readPref('spring-tool-base', ['sat', 'topo', 'osm'] as const, 'sat'));
   const [threeD, setThreeD] = useState(() => readPref('spring-tool-3d', ['on', 'off'] as const, 'on') === 'on');
+  const [heightScale, setHeightScale] = useState(() => Number(readPref('spring-tool-height-scale', ['1', '1.5', '3'] as const, '1.5')));
+  const [terrainState, setTerrainState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [tilesFailed, setTilesFailed] = useState(false);
   const [heatOn, setHeatOn] = useState(false);
   const [heatOpacity, setHeatOpacity] = useState(0.65);
@@ -161,7 +167,11 @@ export default function MapView(props: Props) {
 
     let loaded = 0, failed = 0;
     map.on('data', (e: any) => { if (e.tile && BASES.some((b) => b.id === e.sourceId)) { loaded += 1; setTilesFailed(false); } });
+    map.on('sourcedata', (e: any) => {
+      if (e.sourceId === 'dem' && e.tile) setTerrainState('ready');
+    });
     map.on('error', (e: any) => {
+      if (e.sourceId === 'dem') setTerrainState('error');
       if (BASES.some((b) => b.id === e.sourceId)) {
         failed += 1;
         if (failed >= 4 && loaded === 0) setTilesFailed(true);
@@ -252,14 +262,15 @@ export default function MapView(props: Props) {
     const map = mapRef.current;
     if (!map || !ready) return;
     if (threeD) {
-      map.setTerrain({ source: 'dem', exaggeration: EXAGGERATION });
+      map.setTerrain({ source: 'dem', exaggeration: heightScale });
       if (map.getPitch() < 20) map.easeTo({ pitch: PITCH_3D, duration: 700, freezeElevation: true });
     } else {
       map.setTerrain(null);
       map.easeTo({ pitch: 0, bearing: 0, duration: 600, freezeElevation: true });
     }
     writePref('spring-tool-3d', threeD ? 'on' : 'off');
-  }, [threeD, ready]);
+    writePref('spring-tool-height-scale', String(heightScale));
+  }, [threeD, heightScale, ready]);
 
   // the elevation tiles come from the local tool, or from a public copy in the demo
   useEffect(() => {
@@ -267,7 +278,10 @@ export default function MapView(props: Props) {
     if (!map || !ready) return;
     for (const id of ['dem', 'shade']) {
       const src = map.getSource(id) as maplibregl.RasterDEMTileSource | undefined;
-      if (src && src.tiles?.[0] !== props.terrainUrl) src.setTiles([props.terrainUrl]);
+      if (src && src.tiles?.[0] !== props.terrainUrl) {
+        setTerrainState('loading');
+        src.setTiles([props.terrainUrl]);
+      }
     }
   }, [props.terrainUrl, ready]);
 
@@ -436,7 +450,17 @@ export default function MapView(props: Props) {
           {BASES.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
         </select>
       </div>
-      {threeD && <div className="map-tip">Right-drag (or Ctrl + drag) to tilt and turn. Heights are shown 1.5 times.</div>}
+      {threeD && <div className="map-tip" role="status">
+        <label>Hill height display <select aria-label="Hill height display" value={heightScale}
+          onChange={(e) => setHeightScale(Number(e.target.value))}>
+          <option value="1">True scale (1×)</option>
+          <option value="1.5">1.5×</option>
+          <option value="3">Stronger relief (3×)</option>
+        </select></label>
+        <div>{terrainState === 'ready' ? 'Elevation tiles loaded. Right-drag (or Ctrl + drag) to tilt and turn.'
+          : terrainState === 'error' ? 'Some hill heights could not load. Refresh to retry.' : 'Loading hill heights…'}</div>
+        {heightScale !== 1 && <div>Heights are visually enlarged; assessment calculations are unchanged.</div>}
+      </div>}
 
       {placing !== 'none' && (
         <div className={`map-hint${props.canCancel ? '' : ' map-hint-soft'}`} role="status">

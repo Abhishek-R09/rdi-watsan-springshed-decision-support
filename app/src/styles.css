@@ -247,8 +247,9 @@ input[type='range'] { width: 100%; accent-color: var(--water); margin: 6px 0 0; 
 .map-switch select { border: 1px solid var(--line); border-radius: 7px; padding: 4px 6px; font: inherit; font-size: 13px; background: #fff; color: var(--ink); }
 .map-tip {
   position: absolute; top: 52px; left: 10px; z-index: 890; max-width: 260px; padding: 4px 9px; border-radius: 8px;
-  background: rgba(255, 255, 255, 0.88); color: var(--ink-2); font-size: 12px; pointer-events: none;
+  background: rgba(255, 255, 255, 0.88); color: var(--ink-2); font-size: 12px;
 }
+.map-tip select { font: inherit; margin: 2px 0 4px; max-width: 100%; }
 .map-wrap.placing .map-tip { display: none; }
 .zone-tag {
   padding: 2px 8px; border-radius: 999px; background: #1f7a45; color: #fff; font-weight: 750; font-size: 12.5px;

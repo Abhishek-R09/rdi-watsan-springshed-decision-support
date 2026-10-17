@@ -36,7 +36,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SNAPSHOTS = ROOT / "data" / "02_processed" / "snapshots" / "module_a"
+SNAPSHOTS = Path(os.environ.get("SPRING_SNAPSHOT_DIR", str(ROOT / "data" / "02_processed" / "snapshots" / "module_a")))
 ACTIVE = SNAPSHOTS / "active.json"
 FEATURES_CSV = ROOT / "data" / "02_processed" / "spring_features" / "spring_features_v1.csv"
 REPO_FILES = [  # Module A: the comparison table, the weights and the input/test split

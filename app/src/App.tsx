@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { AssessResponse, DatasetSpring, Health } from './api';
+import type { AssessRequest, AssessResponse, DatasetSpring, Health } from './api';
 import { assess, getHealth, getSprings } from './api';
 import { DEMO_SPRING, MOCK_HEALTH, demoDiSites, mockAssess, mockSprings } from './mock';
 import { emptyForm, loadForm, newSiteId, saveForm, springPoint, toRequest, type FormState } from './form';
@@ -8,7 +8,8 @@ import MapView, { type Focus, type Placing, type Tab } from './components/MapVie
 import Results, { HowItWorks } from './components/Results';
 import PrintReport from './components/PrintReport';
 
-type Mode = 'checking' | 'live' | 'demo';
+type Mode = 'checking' | 'live' | 'demo' | 'unavailable';
+const ALLOW_DEMO = import.meta.env.VITE_ALLOW_DEMO !== 'false';
 // Elevation tiles for the 3D map: the tool serves them from its own map files; the demo uses a public copy.
 const LIVE_TERRAIN = '/api/terrain/{z}/{x}/{y}.png?v=2'; // v: bump when the tiles change, so browsers drop old copies
 const DEMO_TERRAIN = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
@@ -37,6 +38,7 @@ export default function App() {
   const [running, setRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState('');
+  const [resultRequest, setResultRequest] = useState<AssessRequest | null>(null);
   const [focus, setFocus] = useState<Focus | null>(null);
   const focusN = useRef(0);
   const mapRef = useRef<HTMLDivElement>(null);
@@ -60,8 +62,8 @@ export default function App() {
       }
     } catch {
       setHealth(MOCK_HEALTH);
-      setMode('demo');
-      setSprings(mockSprings());
+      setMode(ALLOW_DEMO ? 'demo' : 'unavailable');
+      setSprings(ALLOW_DEMO ? mockSprings() : []);
       setSpringsError('');
     }
   }, []);
@@ -140,7 +142,7 @@ export default function App() {
   const step = mode === 'demo' ? Math.min(2, Math.floor(elapsed / 0.8)) : elapsed < 4 ? 0 : elapsed < 15 ? 1 : 2;
 
   const run = async () => {
-    if (!request || running) return;
+    if (!request || running || (mode !== 'live' && mode !== 'demo')) return;
     setRunning(true);
     setError('');
     setPlacing('none');
@@ -149,6 +151,7 @@ export default function App() {
         ? await assess(request)
         : await new Promise<AssessResponse>((ok) => setTimeout(() => ok(mockAssess(request)), 2400));
       setResult(r);
+      setResultRequest(request);
       setResultKey(JSON.stringify(request));
       setTab('A');
       if (window.innerWidth < 900) setTimeout(() => mapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
@@ -188,6 +191,22 @@ export default function App() {
           <button type="button" className="btn btn-small" onClick={() => void connect()}>Try again</button>
         </div>
       )}
+      {mode === 'unavailable' && (
+        <div className="demo-banner" role="alert">
+          <span>The assessment service is unavailable or still starting. Please reconnect before assessing a spring.</span>
+          <button type="button" className="btn btn-small" onClick={() => void connect()}>Reconnect</button>
+        </div>
+      )}
+      {result?.persistence?.durable === false && (
+        <div className="demo-banner" role="alert">
+          <span>This assessment has not been saved to the pilot archive. Download a copy before leaving this page.</span>
+          <button type="button" className="btn btn-small" onClick={() => {
+            const url = URL.createObjectURL(new Blob([JSON.stringify({ request: resultRequest, result }, null, 2)], { type: 'application/json' }));
+            const link = document.createElement('a'); link.href = url; link.download = `${result.run_id}.json`; link.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+          }}>Download assessment</button>
+        </div>
+      )}
 
       <div className="layout">
         <aside className="panel" aria-label="Inputs">
@@ -215,7 +234,7 @@ export default function App() {
             ) : error ? (
               <p className="msg msg-error">Something went wrong: {error}</p>
             ) : null}
-            <button type="button" className="btn btn-primary btn-big" onClick={run} disabled={!request || running || mode === 'checking'}>
+            <button type="button" className="btn btn-primary btn-big" onClick={run} disabled={!request || running || mode === 'checking' || mode === 'unavailable'}>
               {running ? <><span className="spinner" aria-hidden="true" /> Working…</> : result && !stale ? 'Assess again' : 'Assess this spring'}
             </button>
             {!request && <p className="hint center">Choose a spring location first.</p>}
@@ -248,6 +267,7 @@ export default function App() {
 
 function StatusPill({ mode, health }: { mode: Mode; health: Health | null }) {
   if (mode === 'checking') return <span className="pill pill-grey">Connecting…</span>;
+  if (mode === 'unavailable') return <span className="pill pill-amber">Service unavailable</span>;
   if (mode === 'demo') return <span className="pill pill-amber" title="The tool server did not answer at /api/health">Demo data</span>;
   return (
     <span className="pill pill-green" title={health?.map_set ? `Map set approved by ${health.map_set.approved_by} on ${health.map_set.approved_at}` : 'No approved map set'}>

@@ -50,7 +50,7 @@ import module_c_di_impact as module_c  # noqa: E402
 
 VERSION = "v1.1 draft (2026-10-16)"
 DIST = ROOT / "app" / "dist"
-RUNS = ROOT / "data" / "03_outputs" / "tool_runs"
+RUNS = Path(os.environ.get("SPRING_RUNS_DIR", str(ROOT / "data" / "03_outputs" / "tool_runs")))
 SPRINGS_CSV = ROOT / "data" / "02_processed" / "spring_master" / "spring_master_v1_clean.csv"
 MAX_BODY = 1 << 20
 MAX_SITES = 50
@@ -75,7 +75,7 @@ class CachedSession:
         key = (round(lat, 6), round(lon, 6), elevation)
         if key not in self.cache:
             self.cache[key] = self.session.features(lat, lon, elevation)
-            while len(self.cache) > 32:
+            while len(self.cache) > int(os.environ.get("SPRING_FEATURE_CACHE", "32")):
                 self.cache.popitem(last=False)
         return self.cache[key]
 
@@ -100,7 +100,7 @@ class Terrain:
         self.lock = threading.Lock()
         self.files = sorted((Path(folder) / "dem").glob("*.tif"))
         self.readers = queue.Queue()
-        for _ in range(self.READERS):
+        for _ in range(max(1, int(os.environ.get("SPRING_TERRAIN_READERS", str(self.READERS))))):
             self.readers.put(self._open())
         self.cache = OrderedDict()
         self.web_dir = Path(folder) / "terrain_web"
@@ -133,7 +133,7 @@ class Terrain:
         png = self._png(heights)
         with self.lock:
             self.cache[key] = png
-            while len(self.cache) > 600:
+            while len(self.cache) > int(os.environ.get("SPRING_TERRAIN_CACHE", "600")):
                 self.cache.popitem(last=False)
         return png
 
@@ -330,7 +330,7 @@ class Tool:
         elevation = outputs["A"]["spring"].get("elevation_m") if outputs["A"].get("spring") else None
         if elevation is None and outputs["B"].get("result"):
             elevation = outputs["B"]["result"]["spring_cell"]["elevation_m"]
-        run_id = f"{datetime.now():%Y%m%d-%H%M%S}-{slug(name)}"
+        run_id = f"{datetime.now():%Y%m%d-%H%M%S-%f}-{slug(name)}"
         response = {"run_id": run_id, "created_at": datetime.now().isoformat(timespec="seconds"),
                     "map_set": self.manifest["snapshot_id"] if self.manifest else "none approved",
                     "spring": {"name": name, "latitude": lat, "longitude": lon, "elevation_m": elevation},
@@ -355,7 +355,7 @@ class Tool:
         try:
             if key not in self.zones:
                 self.zones[key] = module_b.delineate(inputs, self.session)
-                while len(self.zones) > 8:
+                while len(self.zones) > int(os.environ.get("SPRING_ZONE_CACHE", "8")):
                     self.zones.popitem(last=False)
             out["B"] = self.zones[key]
         except Exception as error:

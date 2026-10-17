@@ -188,6 +188,7 @@ export type CResult = {
 };
 
 export type AssessResponse = {
+  persistence?: { durable: boolean; reason?: string; archive_key?: string };
   run_id: string;
   created_at: string;
   map_set: string; // approved map set id, or 'none approved'
@@ -226,7 +227,13 @@ export const DEFAULT_ASSUMPTIONS: DiAssumptions = {
 export async function getHealth(): Promise<Health> {
   const r = await fetch('/api/health');
   if (!r.ok) throw new Error(`Server answered ${r.status}`);
-  return r.json();
+  const health = await r.json();
+  if (health.hosted) {
+    const status = await fetch('/api/status');
+    if (!status.ok) throw new Error(`Server answered ${status.status}`);
+    return status.json();
+  }
+  return health;
 }
 
 export async function getSprings(): Promise<DatasetSpring[]> {

@@ -30,3 +30,7 @@ __pycache__/
 
 # Node packages for the web page (app/dist/ is committed so the laptop needs no Node.js)
 app/node_modules/
+
+# Deployment artefacts can contain licensed geographic data; never commit them.
+deploy/artifacts/
+.deployment-benchmark/

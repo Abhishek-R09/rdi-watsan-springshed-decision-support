@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: spring-health-pilot
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeployTrigger: "off"
+    envVars:
+      - key: SPRING_REQUIRE_ARCHIVE
+        value: "1"
+      - key: SPRING_PILOT_USER
+        value: watsan
+      - key: SPRING_PILOT_PASSWORD
+        sync: false
+      # Private S3-compatible object storage, e.g. an existing institutional bucket.
+      # These are secrets supplied in Render, never committed to Git.
+      - key: SPRING_S3_ENDPOINT
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_DEFAULT_REGION
+        value: auto
+      - key: SPRING_DATA_BUCKET
+        sync: false
+      - key: SPRING_DATA_KEY
+        value: datasets/pilot-v1.tar.gz
+      - key: SPRING_DATA_SHA256
+        sync: false
+      - key: SPRING_RUN_BUCKET
+        sync: false
